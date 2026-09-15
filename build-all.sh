@@ -2,12 +2,13 @@
 #
 # Build the hardened DFIR images: one per-tool image per Linux-viable EZ tool
 # still on .NET (eztool/Dockerfile), the GoDFIR Go tools (goprefetch/, goese/,
-# gorb/), and — on request — the all-in-one image (eztools-all/).
+# gorb/), the DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/),
+# and — on request — the all-in-one image (eztools-all/).
 #
 #   ./build-all.sh                 # every .NET per-tool image + all the Go tools
 #   ./build-all.sh gore mftecmd    # a subset (names case-insensitive)
 #   ./build-all.sh all-in-one      # the single get-sybers/eztools image
-#   ./build-all.sh goprefetch goese gorb
+#   ./build-all.sh byakugan plaso signatures zeek
 #
 # PECmd, SrumECmd, SumECmd and VSCMount cannot parse artifacts on Linux (see
 # README): goprefetch and goese are their Go substitutes. gorb replaces RBCmd
@@ -108,6 +109,32 @@ build_piiat_mem() {
     -f piiat-mem/Dockerfile .
 }
 
+build_byakugan() {
+  # Byakugan MITRE CAR engine, python + a static Go parse binary. Context is the
+  # repo root so hardening/harden.yml and byakugan/byakugan-entry.py are in
+  # reach; the engine is cloned RECURSIVELY at build time at BYAKUGAN_REF
+  # (default main here — DX_DFIR passes its sources.yml pin).
+  echo "==> get-sybers/byakugan (python, MITRE CAR engine, cloned at BYAKUGAN_REF)"
+  docker build -t get-sybers/byakugan:latest \
+    ${BYAKUGAN_REF:+--build-arg BYAKUGAN_REF="${BYAKUGAN_REF}"} \
+    -f byakugan/Dockerfile .
+}
+
+build_plaso() {
+  echo "==> get-sybers/plaso (python, pinned-PyPI Plaso + psort wrapper)"
+  docker build -t get-sybers/plaso:latest -f plaso/Dockerfile .
+}
+
+build_signatures() {
+  echo "==> get-sybers/signatures (YARA + Suricata + Hayabusa detection lane)"
+  docker build -t get-sybers/signatures:latest -f signatures/Dockerfile .
+}
+
+build_zeek() {
+  echo "==> get-sybers/zeek (Zeek LTS, offline capture parsing)"
+  docker build -t get-sybers/zeek:latest -f zeek/Dockerfile .
+}
+
 build_all_in_one() {
   echo "==> get-sybers/eztools (all-in-one, eztools-all/Dockerfile)"
   docker build -t get-sybers/eztools:latest -f eztools-all/Dockerfile .
@@ -130,6 +157,10 @@ resolve() {
     gojle|jlecmd) build_gojle; return ;;
     gowxt|wxtcmd) build_gowxt; return ;;
     piiat-mem|piiatmem|volatility|memory) build_piiat_mem; return ;;
+    byakugan|mitrecar|car) build_byakugan; return ;;
+    plaso|log2timeline|psort) build_plaso; return ;;
+    signatures|yara|suricata|hayabusa) build_signatures; return ;;
+    zeek) build_zeek; return ;;
     all-in-one|eztools|all) build_all_in_one; return ;;
     vscmount)
       echo "VSCMount manipulates the Windows VSS device namespace and has no" >&2
@@ -143,7 +174,7 @@ resolve() {
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt piiat-mem all-in-one" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt piiat-mem byakugan plaso signatures zeek all-in-one" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -165,5 +196,9 @@ else
   build_gojle
   build_gowxt
   build_piiat_mem
+  build_byakugan
+  build_plaso
+  build_signatures
+  build_zeek
 fi
 echo "done."
