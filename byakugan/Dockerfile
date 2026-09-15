@@ -34,7 +34,12 @@ FROM ${GO_BASE} AS engine
 ARG BYAKUGAN_REPO
 ARG BYAKUGAN_REF
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOFLAGS=-trimpath
+# git + CA certs installed explicitly (like piiat-mem) — never assume the
+# golang base happens to ship them.
 RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends git ca-certificates; \
+    rm -rf /var/lib/apt/lists/*; \
     git clone "${BYAKUGAN_REPO}" /src; \
     git -C /src checkout "${BYAKUGAN_REF}"; \
     git -C /src submodule update --init --recursive; \
