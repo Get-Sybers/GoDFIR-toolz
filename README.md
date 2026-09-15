@@ -582,6 +582,52 @@ into a throwaway dir and removed with its whole dependency closure. The batch
 mode ideally belongs upstream in PIIAT-Mem (`piiat-mem --batch <dir>`); until it
 grows one, this image carries the orchestrator.
 
+## DX_DFIR pipeline images — `byakugan`, `plaso`, `signatures`, `zeek`
+
+The remaining DX_DFIR lane images live here too (moved from DX_DFIR's `docker/`
+— that repo now keeps only its Elastic stack). Like `piiat-mem`, they build with
+the **repo root as context**, so each consumes the canonical
+`hardening/harden.yml` directly — no synced copy — and every one follows the
+`get-sybers/*` namespace and [the hardening contract](#the-hardening-contract).
+
+- **`get-sybers/byakugan`** (`byakugan/Dockerfile`) — the external
+  [Byakugan](https://github.com/Get-Sybers/byakugan) MITRE CAR engine in one
+  hardened python image (plus a static Go parse binary). The engine is cloned
+  **recursively** at build time at `--build-arg BYAKUGAN_REF` (its nested
+  `third_party/car` + `attack-datasources` submodules rebuild the object model;
+  DX_DFIR passes its `sources.yml` pin, default `main` here).
+
+  ```
+  docker build -t get-sybers/byakugan:latest \
+    --build-arg BYAKUGAN_REF=<40-hex sha> -f byakugan/Dockerfile .
+  ```
+
+- **`get-sybers/plaso`** (`plaso/Dockerfile`) — minimal hardened
+  [Plaso](https://github.com/log2timeline/plaso) at a pinned PyPI release
+  (`PLASO_VERSION`), three entry tools plus the psort wrapper.
+
+  ```
+  docker build -t get-sybers/plaso:latest -f plaso/Dockerfile .
+  ```
+
+- **`get-sybers/signatures`** (`signatures/Dockerfile`) — the whole detection
+  lane in one image: YARA + Suricata (Debian) + Hayabusa (pinned release zip,
+  sha256-verified).
+
+  ```
+  docker build -t get-sybers/signatures:latest -f signatures/Dockerfile .
+  ```
+
+- **`get-sybers/zeek`** (`zeek/Dockerfile`) — Zeek LTS from the OpenSUSE
+  `security:zeek` repo, stripped to the zeek binary + scripts for offline
+  capture parsing; zeek is the pinned ENTRYPOINT.
+
+  ```
+  docker build -t get-sybers/zeek:latest -f zeek/Dockerfile .
+  ```
+
+Or via the orchestrator: `./build-all.sh byakugan plaso signatures zeek`.
+
 ## License
 
 MIT (this recipe and the Go tools). Eric Zimmerman's tools are themselves
