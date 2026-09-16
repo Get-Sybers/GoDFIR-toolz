@@ -1,8 +1,7 @@
 # `get-sybers/gowxt` — gowxt (replaces WxTCmd)
 
-Like RBCmd/MFTECmd, WxTCmd parses on Linux under .NET; this substitute drops the
-.NET runtime with a static Go binary on `modernc.org/sqlite` (pure Go, no cgo).
-It reads the Windows Timeline **ActivitiesCache.db** and emits WxTCmd's Activity
+Static Go binary on `modernc.org/sqlite` (pure Go, no cgo). Reads the
+Windows Timeline **ActivitiesCache.db** and emits WxTCmd's Activity
 columns — the executable (from the `AppId` JSON), DisplayText / ContentInfo (from
 the `Payload` JSON), the Start/End/LastModified/Expiration timestamps
 (ActivitiesCache stamps Unix seconds → RFC3339 UTC), Duration and ActivityType —

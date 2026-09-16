@@ -1,7 +1,6 @@
 # `get-sybers/gojle` — gojle (replaces JLECmd)
 
-JLECmd parses on Linux under .NET; this substitute drops the .NET runtime with a
-static Go binary that reads AutomaticDestinations (`*.automaticDestinations-ms`,
+Static Go binary reading AutomaticDestinations (`*.automaticDestinations-ms`,
 an OLE compound file, via `richardlehane/mscfb`) and their `DestList` stream. It
 emits one record per jump-list file in the JLECmd AutomaticDestinations shape
 byakugan's `jlecmd_dest` map / `jlecmd` adapter consume: `AppId`

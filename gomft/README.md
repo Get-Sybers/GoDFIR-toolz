@@ -1,8 +1,6 @@
 # `get-sybers/gomft` — gomft (replaces MFTECmd)
 
-Like RBCmd, MFTECmd parses on Linux under .NET; this substitute drops the .NET
-runtime with a static Go binary on Velociraptor's `go-ntfs`. It parses a raw
-`$MFT` and emits one record per entry — entry/sequence, parent reference, file
+Static Go binary on Velociraptor's `go-ntfs`. Parses a raw `$MFT` and emits one record per entry — entry/sequence, parent reference, file
 name + extension, size, the `$STANDARD_INFORMATION` (0x10) and `$FILE_NAME`
 (0x30) MACB timestamps, flags and ADS — as JSONL or CSV, mirroring MFTECmd's
 columns. Fields go-ntfs does not expose (ReparseTarget, SecurityId, ObjectId,

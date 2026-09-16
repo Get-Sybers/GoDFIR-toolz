@@ -1,8 +1,6 @@
 # `get-sybers/gole` — gole (replaces LECmd)
 
-Like the other Linux-viable tools, LECmd parses on Linux under .NET; this
-substitute drops the .NET runtime with a static Go binary on `parsiya/golnk`. It
-parses Windows Shell Link (`.lnk`) files and emits one record per shortcut in the
+Static Go binary on `parsiya/golnk`. Parses Windows Shell Link (`.lnk`) files and emits one record per shortcut in the
 LECmd operator/CSV shape — target `Created`/`Modified`/`Accessed`, `FileSize`,
 `LocalPath`, `RelativePath`, `WorkingDirectory`, `Arguments`, `IconLocation`,
 `CommonPath`, and the decoded `HeaderFlags`/`FileAttributes` sets — as JSONL or

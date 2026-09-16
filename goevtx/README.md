@@ -1,8 +1,6 @@
 # `get-sybers/goevtx` — goevtx (replaces EvtxECmd)
 
-Like RBCmd/MFTECmd, EvtxECmd parses on Linux under .NET; this substitute drops
-the .NET runtime with a static Go binary on Velociraptor's `go-evtx`. It parses
-`.evtx` and emits one JSON record per event in the EvtxECmd `*.json` shape the
+Static Go binary on Velociraptor's `go-evtx`. Parses `.evtx` and emits one JSON record per event in the EvtxECmd `*.json` shape the
 DX_DFIR evtx lane and byakugan's winevt/evtx maps consume — `EventId`,
 `Provider`, `Channel`, `Computer`, `EventRecordId`, `TimeCreated`, `Level`,
 `UserId`, and `Payload` (the event's EventData rendered as the classic

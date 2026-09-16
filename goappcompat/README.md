@@ -1,8 +1,7 @@
 # `get-sybers/goappcompat` — goappcompat (replaces AppCompatCacheParser)
 
-Like RBCmd/MFTECmd, AppCompatCacheParser parses on Linux under .NET; this
-substitute drops the .NET runtime with a static Go binary on Velociraptor's
-`regparser` (and its `appcompatcache` subpackage). It reads the AppCompatCache
+Static Go binary on Velociraptor's `regparser` (and its `appcompatcache`
+subpackage). Reads the AppCompatCache
 (ShimCache) value from a SYSTEM hive and emits one record per entry — ControlSet,
 CacheEntryPosition, Path, LastModifiedTimeUTC, SourceFile — as CSV or JSONL. The
 .NET tool's Executed/Duplicate columns are not emitted (regparser's shimcache
@@ -16,7 +15,7 @@ goappcompat recovers a copy (applies the journalled dirty pages via
 `regparser.RecoverHive`) into `--work-dir` and parses that, matching the .NET
 tool's fidelity. The recovered copy needs a **writable** work dir — the rootfs is
 read-only, so mount a tmpfs and point `--work-dir` at it (`--tmpfs /tmp:...`; the
-zimmerman lane wires this, like wxtcmd). No logs / unwritable work dir / recovery
+godfir-toolz lane wires this, like wxtcmd). No logs / unwritable work dir / recovery
 error → it falls back to the committed hive with a one-line note (never
 hard-fails).
 
