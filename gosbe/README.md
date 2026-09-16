@@ -1,4 +1,4 @@
-# `get-sybers/gosbe` — gosbe (replaces SBECmd)
+# `get-sybers/gosbe` — ShellBags (BagMRU) parser
 
 Static Go binary on `regparser`. Walks the **BagMRU** tree in
 `NTUSER.DAT` / `UsrClass.dat` (all the Shell / ShellNoRoam roots), decodes the
@@ -26,7 +26,7 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   --read-only --tmpfs /work:rw,nosuid,nodev,uid=2000,gid=2000 \
   -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
   get-sybers/gosbe:latest -d /input --json /output \
-  --jsonf SBECmd_Output.json --work-dir /work
+  --jsonf shellbags.json --work-dir /work
 ```
 
 **Dirty hives:** a dirty hive needs its transaction LOGs (`.LOG1`/`.LOG2`)

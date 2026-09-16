@@ -1,27 +1,27 @@
 # syntax=docker/dockerfile:1
 #
-# Parameterized Eric Zimmerman tool image for the DX_DFIR pipeline — the SAME
-# recipe as docker/evtxecmd (fetch the published .NET release at build time,
-# bake into a minimal-hardened .NET runtime, tool as the pinned ENTRYPOINT),
-# generalized over the tool name so every EZ tool builds identically:
+# Parameterized .NET tool image for the DX_DFIR pipeline — fetch a published
+# .NET tool release at build time, bake it into a minimal-hardened .NET
+# runtime, tool as the pinned ENTRYPOINT — generalized over the tool name so
+# every remaining .NET tool builds identically:
 #
-#   docker build -t get-sybers/recmd:latest --build-arg EZTOOL=RECmd \
-#     -f docker/eztool/Dockerfile docker
-#   docker build -t get-sybers/srumecmd:latest --build-arg EZTOOL=SrumECmd \
-#     -f docker/eztool/Dockerfile docker
+#   docker build -t get-sybers/sqlecmd:latest --build-arg EZTOOL=SQLECmd \
+#     -f eztool/Dockerfile .
+#   docker build -t get-sybers/bstrings:latest --build-arg EZTOOL=bstrings \
+#     -f eztool/Dockerfile .
 #
 # Pin the release (recommended):
 #   --build-arg EZTOOL_SHA256=<sha256 of <EZTOOL>.zip>
 #
-# The whole release directory is kept — tools that ship data sets alongside the
-# DLL (RECmd's BatchExamples/, SQLECmd's Maps/) keep them at
-# /opt/eztool/<that dir>, reachable from the caller's flags. The .exe stub is
-# dropped (the DLL is the entrypoint). EZ tools are MIT-licensed; this fetches
-# the published release at build time — a recipe, not a committed binary.
+# The whole release directory is kept — a tool that ships data sets alongside
+# its DLL (SQLECmd's Maps/) keeps them at /opt/eztool/<that dir>, reachable
+# from the caller's flags. The .exe stub is dropped (the DLL is the
+# entrypoint). The upstream tools are MIT-licensed; this fetches the published
+# release at build time — a recipe, not a committed binary.
 #
 # Run (the caller supplies only the flags — the DLL is the entrypoint):
 #   docker run --rm -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-#     get-sybers/recmd:latest -d /input --bn /opt/eztool/BatchExamples/... --csv /output
+#     get-sybers/sqlecmd:latest -f /input/History --csv /output
 
 ARG DOTNET_VERSION=9.0
 ARG EZTOOL=EvtxECmd
@@ -36,19 +36,19 @@ ARG EZTOOL_URL
 ARG EZTOOL_SHA256=""
 ARG EZTOOL_ALLOW_WINDOWS_ONLY=""
 RUN set -eux; \
-    # Fail FAST on the four Windows-bound tools — run on Linux each prints a
-    # refusal and exits 0: PECmd (Windows decompression libraries), SrumECmd
-    # and SumECmd (esent.dll via ManagedEsent), VSCMount (the Windows VSS
-    # device namespace; on Linux, mount VSCs with libvshadow on the host).
-    # Substitutes: goprefetch/ (PECmd), goese/ (SrumECmd, SumECmd). Set
+    # Fail FAST on the four Windows-bound release binaries (the case arm
+    # below) — run on Linux each prints a refusal and exits 0, so a build
+    # would ship a parser that silently produces nothing. The pipeline's own
+    # Go parsers cover those artefact classes (goprefetch/, goese/), and VSCs
+    # are mounted with libvshadow on the host. Set
     # EZTOOL_ALLOW_WINDOWS_ONLY=1 to build anyway (e.g. to extract a release).
     tool_lc="$(printf '%s' "${EZTOOL}" | tr '[:upper:]' '[:lower:]')"; \
     case "${tool_lc}" in \
         pecmd|srumecmd|sumecmd|vscmount) \
             if [ "${EZTOOL_ALLOW_WINDOWS_ONLY}" != "1" ]; then \
                 echo "ERROR: ${EZTOOL} cannot parse artifacts on Linux (Windows-native" >&2; \
-                echo "dependency). Use the goprefetch/ or goese/ image instead, or set" >&2; \
-                echo "--build-arg EZTOOL_ALLOW_WINDOWS_ONLY=1 to build it anyway." >&2; \
+                echo "dependency). The pipeline's own Go parsers cover this artefact class;" >&2; \
+                echo "set --build-arg EZTOOL_ALLOW_WINDOWS_ONLY=1 to build it anyway." >&2; \
                 exit 1; \
             fi ;; \
     esac; \

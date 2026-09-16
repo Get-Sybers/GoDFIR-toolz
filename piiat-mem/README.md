@@ -1,6 +1,6 @@
 # Memory forensics — `get-sybers/piiat-mem`
 
-Beyond the EZ CLI family, this repo also builds **`get-sybers/piiat-mem`**
+This repo builds **`get-sybers/piiat-mem`**
 (`piiat-mem/Dockerfile`): [PIIAT-Mem](https://github.com/Get-Sybers/PIIAT-Mem)
 (Volatility 3 memory forensics) fused into one hardened python image. Volatility
 runs **in-process** via piiat_mem's `--native` backend — confined by the image,

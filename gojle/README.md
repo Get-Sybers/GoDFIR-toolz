@@ -1,9 +1,9 @@
-# `get-sybers/gojle` — gojle (replaces JLECmd)
+# `get-sybers/gojle` — jump list (AutomaticDestinations) parser
 
 Static Go binary reading AutomaticDestinations (`*.automaticDestinations-ms`,
 an OLE compound file, via `richardlehane/mscfb`) and their `DestList` stream. It
-emits one record per jump-list file in the JLECmd AutomaticDestinations shape
-that byakugan's `jlecmd_dest` map / `jlecmd` adapter consume: `AppId`
+emits one record per jump-list file in the AutomaticDestinations record shape
+that byakugan's `jlecmd_dest` map consumes: `AppId`
 (with the well-known friendly name), `SourceFile`, and the per-target
 `DestListEntries` — `Path`, `EntryNumber`, `CreatedOn` (recovered from each
 entry's embedded LNK stream), `LastModified`, `Hostname`, `InteractionCount`,
@@ -20,5 +20,5 @@ hostname `desktop-b2lequd`, pinned/known-folder flags and the creating host's MA
 docker build -t get-sybers/gojle:latest -f gojle/Dockerfile gojle
 docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   --read-only -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-  get-sybers/gojle:latest -d /input --json /output --jsonf JLECmd_Output.json
+  get-sybers/gojle:latest -d /input --json /output --jsonf jumplists.json
 ```

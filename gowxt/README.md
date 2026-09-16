@@ -1,13 +1,13 @@
-# `get-sybers/gowxt` — gowxt (replaces WxTCmd)
+# `get-sybers/gowxt` — Windows Timeline (ActivitiesCache.db) parser
 
 Static Go binary on `modernc.org/sqlite` (pure Go, no cgo). Reads the
-Windows Timeline **ActivitiesCache.db** and emits WxTCmd's Activity
-columns — the executable (from the `AppId` JSON), DisplayText / ContentInfo (from
+Windows Timeline **ActivitiesCache.db** and emits one record per `Activity`
+row — the executable (from the `AppId` JSON), DisplayText / ContentInfo (from
 the `Payload` JSON), the Start/End/LastModified/Expiration timestamps
 (ActivitiesCache stamps Unix seconds → RFC3339 UTC), Duration and ActivityType —
-as CSV or JSONL. It covers the `Activity` table (the timeline core); columns WxTCmd
-derives from other providers, or that a given Windows build's schema doesn't
-carry, are omitted, never faked.
+as CSV or JSONL. It covers the `Activity` table (the timeline core); columns derived from
+other providers, or that a given Windows build's schema doesn't carry, are
+omitted, never faked.
 
 SQLite needs a writable working area, but the input is mounted read-only under a
 read-only rootfs, so gowxt copies the DB into `--work-dir` (a **tmpfs**), falling
