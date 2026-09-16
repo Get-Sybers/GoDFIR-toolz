@@ -48,6 +48,5 @@ LABEL org.opencontainers.image.title="get-sybers/gomft" \
       org.opencontainers.image.description="Linux-native Windows \$MFT parser (static Go, go-ntfs): parses a raw \$MFT to JSONL/CSV (entry/parent refs, name, size, \$SI/\$FN MACB timestamps, flags, ADS) — a .NET-free substitute for MFTECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/go-ntfs" \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="gomft" \
-      com.get-sybers.eztool.substitute-for="MFTECmd" \
+      com.get-sybers.tool="gomft" \
       com.get-sybers.hardened="true"

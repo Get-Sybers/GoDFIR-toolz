@@ -8,7 +8,7 @@ renamed+locked, runs as uid 2000.
 Every image's full documentation (what it parses, build one-liner, run shape,
 flags, verification evidence) lives in a `README.md` **inside the directory
 that builds it** — the remaining `.NET`-based per-tool images share
-[`eztool/`](eztool/README.md), their one recipe — and this page is the index.
+[`godfir-tool/`](godfir-tool/README.md), their one recipe — and this page is the index.
 
 ## The Go parsers (FROM scratch, a few MB, no runtime at all)
 
@@ -51,19 +51,15 @@ the canonical `hardening/harden.yml` directly — no synced copy.
 
 ## The .NET images
 
-- [eztool/](eztool/README.md) — one parameterized Dockerfile building the
+- [godfir-tool/](godfir-tool/README.md) — one parameterized Dockerfile building the
   remaining `.NET`-based per-tool images (`sqlecmd`, `bstrings`,
   `iisgeolocate`, `recentfilecacheparser`, `rla`)
-- [eztools-all/](eztools-all/README.md) — the all-in-one image
-  (`get-sybers/eztools`): those .NET tools behind a static Go launcher,
-  selected at run time
 
 ## Building
 
 ```sh
 ./build-all.sh                              # every image: .NET per-tool + Go parsers + pipeline images
 ./build-all.sh gore gomft                   # a subset (names case-insensitive)
-./build-all.sh all-in-one                   # the single get-sybers/eztools image
 ./build-all.sh byakugan plaso signatures zeek
 ```
 
@@ -127,7 +123,7 @@ what the DX_DFIR pipeline's image role does after every build.
 
 ## License
 
-MIT (this recipe and the Go parsers). The `eztool/`-built images fetch Eric
+MIT (this recipe and the Go parsers). The `godfir-tool/`-built images fetch Eric
 Zimmerman's tools from their published releases at build time — the upstream
 tools are themselves MIT-licensed (attribution kept here for that reason);
 `go-prefetch` and `go-ese` are Velociraptor components fetched as pinned Go

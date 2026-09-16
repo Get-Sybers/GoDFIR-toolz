@@ -46,6 +46,5 @@ LABEL org.opencontainers.image.title="get-sybers/goevtx" \
       org.opencontainers.image.description="Linux-native Windows Event Log (.evtx) parser (static Go, go-evtx): emits the EvtxECmd JSON shape (EventId/Channel/Computer/Provider/EventRecordId/TimeCreated + Payload EventData.Data[@Name/#text]) — a .NET-free substitute for EvtxECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/evtx" \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="goevtx" \
-      com.get-sybers.eztool.substitute-for="EvtxECmd" \
+      com.get-sybers.tool="goevtx" \
       com.get-sybers.hardened="true"

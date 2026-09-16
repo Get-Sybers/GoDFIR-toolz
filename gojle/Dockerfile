@@ -49,6 +49,5 @@ ENTRYPOINT ["/gojle"]
 LABEL org.opencontainers.image.title="get-sybers/gojle" \
       org.opencontainers.image.description="Linux-native Windows Jump List parser (static Go): parses AutomaticDestinations OLE + DestList to the JLECmd AutomaticDestinations JSON shape byakugan consumes — a .NET-free substitute for JLECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="gojle" \
-      com.get-sybers.eztool.substitute-for="JLECmd" \
+      com.get-sybers.tool="gojle" \
       com.get-sybers.hardened="true"

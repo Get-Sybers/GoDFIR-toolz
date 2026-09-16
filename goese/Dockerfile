@@ -58,6 +58,5 @@ ENTRYPOINT ["/goese"]
 LABEL org.opencontainers.image.title="get-sybers/goese" \
       org.opencontainers.image.description="Linux-native ESE database dumper (static Go, go-ese): parses SRUM (SRUDB.dat) with IdMap/SID enrichment and SUM (Current.mdb) databases that SrumECmd/SumECmd refuse off-Windows. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="goese" \
-      com.get-sybers.eztool.substitute-for="SrumECmd,SumECmd" \
+      com.get-sybers.tool="goese" \
       com.get-sybers.hardened="true"

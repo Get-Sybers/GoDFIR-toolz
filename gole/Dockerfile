@@ -46,6 +46,5 @@ ENTRYPOINT ["/gole"]
 LABEL org.opencontainers.image.title="get-sybers/gole" \
       org.opencontainers.image.description="Linux-native Windows Shortcut (.lnk) parser (static Go): parses Shell Link files to CSV/JSONL (target times, LocalPath, RelativePath, WorkingDir, Arguments, flag sets) — a .NET-free substitute for LECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="gole" \
-      com.get-sybers.eztool.substitute-for="LECmd" \
+      com.get-sybers.tool="gole" \
       com.get-sybers.hardened="true"

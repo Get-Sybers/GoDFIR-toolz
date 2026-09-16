@@ -1,6 +1,6 @@
-# eztool/ — one parameterized Dockerfile for the remaining .NET tool images (`get-sybers/<tool>`)
+# godfir-tool/ — one parameterized Dockerfile for the remaining .NET tool images (`get-sybers/<tool>`)
 
-`eztool/Dockerfile` fetches a published .NET tool release at build time (a
+`godfir-tool/Dockerfile` fetches a published .NET tool release at build time (a
 recipe, not a committed binary — the upstream tools are MIT-licensed; see the
 [licence note](../README.md#license)), verifies an optional SHA-256 pin, bakes
 it into the official .NET runtime, runs the shared Ansible hardener
@@ -21,15 +21,15 @@ The five images still built this way, and their status:
 
 Four Windows-bound release binaries refuse to parse off-Windows; the
 Dockerfile fails fast if asked to build one (the pipeline's own Go parsers
-cover those artefact classes — `--build-arg EZTOOL_ALLOW_WINDOWS_ONLY=1`
+cover those artefact classes — `--build-arg GODFIR_TOOL_ALLOW_WINDOWS_ONLY=1`
 overrides, e.g. to unpack a release).
 
 ```sh
-docker build -t get-sybers/sqlecmd:latest  --build-arg EZTOOL=SQLECmd  -f eztool/Dockerfile .
-docker build -t get-sybers/bstrings:latest --build-arg EZTOOL=bstrings -f eztool/Dockerfile .
+docker build -t get-sybers/sqlecmd:latest  --build-arg GODFIR_TOOL=SQLECmd  -f godfir-tool/Dockerfile .
+docker build -t get-sybers/bstrings:latest --build-arg GODFIR_TOOL=bstrings -f godfir-tool/Dockerfile .
 # pin the release:
-docker build -t get-sybers/sqlecmd:latest  --build-arg EZTOOL=SQLECmd \
-  --build-arg EZTOOL_SHA256=<sha256 of SQLECmd.zip> -f eztool/Dockerfile .
+docker build -t get-sybers/sqlecmd:latest  --build-arg GODFIR_TOOL=SQLECmd \
+  --build-arg GODFIR_TOOL_SHA256=<sha256 of SQLECmd.zip> -f godfir-tool/Dockerfile .
 # or everything at once:
 ./build-all.sh
 ```

@@ -51,6 +51,5 @@ ENTRYPOINT ["/goprefetch"]
 LABEL org.opencontainers.image.title="get-sybers/goprefetch" \
       org.opencontainers.image.description="Linux-native Windows Prefetch parser (static Go, go-prefetch): parses XP through Win11 .pf including MAM/LZXpress-Huffman compressed files that PECmd refuses off-Windows. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="goprefetch" \
-      com.get-sybers.eztool.substitute-for="PECmd" \
+      com.get-sybers.tool="goprefetch" \
       com.get-sybers.hardened="true"

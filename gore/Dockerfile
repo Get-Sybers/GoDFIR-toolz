@@ -55,6 +55,5 @@ LABEL org.opencontainers.image.title="get-sybers/gore" \
       org.opencontainers.image.description="Linux-native Windows Registry batch parser (static Go, regparser): applies a .reb batch across hives and emits one record per value (HivePath, HiveType, Category, KeyPath, ValueName, ValueType, ValueData, LastWriteTimestamp) as JSONL/CSV for byakugan recmd_batch — a .NET-free substitute for RECmd. Bundles a curated default.reb (NOT Kroll_Batch.reb). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="gore" \
-      com.get-sybers.eztool.substitute-for="RECmd" \
+      com.get-sybers.tool="gore" \
       com.get-sybers.hardened="true"
