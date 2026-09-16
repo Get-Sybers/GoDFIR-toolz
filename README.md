@@ -9,8 +9,9 @@ carries the whole family behind a static launcher; and the tools that
 artefacts natively.
 
 Every image's full documentation (what it parses, build one-liner, run shape,
-flags, verification evidence) lives in a `README.md` **inside that image's
-directory** — this page is the index.
+flags, verification evidence) lives in a `README.md` **inside the directory
+that builds it** — the parameterized `.NET` per-tool images share
+[`eztool/`](eztool/README.md), their one recipe — and this page is the index.
 
 ## Coverage: the full EZ CLI family on Linux
 
