@@ -1,29 +1,21 @@
 #!/usr/bin/env bash
 #
-# Build the hardened DFIR images: one per-tool image per Linux-viable EZ tool
-# still on .NET (godfir-tool/Dockerfile), the GoDFIR Go tools (goprefetch/, goese/,
-# gorb/), and the DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/).
+# Build the hardened DFIR images: the twelve Go parsers (goprefetch/ … gowxt/),
+# one per-tool image per remaining .NET tool (godfir-tool/Dockerfile), and the
+# DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/, piiat-mem/).
 #
-#   ./build-all.sh                 # every .NET per-tool image + all the Go tools
-#   ./build-all.sh gore mftecmd    # a subset (names case-insensitive)
+#   ./build-all.sh                  # everything
+#   ./build-all.sh gore gomft       # a subset (names case-insensitive;
+#                                   # legacy tool-name aliases still resolve)
 #   ./build-all.sh sqlecmd bstrings # the .NET per-tool images by name
 #   ./build-all.sh byakugan plaso signatures zeek
-#
-# PECmd, SrumECmd, SumECmd and VSCMount cannot parse artifacts on Linux (see
-# README): goprefetch and goese are their Go substitutes. gorb replaces RBCmd
-# (Linux-viable under .NET) with a static Go binary to drop the .NET runtime.
-# As each remaining .NET tool is ported to Go it gets a go-name too (RECmd ->
-# gore, SBECmd -> gosbe, WxTCmd -> gowxt, ...) — DX_DFIR #188 initiative 2.
-# Ported so far: MFTECmd -> gomft (go-ntfs), EvtxECmd -> goevtx (go-evtx),
-# Amcache/AppCompatCache -> goamcache/goappcompat, RECmd -> gore, SBECmd -> gosbe
-# (regparser), LECmd -> gole (golnk), JLECmd -> gojle (mscfb), WxTCmd -> gowxt
-# (modernc sqlite), plus gorb/goprefetch/goese.
 set -Eeuo pipefail
 cd "$(dirname "$0")"
 
 # Zip basenames on download.ericzimmermanstools.com/net9/ — casing matters for
-# the download URL, so keep these exactly as published. RECmd, SBECmd and WxTCmd
-# have been ported to Go (gore/gosbe/gowxt) and are no longer built from .NET here.
+# the download URL, so keep these exactly as published. Only the five tools the
+# repo still builds from .NET releases are listed; everything else is a native
+# Go parser.
 LINUX_TOOLS=(
   bstrings iisGeolocate RecentFileCacheParser rla SQLECmd
 )
@@ -38,62 +30,62 @@ build_godfir_tool() {
 }
 
 build_goprefetch() {
-  echo "==> get-sybers/goprefetch (Go, PECmd substitute)"
+  echo "==> get-sybers/goprefetch (Go, Windows prefetch .pf)"
   docker build -t get-sybers/goprefetch:latest -f goprefetch/Dockerfile goprefetch
 }
 
 build_goese() {
-  echo "==> get-sybers/goese (Go, SrumECmd/SumECmd substitute)"
+  echo "==> get-sybers/goese (Go, ESE databases: SRUM / SUM)"
   docker build -t get-sybers/goese:latest -f goese/Dockerfile goese
 }
 
 build_gorb() {
-  echo "==> get-sybers/gorb (Go, RBCmd substitute)"
+  echo "==> get-sybers/gorb (Go, Recycle Bin \$I records)"
   docker build -t get-sybers/gorb:latest -f gorb/Dockerfile gorb
 }
 
 build_gomft() {
-  echo "==> get-sybers/gomft (Go, MFTECmd substitute)"
+  echo "==> get-sybers/gomft (Go, raw \$MFT)"
   docker build -t get-sybers/gomft:latest -f gomft/Dockerfile gomft
 }
 
 build_goamcache() {
-  echo "==> get-sybers/goamcache (Go, AmcacheParser substitute)"
+  echo "==> get-sybers/goamcache (Go, Amcache.hve)"
   docker build -t get-sybers/goamcache:latest -f goamcache/Dockerfile goamcache
 }
 
 build_goappcompat() {
-  echo "==> get-sybers/goappcompat (Go, AppCompatCacheParser substitute)"
+  echo "==> get-sybers/goappcompat (Go, ShimCache from SYSTEM hives)"
   docker build -t get-sybers/goappcompat:latest -f goappcompat/Dockerfile goappcompat
 }
 
 build_goevtx() {
-  echo "==> get-sybers/goevtx (Go, EvtxECmd substitute)"
+  echo "==> get-sybers/goevtx (Go, .evtx event logs)"
   docker build -t get-sybers/goevtx:latest -f goevtx/Dockerfile goevtx
 }
 
 build_gore() {
-  echo "==> get-sybers/gore (Go, RECmd substitute)"
+  echo "==> get-sybers/gore (Go, registry batch dumps)"
   docker build -t get-sybers/gore:latest -f gore/Dockerfile gore
 }
 
 build_gosbe() {
-  echo "==> get-sybers/gosbe (Go, SBECmd substitute)"
+  echo "==> get-sybers/gosbe (Go, ShellBags BagMRU)"
   docker build -t get-sybers/gosbe:latest -f gosbe/Dockerfile gosbe
 }
 
 build_gole() {
-  echo "==> get-sybers/gole (Go, LECmd substitute)"
+  echo "==> get-sybers/gole (Go, .lnk shell links)"
   docker build -t get-sybers/gole:latest -f gole/Dockerfile gole
 }
 
 build_gojle() {
-  echo "==> get-sybers/gojle (Go, JLECmd substitute)"
+  echo "==> get-sybers/gojle (Go, AutomaticDestinations jump lists)"
   docker build -t get-sybers/gojle:latest -f gojle/Dockerfile gojle
 }
 
 build_gowxt() {
-  echo "==> get-sybers/gowxt (Go, WxTCmd substitute)"
+  echo "==> get-sybers/gowxt (Go, Windows Timeline ActivitiesCache.db)"
   docker build -t get-sybers/gowxt:latest -f gowxt/Dockerfile gowxt
 }
 

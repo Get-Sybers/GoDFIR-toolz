@@ -1,5 +1,5 @@
 Description: GoDFIR default batch — high-value persistence/execution/config keys
-Author: GoDFIR-toolz (NOT Eric Zimmerman's Kroll_Batch.reb; supply your own with --bn)
+Author: GoDFIR-toolz (curated default set; supply your own with --bn)
 Keys:
     -
         Description: Run key (per-machine autostart)
