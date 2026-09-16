@@ -17,35 +17,36 @@ that builds it** — the parameterized `.NET` per-tool images share
 
 | Requested tool | Image | Linux status |
 | --- | --- | --- |
-| **AmcacheParser** | **[`get-sybers/goamcache`](goamcache/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (regparser) to drop the .NET runtime — real-hive verified |
-| **AppCompatCacheParser** | **[`get-sybers/goappcompat`](goappcompat/README.md) (Go substitute)** | ✅ Linux-viable under .NET, ported to a static Go binary (regparser) to drop .NET — real-SYSTEM-hive verified |
+| **AmcacheParser** | **[`get-sybers/goamcache`](goamcache/README.md) (Go substitute)** | ✅ static Go binary (regparser) — real-hive verified |
+| **AppCompatCacheParser** | **[`get-sybers/goappcompat`](goappcompat/README.md) (Go substitute)** | ✅ static Go binary (regparser) — real-SYSTEM-hive verified |
 | bstrings | [`get-sybers/bstrings`](eztool/README.md) | ☑️ pure managed .NET — build-verified; parse-verify on first use |
-| **EvtxECmd** | **[`get-sybers/goevtx`](goevtx/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (go-evtx) to drop the .NET runtime — real-.evtx verified end-to-end through byakugan's evtx maps |
+| **EvtxECmd** | **[`get-sybers/goevtx`](goevtx/README.md) (Go substitute)** | ✅ static Go binary (go-evtx) — real-.evtx verified end-to-end through byakugan's evtx maps |
 | iisGeolocate | [`get-sybers/iisgeolocate`](eztool/README.md) | ☑️ pure managed .NET — mount/refresh its GeoLite2 `.mmdb` databases if the release doesn't bundle current ones |
-| **JLECmd** | **[`get-sybers/gojle`](gojle/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (mscfb) to drop the .NET runtime — real jump lists verified end-to-end through byakugan's `jlecmd_dest` map |
-| **LECmd** | **[`get-sybers/gole`](gole/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (golnk) to drop the .NET runtime — real `.lnk` verified |
-| **MFTECmd** | **[`get-sybers/gomft`](gomft/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (go-ntfs) to drop the .NET runtime — real-$MFT verified |
-| **PECmd** | **[`get-sybers/goprefetch`](goprefetch/README.md) (Go substitute)** | ❌ PECmd itself cannot parse on Linux → `goprefetch` parses XP→Win11 `.pf` natively, MAM-compressed included |
-| **RBCmd** | **[`get-sybers/gorb`](gorb/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary to drop the .NET runtime — parses v1/v2 `$I` records |
+| **JLECmd** | **[`get-sybers/gojle`](gojle/README.md) (Go substitute)** | ✅ static Go binary (mscfb) — real jump lists verified end-to-end through byakugan's `jlecmd_dest` map |
+| **LECmd** | **[`get-sybers/gole`](gole/README.md) (Go substitute)** | ✅ static Go binary (golnk) — real `.lnk` verified |
+| **MFTECmd** | **[`get-sybers/gomft`](gomft/README.md) (Go substitute)** | ✅ static Go binary (go-ntfs) — real-$MFT verified |
+| **PECmd** | **[`get-sybers/goprefetch`](goprefetch/README.md) (Go substitute)** | ✅ static Go binary (go-prefetch) — parses XP→Win11 `.pf` natively, MAM-compressed included |
+| **RBCmd** | **[`get-sybers/gorb`](gorb/README.md) (Go substitute)** | ✅ static Go binary — parses v1/v2 `$I` records |
 | RecentFileCacheParser | [`get-sybers/recentfilecacheparser`](eztool/README.md) | ☑️ pure managed .NET — build-verified; parse-verify on first use |
-| **RECmd** | **[`get-sybers/gore`](gore/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (regparser) to drop the .NET runtime — real-hive verified (SYSTEM/SOFTWARE/NTUSER.DAT with `.LOG` replay, through byakugan's `recmd_batch` map) |
+| **RECmd** | **[`get-sybers/gore`](gore/README.md) (Go substitute)** | ✅ static Go binary (regparser) — real-hive verified (SYSTEM/SOFTWARE/NTUSER.DAT with `.LOG` replay, through byakugan's `recmd_batch` map) |
 | RLA | [`get-sybers/rla`](eztool/README.md) | ☑️ pure managed .NET (same Registry library whose LOG replay already works on Linux via goamcache/goappcompat) |
-| **SBECmd** | **[`get-sybers/gosbe`](gosbe/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (regparser) to drop the .NET runtime — real-UsrClass.dat shellbags verified (BagMRU tree, BEEF0004 long names, `.LOG` replay) |
+| **SBECmd** | **[`get-sybers/gosbe`](gosbe/README.md) (Go substitute)** | ✅ static Go binary (regparser) — real-UsrClass.dat shellbags verified (BagMRU tree, BEEF0004 long names, `.LOG` replay) |
 | SQLECmd | [`get-sybers/sqlecmd`](eztool/README.md) | ✅ parse-verified (Maps/ baked in) |
-| **SrumECmd** | **[`get-sybers/goese`](goese/README.md) (Go substitute)** | ❌ SrumECmd cannot parse on Linux → `goese` parses SRUDB.dat natively with IdMap/SID enrichment |
-| **SumECmd** | **[`get-sybers/goese`](goese/README.md) (Go substitute)** | ❌ SumECmd cannot parse on Linux → `goese` reads SUM `Current.mdb` (any ESE database) |
+| **SrumECmd** | **[`get-sybers/goese`](goese/README.md) (Go substitute)** | ✅ static Go binary (go-ese) — parses SRUDB.dat natively with IdMap/SID enrichment |
+| **SumECmd** | **[`get-sybers/goese`](goese/README.md) (Go substitute)** | ✅ static Go binary (go-ese) — reads SUM `Current.mdb` (any ESE database) |
 | **VSCMount** | *(no container possible)* | ❌ manipulates the Windows VSS device namespace; on Linux use libvshadow (`vshadowinfo`/`vshadowmount`) on the host |
-| **WxTCmd** | **[`get-sybers/gowxt`](gowxt/README.md) (Go substitute)** | ✅ Linux-viable under .NET, but ported to a static Go binary (modernc sqlite) to drop the .NET runtime — parses Windows Timeline ActivitiesCache.db |
+| **WxTCmd** | **[`get-sybers/gowxt`](gowxt/README.md) (Go substitute)** | ✅ static Go binary (modernc sqlite) — parses Windows Timeline ActivitiesCache.db |
 
 ### Why three tools are substituted, not packaged
 
 "Installs on Linux" and "parses artefacts on Linux" are different claims.
 Linux installer scripts for the EZ tools set up all 19 and validate them with
-`--help` — which genuinely succeeds for every tool. But the four tools above
-refuse at *parse* time, and (verified against v2026.5.0 built from upstream
-source, run against real artefacts) they print their refusal and **exit 0**,
-so a pipeline that only checks exit codes records a successful run that
-produced nothing:
+`--help` — which genuinely succeeds for every tool. But three of the requested
+tools (PECmd, SrumECmd, SumECmd) refuse at *parse* time, and (verified against
+v2026.5.0 built from upstream source, run against real artefacts) they print
+their refusal and **exit 0**, so a pipeline that only checks exit codes records
+a successful run that produced nothing — and a fourth, VSCMount, cannot work
+off-Windows at all:
 
 - **PECmd** — `Non-Windows platforms not supported due to the need to load
   decompression specific Windows libraries! Exiting...` on *any* input, even
@@ -65,7 +66,11 @@ release), and this repo ships native substitutes instead.
 
 ## The Go substitutes (FROM scratch, a few MB, no runtime at all)
 
-All twelve Go images are `FROM scratch`: one static binary, no shell, no
+Two of these (goprefetch, goese) exist because their three originals cannot
+parse off-Windows (above); the other ten replaced tools that parsed fine under
+.NET — porting to a
+static Go binary drops the ~300 MB .NET runtime from the image (DX_DFIR #188,
+initiative 2). All twelve Go images are `FROM scratch`: one static binary, no shell, no
 python, no libc, `USER 2000:2000` — the hardening contract holds by
 construction, and the `docker export` scan verifies it the same way as for
 the .NET images. Each one's docs:

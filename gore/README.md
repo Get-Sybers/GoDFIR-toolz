@@ -1,8 +1,6 @@
 # `get-sybers/gore` — gore (replaces RECmd)
 
-Like the other registry tools, RECmd parses on Linux under .NET; this substitute
-drops the .NET runtime with a static Go binary on Velociraptor's `regparser`. It
-reads a **batch file** (`.reb` YAML: a list of keys with `HiveType`, `Category`,
+Static Go binary on Velociraptor's `regparser`. Reads a **batch file** (`.reb` YAML: a list of keys with `HiveType`, `Category`,
 `KeyPath`, `ValueName`, `Recursive`, `Comment`), walks each requested key in each
 hive under `-d` (hives content-detected by their `regf` header, `HiveType`
 inferred from the file name; `.LOG*` files skipped), and emits one record per

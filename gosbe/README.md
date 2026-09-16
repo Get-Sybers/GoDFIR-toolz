@@ -1,7 +1,6 @@
 # `get-sybers/gosbe` — gosbe (replaces SBECmd)
 
-SBECmd parses ShellBags on Linux under .NET; this substitute drops the .NET
-runtime with a static Go binary on `regparser`. It walks the **BagMRU** tree in
+Static Go binary on `regparser`. Walks the **BagMRU** tree in
 `NTUSER.DAT` / `UsrClass.dat` (all the Shell / ShellNoRoam roots), decodes the
 shell items, reconstructs each shellbag's `AbsolutePath`, and emits one record
 per shellbag — `BagPath`, `Slot`, `NodeSlot`, `MRUPosition`, `ShellType`,

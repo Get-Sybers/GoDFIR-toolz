@@ -1,8 +1,6 @@
 # `get-sybers/goamcache` — goamcache (replaces AmcacheParser)
 
-Like RBCmd/MFTECmd, AmcacheParser parses on Linux under .NET; this substitute
-drops the .NET runtime with a static Go binary on Velociraptor's `regparser`. It
-parses an `Amcache.hve` and emits one record per program-execution file entry
+Static Go binary on Velociraptor's `regparser`. Parses an `Amcache.hve` and emits one record per program-execution file entry
 (`Root\InventoryApplicationFile`) — the key's last-write time, ProgramId, the
 SHA-1 (the `0000`-prefixed `FileId` stripped to the bare 40-hex hash), full path,
 name, publisher/product/version and size — as CSV or JSONL, mirroring
