@@ -1,19 +1,16 @@
 # syntax=docker/dockerfile:1
 #
-# gojle — Linux-native Windows Jump List parser, a static-Go substitute for Eric
-# Zimmerman's JLECmd (.NET) for the DX_DFIR pipeline.
+# gojle — Linux-native Windows Jump List parser for the DX_DFIR pipeline.
 #
-# JLECmd runs under the .NET runtime; this image replaces it with a single static
-# Go binary that parses AutomaticDestinations (*.automaticDestinations-ms — an OLE
+# A single static Go binary parses AutomaticDestinations (*.automaticDestinations-ms — an OLE
 # compound file, via richardlehane/mscfb) and their DestList stream, and emits the
 # AutomaticDestinations record shape byakugan's jlecmd_dest map / jlecmd adapter
 # consume: one record per jump-list file, each with the per-target DestListEntries
 # (Path, EntryNumber, CreatedOn, LastModified, Hostname, InteractionCount,
 # MRUPosition, Pinned, MacAddress, VolumeDroid). CreatedOn is recovered from each
 # entry's embedded LNK stream; the MAC comes from the FileDroid GUID node. Same
-# get-sybers/<tool> tag and -f/-d + --json CLI the zimmerman lane calls, so the
-# pipeline keeps docker-running it unchanged; only the .NET runtime is gone.
-# See gojle/main.go for the DestList layout notes and the JLECmd field mapping.
+# get-sybers/<tool> tag and -f/-d + --json CLI the godfir-toolz lane calls.
+# See gojle/main.go for the DestList layout notes and the field notes.
 #
 # The final image is FROM scratch: one static binary, nothing else. The hardening
 # contract is met by construction — no shell, no python, no package manager, no
@@ -47,7 +44,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gojle"]
 LABEL org.opencontainers.image.title="get-sybers/gojle" \
-      org.opencontainers.image.description="Linux-native Windows Jump List parser (static Go): parses AutomaticDestinations OLE + DestList to the JLECmd AutomaticDestinations JSON shape byakugan consumes — a .NET-free substitute for JLECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Jump List parser (static Go): parses AutomaticDestinations OLE + DestList to the AutomaticDestinations record shape byakugan's jlecmd_dest map consumes. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="gojle" \
       com.get-sybers.hardened="true"

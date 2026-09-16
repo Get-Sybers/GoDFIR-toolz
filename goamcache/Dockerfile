@@ -1,10 +1,8 @@
 # syntax=docker/dockerfile:1
 #
-# goamcache — Linux-native Windows Amcache parser, a static-Go substitute for
-# Eric Zimmerman's AmcacheParser for the DX_DFIR pipeline.
+# goamcache — Linux-native Windows Amcache parser for the DX_DFIR pipeline.
 #
-# AmcacheParser runs under the .NET runtime; this image replaces it with a single
-# static Go binary on Velociraptor's regparser that parses an Amcache.hve and
+# A single static Go binary on Velociraptor's regparser parses an Amcache.hve and
 # emits one record per program-execution file entry (key last-write time,
 # ProgramId, SHA-1, full path, name, publisher/product/version, size) as CSV or
 # JSONL. Same get-sybers/<tool> pattern and CLI as the other GoDFIR tools.
@@ -12,7 +10,7 @@
 # Dirty-hive .LOG1/.LOG2 replay (see main.go): when the logs sit beside the hive
 # it recovers them into a copy written under --work-dir. That dir must be
 # WRITABLE — the rootfs is read-only, so mount a tmpfs and point --work-dir at it
-# (the zimmerman lane adds `--tmpfs /work:...`, like wxtcmd). Without a writable
+# (the godfir-toolz lane adds `--tmpfs /work:...`, like gowxt). Without a writable
 # work dir, replay just falls back to the committed hive (a stderr note).
 #
 # The final image is FROM scratch: one static binary, nothing else — no shell,
@@ -49,7 +47,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/goamcache"]
 LABEL org.opencontainers.image.title="get-sybers/goamcache" \
-      org.opencontainers.image.description="Linux-native Windows Amcache parser (static Go, regparser): parses Amcache.hve InventoryApplicationFile entries to CSV/JSONL (key time, ProgramId, SHA-1, path, name, size) — a .NET-free substitute for AmcacheParser. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Amcache parser (static Go, regparser): parses Amcache.hve InventoryApplicationFile entries to CSV/JSONL (key time, ProgramId, SHA-1, path, name, size). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="goamcache" \

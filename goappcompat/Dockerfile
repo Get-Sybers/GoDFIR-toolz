@@ -1,23 +1,21 @@
 # syntax=docker/dockerfile:1
 #
-# goappcompat — Linux-native Windows AppCompatCache (ShimCache) parser, a
-# static-Go substitute for Eric Zimmerman's AppCompatCacheParser (.NET) for the
+# goappcompat — Linux-native Windows AppCompatCache (ShimCache) parser for the
 # DX_DFIR pipeline.
 #
-# AppCompatCacheParser runs under the .NET runtime; this image replaces it with a
-# single static Go binary on Velociraptor's regparser (+ its appcompatcache
-# subpackage) that reads the AppCompatCache value from a SYSTEM hive and emits
+# A single static Go binary on Velociraptor's regparser (+ its appcompatcache
+# subpackage) reads the AppCompatCache value from a SYSTEM hive and emits
 # one record per shimcache entry (ControlSet, CacheEntryPosition, Path,
 # LastModifiedTimeUTC, SourceFile) as CSV or JSONL. Same get-sybers/<tool> tag
-# and CLI as the other GoDFIR tools; the zimmerman lane calls
+# and CLI as the other GoDFIR tools; the godfir-toolz lane calls
 # `-f /in/SYSTEM --csv /out --csvf appcompatcache.csv`.
 #
 # Dirty-hive .LOG replay: when SYSTEM.LOG1/.LOG2 sit alongside the hive, goappcompat
 # recovers a copy (applies the dirty pages) into --work-dir and parses that. The
 # recovered copy needs a WRITABLE work dir — the rootfs here is read-only, so mount
 # a tmpfs at the work dir (default /tmp) and point --work-dir at it, e.g.
-# `--tmpfs /tmp:rw,nosuid,nodev,size=256m` (the DX_DFIR zimmerman lane wires this,
-# like wxtcmd). WITHOUT a writable work dir replay gracefully falls back to the
+# `--tmpfs /tmp:rw,nosuid,nodev,size=256m` (the DX_DFIR godfir-toolz lane wires this,
+# like gowxt). WITHOUT a writable work dir replay gracefully falls back to the
 # committed hive (a one-line note) — the tool still runs read-only, just no replay.
 #
 # The final image is FROM scratch: one static binary, nothing else — no shell,
@@ -54,7 +52,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/goappcompat"]
 LABEL org.opencontainers.image.title="get-sybers/goappcompat" \
-      org.opencontainers.image.description="Linux-native Windows AppCompatCache (ShimCache) parser (static Go, regparser): reads the AppCompatCache value from a SYSTEM hive to CSV/JSONL (ControlSet, position, path, last-modified) — a .NET-free substitute for AppCompatCacheParser. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows AppCompatCache (ShimCache) parser (static Go, regparser): reads the AppCompatCache value from a SYSTEM hive to CSV/JSONL (ControlSet, position, path, last-modified). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="goappcompat" \

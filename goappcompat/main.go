@@ -1,17 +1,15 @@
 // goappcompat — Linux-native Windows AppCompatCache (ShimCache) parser for the
 // DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's AppCompatCacheParser: it reads the
-// AppCompatCache value from a SYSTEM registry hive with Velociraptor's regparser
-// (and its appcompatcache subpackage) and emits one record per shimcache entry —
+// Reads the AppCompatCache value from a SYSTEM registry hive with
+// Velociraptor's regparser (and its appcompatcache subpackage) and emits one record per shimcache entry —
 // the execution-candidate path and its $STANDARD_INFORMATION last-modified time —
 // as CSV or JSONL. It runs on Linux with no .NET, no shell and no libc (see
 // Dockerfile: FROM scratch, uid 2000), matching the get-sybers hardening
 // contract of the other GoDFIR tools.
 //
-// Columns mirror AppCompatCacheParser: ControlSet, CacheEntryPosition, Path,
-// LastModifiedTimeUTC, SourceFile. The .NET tool's Executed/Duplicate columns
-// are NOT emitted — regparser's shimcache parser does not expose the
+// Columns: ControlSet, CacheEntryPosition, Path, LastModifiedTimeUTC,
+// SourceFile. Executed/Duplicate state columns are NOT emitted — regparser's shimcache parser does not expose the
 // insertion-flag/dedup state, and a guessed value would be worse than an
 // omitted one (never faked). LastModifiedTimeUTC is always present (RFC3339 UTC,
 // or "" when the entry carries no timestamp) so the JSONL schema is stable

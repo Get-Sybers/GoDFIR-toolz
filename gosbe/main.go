@@ -1,13 +1,13 @@
 // gosbe — Linux-native Windows ShellBags parser for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's SBECmd: it walks the BagMRU
-// shellbag tree in NTUSER.DAT / UsrClass.dat with Velociraptor's regparser and
+// Walks the BagMRU shellbag tree in NTUSER.DAT / UsrClass.dat with
+// Velociraptor's regparser and
 // emits one record per shellbag (the folder a user browsed in Explorer), with
 // the reconstructed AbsolutePath. Runs on Linux with no .NET, no shell, no libc
 // (Dockerfile: FROM scratch, uid 2000).
 //
 // Dirty-hive .LOG1/.LOG2 transaction logs ARE replayed (regparser.RecoverHive)
-// unless --nl, matching SBECmd; the recovered copy is written under --work-dir
+// unless --nl; the recovered copy is written under --work-dir
 // (a writable tmpfs, the rootfs being read-only).
 //
 // SHELL-ITEM DECODING (never faked): gosbe decodes the common shell-item types —

@@ -1,15 +1,13 @@
 # syntax=docker/dockerfile:1
 #
-# gorb — Linux-native Windows Recycle Bin ($I) parser, a static-Go substitute
-# for Eric Zimmerman's RBCmd (.NET) for the DX_DFIR pipeline.
+# gorb — Linux-native Windows Recycle Bin ($I) parser for the DX_DFIR
+# pipeline.
 #
-# RBCmd runs under the .NET runtime; this image replaces it with a single static
-# Go binary that parses the modern $I metadata records (v1 Vista–8.0 and v2
-# Win8.1/10/11) and emits the same facts (SourceName, FileType, FileName,
-# FileSize, DeletedOn) as CSV or JSONL. Same get-sybers/<tool> tag, same CLI
-# contract the zimmerman lane already calls (`-d /in --csv /out --csvf rbcmd.csv`),
-# so the pipeline keeps docker-running it unchanged — only the .NET runtime is
-# gone. See rbcmd/main.go for the $I layout notes and the RBCmd field mapping.
+# A single static Go binary parses the modern $I metadata records (v1
+# Vista–8.0 and v2 Win8.1/10/11) and emits SourceName, FileType, FileName,
+# FileSize and DeletedOn as CSV or JSONL — the CLI contract the godfir-toolz
+# lane calls (`-d /in --csv /out --csvf rbcmd.csv`). See gorb/main.go for the
+# $I layout notes and the field notes.
 #
 # The final image is FROM scratch: one static binary, nothing else. The
 # hardening contract is met by construction — no shell, no python, no package
@@ -46,7 +44,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gorb"]
 LABEL org.opencontainers.image.title="get-sybers/gorb" \
-      org.opencontainers.image.description="Linux-native Windows Recycle Bin (\$I) parser (static Go): parses v1 (Vista–8.0) and v2 (Win8.1/10/11) \$I metadata records to CSV/JSONL — a .NET-free substitute for RBCmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Recycle Bin (\$I) parser (static Go): parses v1 (Vista–8.0) and v2 (Win8.1/10/11) \$I metadata records to CSV/JSONL. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="gorb" \
       com.get-sybers.hardened="true"

@@ -1,10 +1,9 @@
 // gomft — Linux-native Windows $MFT parser for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's MFTECmd (the $MFT mode): it parses
-// a raw $MFT file with Velociraptor's go-ntfs and emits one record per MFT
-// entry — the same facts MFTECmd's --json produces (entry/sequence, parent
-// reference, file name + extension, size, the $STANDARD_INFORMATION (0x10) and
-// $FILE_NAME (0x30) MACB timestamps, flags, ADS) — as JSONL or CSV. It runs on
+// Parses a raw $MFT file with Velociraptor's go-ntfs and emits one record per
+// MFT entry — entry/sequence, parent reference, file name + extension, size,
+// the $STANDARD_INFORMATION (0x10) and
+// $FILE_NAME (0x30) MACB timestamps, flags, ADS — as JSONL or CSV. It runs on
 // Linux with no .NET, no shell and no libc (see Dockerfile: FROM scratch, uid
 // 2000), matching the get-sybers hardening contract of the other GoDFIR tools.
 //
@@ -40,7 +39,7 @@ import (
 	ntfs "www.velocidex.com/golang/go-ntfs/parser"
 )
 
-// record mirrors MFTECmd's --json per-entry object (the columns go-ntfs can
+// record is the emitted per-entry JSON object (the columns go-ntfs can
 // supply). Zero timestamps are omitted rather than emitted as a fake epoch.
 type record struct {
 	EntryNumber           int64  `json:"EntryNumber"`

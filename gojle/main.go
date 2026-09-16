@@ -1,6 +1,6 @@
 // gojle — Linux-native Windows Jump List parser for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's JLECmd: it parses AutomaticDestinations
+// Parses AutomaticDestinations
 // (*.automaticDestinations-ms — an OLE compound file, via richardlehane/mscfb) and
 // their DestList stream, emitting one record per jump-list FILE in the shape
 // byakugan's jlecmd_dest map / jlecmd adapter consume:
@@ -15,8 +15,8 @@
 // Coverage: DestList versions 1/3/4. CustomDestinations (a bare LNK sequence) are
 // NOT emitted here — byakugan consumes the AutomaticDestinations jlecmd_dest shape;
 // a CustomDestinations file is skipped with a note, never mis-parsed. The AppId ->
-// friendly-name table is JLECmd's; only well-known ids get a Description, unknown
-// ids get "" (never invented).
+// friendly-name table covers well-known ids only; those get a Description,
+// unknown ids get "" (never invented).
 //
 // Exit codes: 0 = every file parsed; 1 = usage/fatal; 2 = a file failed to parse.
 package main
@@ -64,7 +64,8 @@ type record struct {
 	DestListEntries []destEntry `json:"DestListEntries"`
 }
 
-// dotnetDate renders a FILETIME-derived time as JLECmd's "/Date(ms)/" form; ""
+// dotnetDate renders a FILETIME-derived time in the record shape's
+// "/Date(ms)/" .NET-JSON form; ""
 // when zero.
 func dotnetDate(t time.Time) string {
 	if t.IsZero() {
@@ -373,7 +374,7 @@ func main() {
 	_ = emitted
 }
 
-// appIDName maps a handful of well-known JLECmd AppIds to their friendly name.
+// appIDName maps a handful of well-known AppIds to their friendly name.
 // Unknown ids get "" (never invented).
 func appIDName(id string) string {
 	return map[string]string{

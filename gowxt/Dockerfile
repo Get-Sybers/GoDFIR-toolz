@@ -1,11 +1,10 @@
 # syntax=docker/dockerfile:1
 #
-# gowxt — Linux-native Windows Timeline (ActivitiesCache.db) parser, a static-Go
-# substitute for Eric Zimmerman's WxTCmd for the DX_DFIR pipeline.
+# gowxt — Linux-native Windows Timeline (ActivitiesCache.db) parser for the
+# DX_DFIR pipeline.
 #
-# WxTCmd runs under the .NET runtime; this image replaces it with a single static
-# Go binary on modernc.org/sqlite (pure Go, no cgo) that reads the Windows
-# Timeline SQLite DB and emits WxTCmd-style CSV/JSONL (Executable from AppId,
+# A single static Go binary on modernc.org/sqlite (pure Go, no cgo) reads the
+# Windows Timeline SQLite DB and emits Activity-row CSV/JSONL (Executable from AppId,
 # DisplayText/ContentInfo from Payload, the Start/End/LastModified/Expiration
 # timestamps, ActivityType). Same get-sybers/<tool> tag + CLI as the other
 # GoDFIR tools.
@@ -45,7 +44,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gowxt"]
 LABEL org.opencontainers.image.title="get-sybers/gowxt" \
-      org.opencontainers.image.description="Linux-native Windows Timeline (ActivitiesCache.db) parser (static Go, modernc sqlite): emits WxTCmd-style Activity CSV/JSONL — a .NET-free substitute for WxTCmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Timeline (ActivitiesCache.db) parser (static Go, modernc sqlite): emits one Activity record per row as CSV/JSONL. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="gowxt" \
       com.get-sybers.hardened="true"

@@ -1,16 +1,13 @@
 # syntax=docker/dockerfile:1
 #
-# gole — Linux-native Windows Shortcut (.lnk) parser, a static-Go substitute for
-# Eric Zimmerman's LECmd (.NET) for the DX_DFIR pipeline.
+# gole — Linux-native Windows Shortcut (.lnk) parser for the DX_DFIR pipeline.
 #
-# LECmd runs under the .NET runtime; this image replaces it with a single static
-# Go binary (on parsiya/golnk) that parses Shell Link (.lnk) files and emits the
-# same facts LECmd's operator/CSV lane reads — target Created/Modified/Accessed,
+# A single static Go binary (on parsiya/golnk) parses Shell Link (.lnk) files
+# and emits the operator-facing facts — target Created/Modified/Accessed,
 # TargetFileSize, LocalPath, RelativePath, WorkingDirectory, Arguments,
 # IconLocation, plus the decoded header/file-attribute flag sets — as JSONL or
-# CSV. Same get-sybers/<tool> tag and -f/-d + --json/--csv CLI the zimmerman lane
-# already calls, so the pipeline keeps docker-running it unchanged; only the .NET
-# runtime is gone. See gole/main.go for the LECmd field mapping.
+# CSV. Same get-sybers/<tool> tag and -f/-d + --json/--csv CLI the godfir-toolz
+# lane calls. See gole/main.go for the field notes.
 #
 # The final image is FROM scratch: one static binary, nothing else. The hardening
 # contract is met by construction — no shell, no python, no package manager, no
@@ -44,7 +41,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gole"]
 LABEL org.opencontainers.image.title="get-sybers/gole" \
-      org.opencontainers.image.description="Linux-native Windows Shortcut (.lnk) parser (static Go): parses Shell Link files to CSV/JSONL (target times, LocalPath, RelativePath, WorkingDir, Arguments, flag sets) — a .NET-free substitute for LECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Shortcut (.lnk) parser (static Go): parses Shell Link files to CSV/JSONL (target times, LocalPath, RelativePath, WorkingDir, Arguments, flag sets). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="gole" \
       com.get-sybers.hardened="true"

@@ -1,15 +1,10 @@
 # syntax=docker/dockerfile:1
 #
-# goprefetch — Linux-native Windows Prefetch parser (PECmd's Linux
-# substitute) for the DX_DFIR pipeline.
+# goprefetch — Linux-native Windows Prefetch parser for the DX_DFIR pipeline.
 #
-# PECmd is Windows-host-only (verified empirically, source and runtime: its
-# guard exits "Non-Windows platforms not supported due to the need to load
-# decompression specific Windows libraries!" with status 0 on ANY non-Windows
-# platform, because the Prefetch library P/Invokes ntdll!RtlDecompressBufferEx
-# for Win8+/Win10 MAM files). This image ships a static Go binary built on
-# Velociraptor's go-prefetch, whose pure-Go LZXpress-Huffman fallback parses
-# XP-era through Win11 prefetch — MAM compressed included — on Linux.
+# This image ships a static Go binary built on Velociraptor's go-prefetch,
+# whose pure-Go LZXpress-Huffman implementation parses XP-era through Win11
+# prefetch — MAM compressed included — natively on Linux.
 #
 # The final image is FROM scratch: one static binary, nothing else. The
 # hardening contract is met by construction — no shell, no python, no package
@@ -21,8 +16,8 @@
 #     get-sybers/goprefetch:latest -d /input --json /output
 #
 # Output: JSONL (or --csv) — SourceFilename, Executable, Path, Hash, Version,
-# RunCount, LastRun, PreviousRuns, FilesAccessed. See prefetch/main.go for the
-# PECmd field mapping notes.
+# RunCount, LastRun, PreviousRuns, FilesAccessed. See goprefetch/main.go for
+# the field notes.
 
 # go-prefetch requires go >= 1.25 (module directive), and the official golang
 # images set GOTOOLCHAIN=local, so the builder must be at least 1.25 itself.
@@ -49,7 +44,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/goprefetch"]
 LABEL org.opencontainers.image.title="get-sybers/goprefetch" \
-      org.opencontainers.image.description="Linux-native Windows Prefetch parser (static Go, go-prefetch): parses XP through Win11 .pf including MAM/LZXpress-Huffman compressed files that PECmd refuses off-Windows. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Prefetch parser (static Go, go-prefetch): parses XP through Win11 .pf including MAM/LZXpress-Huffman compressed files, natively on Linux. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="goprefetch" \
       com.get-sybers.hardened="true"

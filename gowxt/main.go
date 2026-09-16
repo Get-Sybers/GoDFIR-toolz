@@ -1,12 +1,11 @@
 // gowxt — Linux-native Windows Timeline (ActivitiesCache.db) parser for the
 // DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's WxTCmd: it reads the Windows
-// Timeline SQLite database (ActivitiesCache.db) with modernc.org/sqlite (pure
-// Go, no cgo) and emits one record per row of the Activity table — the same
-// facts WxTCmd surfaces (the executable from AppId, the display text /
-// content info from Payload, the StartTime/EndTime/LastModified/Expiration
-// timestamps, activity type) — as CSV or JSONL. It runs on Linux with no .NET,
+// Reads the Windows Timeline SQLite database (ActivitiesCache.db) with
+// modernc.org/sqlite (pure Go, no cgo) and emits one record per row of the
+// Activity table — the executable from AppId, the display text / content info
+// from Payload, the StartTime/EndTime/LastModified/Expiration timestamps,
+// activity type — as CSV or JSONL. It runs on Linux with no .NET,
 // no shell and no libc (see Dockerfile: FROM scratch, uid 2000).
 //
 // SQLite needs a writable working area (journal/WAL/temp), but the pipeline
@@ -14,7 +13,7 @@
 // any -wal/-shm sidecars) into --work-dir (a writable tmpfs) and opens the copy,
 // falling back to an immutable read-only open when the work dir is not writable.
 //
-// Scope: the Activity table (the timeline's core). Columns WxTCmd derives from
+// Scope: the Activity table (the timeline's core). Columns derived from
 // providers other than the DB itself, or that this schema does not carry, are
 // omitted rather than faked. Timestamps in ActivitiesCache.db are Unix epoch
 // seconds; they are rendered RFC3339 UTC (empty when zero).
