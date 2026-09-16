@@ -2,8 +2,8 @@
 #
 # gosbe — Linux-native Windows ShellBags parser for the DX_DFIR pipeline.
 #
-# A single static Go binary on Velociraptor's regparser walks the BagMRU
-# shellbag tree in NTUSER.DAT / UsrClass.dat: each BagMRU root, decoding the
+# A single static Go binary on Velociraptor's regparser walks every BagMRU
+# root in NTUSER.DAT / UsrClass.dat, decodes the
 # shell items (0x1F GUID folders -> known-folder names, 0x2F volumes, 0x30-0x3F
 # file/dir entries -> the BEEF0004 Unicode long name or the ANSI short name),
 # reconstructs each shellbag's AbsolutePath, and emits one record per shellbag
