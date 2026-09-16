@@ -41,11 +41,12 @@ that builds it** — the parameterized `.NET` per-tool images share
 
 "Installs on Linux" and "parses artefacts on Linux" are different claims.
 Linux installer scripts for the EZ tools set up all 19 and validate them with
-`--help` — which genuinely succeeds for every tool. But four of the requested
-tools (PECmd, SrumECmd, SumECmd, VSCMount) refuse at *parse* time, and (verified against v2026.5.0 built from upstream
-source, run against real artefacts) they print their refusal and **exit 0**,
-so a pipeline that only checks exit codes records a successful run that
-produced nothing:
+`--help` — which genuinely succeeds for every tool. But three of the requested
+tools (PECmd, SrumECmd, SumECmd) refuse at *parse* time, and (verified against
+v2026.5.0 built from upstream source, run against real artefacts) they print
+their refusal and **exit 0**, so a pipeline that only checks exit codes records
+a successful run that produced nothing — and a fourth, VSCMount, cannot work
+off-Windows at all:
 
 - **PECmd** — `Non-Windows platforms not supported due to the need to load
   decompression specific Windows libraries! Exiting...` on *any* input, even
@@ -65,8 +66,9 @@ release), and this repo ships native substitutes instead.
 
 ## The Go substitutes (FROM scratch, a few MB, no runtime at all)
 
-Three of these exist because their originals cannot parse off-Windows (above);
-the other nine replaced tools that parsed fine under .NET — porting to a
+Two of these (goprefetch, goese) exist because their three originals cannot
+parse off-Windows (above); the other ten replaced tools that parsed fine under
+.NET — porting to a
 static Go binary drops the ~300 MB .NET runtime from the image (DX_DFIR #188,
 initiative 2). All twelve Go images are `FROM scratch`: one static binary, no shell, no
 python, no libc, `USER 2000:2000` — the hardening contract holds by

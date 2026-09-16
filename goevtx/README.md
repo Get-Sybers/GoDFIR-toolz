@@ -1,7 +1,8 @@
 # `get-sybers/goevtx` — goevtx (replaces EvtxECmd)
 
-Static Go binary on Velociraptor's `go-evtx`. Parses `.evtx` and emits one JSON record per event in the EvtxECmd `*.json` shape the
-DX_DFIR evtx lane and byakugan's winevt/evtx maps consume — `EventId`,
+Static Go binary on Velociraptor's `go-evtx`. Parses `.evtx` and emits one
+JSON record per event in the EvtxECmd `*.json` shape that the DX_DFIR evtx
+lane and byakugan's winevt/evtx maps consume — `EventId`,
 `Provider`, `Channel`, `Computer`, `EventRecordId`, `TimeCreated`, `Level`,
 `UserId`, and `Payload` (the event's EventData rendered as the classic
 `{"EventData":{"Data":[{"@Name","#text"}...]}}` form, or `{"UserData":...}`),

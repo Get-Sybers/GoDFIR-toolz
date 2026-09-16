@@ -3,7 +3,7 @@
 Static Go binary reading AutomaticDestinations (`*.automaticDestinations-ms`,
 an OLE compound file, via `richardlehane/mscfb`) and their `DestList` stream. It
 emits one record per jump-list file in the JLECmd AutomaticDestinations shape
-byakugan's `jlecmd_dest` map / `jlecmd` adapter consume: `AppId`
+that byakugan's `jlecmd_dest` map / `jlecmd` adapter consume: `AppId`
 (with the well-known friendly name), `SourceFile`, and the per-target
 `DestListEntries` — `Path`, `EntryNumber`, `CreatedOn` (recovered from each
 entry's embedded LNK stream), `LastModified`, `Hostname`, `InteractionCount`,
