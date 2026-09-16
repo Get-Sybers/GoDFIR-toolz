@@ -1,7 +1,6 @@
 // gore — Linux-native Windows Registry batch extractor for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's RECmd (batch mode): it reads a
-// batch definition (.reb — the same YAML RECmd uses) and, for every registry
+// Reads a batch definition (.reb YAML) and, for every registry
 // hive it is pointed at, extracts the keys/values the batch names, on
 // Velociraptor's regparser. One record per value in the shape byakugan's
 // recmd_batch map consumes: HivePath, HiveType, Category, Description, Comment,
@@ -10,16 +9,15 @@
 // scratch, uid 2000).
 //
 // Dirty-hive .LOG1/.LOG2 transaction logs ARE replayed (regparser.RecoverHive)
-// unless --nl is given, matching RECmd's dirty-hive handling; the recovered copy
+// unless --nl is given; the recovered copy
 // is written under --work-dir (a writable tmpfs, since the rootfs is read-only).
 //
-// SCOPE vs RECmd (never faked): gore runs the .reb batch's KEY/VALUE extraction
-// (KeyPath, ValueName, Recursive) — it does NOT run RECmd's PLUGINS (the .NET
-// per-artefact decoders, e.g. UserAssist ROT13, AppCompatCache), and it does not
-// recover *deleted* cells (regparser reads live cells). Records are live values
-// (Deleted=false). The bundled batch (batch/default.reb) is a curated
-// forensic-key set, NOT Eric Zimmerman's Kroll_Batch.reb (which is not
-// redistributed here); supply your own with --bn.
+// SCOPE (never faked): gore runs the .reb batch's KEY/VALUE extraction
+// (KeyPath, ValueName, Recursive) — it does NOT run derived-value plugin
+// transforms (per-artefact decoders, e.g. UserAssist ROT13, AppCompatCache),
+// and it does not recover *deleted* cells (regparser reads live cells).
+// Records are live values (Deleted=false). The bundled batch
+// (batch/default.reb) is a curated forensic-key set; supply your own with --bn.
 //
 // Exit codes: 0 = ok; 1 = usage/fatal; 2 = at least one hive failed to parse.
 package main
@@ -42,7 +40,7 @@ import (
 	"www.velocidex.com/golang/regparser"
 )
 
-// batch is a parsed .reb definition. RECmd's .reb is YAML: a Description/Author
+// batch is a parsed .reb definition — YAML: a Description/Author
 // header and a Keys list; gore reads the fields that drive extraction.
 type batch struct {
 	Description string     `yaml:"Description"`
@@ -85,8 +83,8 @@ func (r *record) csvRow() []string {
 		strconv.FormatBool(r.Recursive), strconv.FormatBool(r.Deleted)}
 }
 
-// hiveTypeOf maps a hive FILE name to RECmd's HiveType token (RECmd detects it
-// from the hive's embedded root; the file name is an exact, reliable proxy for
+// hiveTypeOf maps a hive FILE name to the batch HiveType token (the file name
+// is an exact, reliable proxy for
 // the standard hives the batch targets). "" = unknown (skipped for typed keys).
 func hiveTypeOf(path string) string {
 	switch strings.ToUpper(filepath.Base(path)) {

@@ -1,13 +1,9 @@
 # syntax=docker/dockerfile:1
 #
-# goese — Linux-native ESE database dumper (SrumECmd's and SumECmd's Linux
-# substitute) for the DX_DFIR pipeline.
+# goese — Linux-native ESE database dumper (SRUM / SUM) for the DX_DFIR
+# pipeline.
 #
-# SrumECmd and SumECmd are Windows-host-only (verified empirically, source and
-# runtime: both read ESE databases through Microsoft.Database.ManagedEsent, a
-# P/Invoke wrapper over Windows' native esent.dll, and exit "Non-Windows
-# platforms not supported due to the need to load ESI specific Windows
-# libraries!" with status 0). This image ships a static Go binary built on
+# This image ships a static Go binary built on
 # Velociraptor's go-ese, a pure-Go ESE implementation: SRUDB.dat and SUM
 # databases (Current.mdb / SystemIdentity.mdb) parse on Linux, with SRUM
 # IdMap enrichment (AppIdName / UserIdName incl. SID decoding) built in.
@@ -56,7 +52,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/goese"]
 LABEL org.opencontainers.image.title="get-sybers/goese" \
-      org.opencontainers.image.description="Linux-native ESE database dumper (static Go, go-ese): parses SRUM (SRUDB.dat) with IdMap/SID enrichment and SUM (Current.mdb) databases that SrumECmd/SumECmd refuse off-Windows. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native ESE database dumper (static Go, go-ese): parses SRUM (SRUDB.dat) with IdMap/SID enrichment and SUM (Current.mdb) databases, natively on Linux. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="goese" \
       com.get-sybers.hardened="true"

@@ -1,10 +1,9 @@
 // goamcache — Linux-native Windows Amcache parser for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's AmcacheParser (file-entry mode,
-// -i): it parses an Amcache.hve registry hive with Velociraptor's regparser and
-// emits one record per program-execution file entry — the facts AmcacheParser's
-// CSV carries (the key's last-write time, ProgramId, the SHA-1, full path, name,
-// publisher/product/version, size) — as CSV or JSONL. It runs on Linux with no
+// Parses an Amcache.hve registry hive with Velociraptor's regparser and emits
+// one record per program-execution file entry — the key's last-write time,
+// ProgramId, the SHA-1, full path, name, publisher/product/version, size — as
+// CSV or JSONL. It runs on Linux with no
 // .NET, no shell and no libc (see Dockerfile: FROM scratch, uid 2000), matching
 // the get-sybers hardening contract of the other GoDFIR tools.
 //
@@ -13,7 +12,7 @@
 // stripped to the bare 40-hex hash, exactly as byakugan's plaso amcache map does.
 //
 // Dirty-hive .LOG1/.LOG2 transaction logs ARE replayed (regparser.RecoverHive)
-// when they sit beside the hive, matching AmcacheParser's fidelity. Replay writes
+// when they sit beside the hive. Replay writes
 // a recovered copy under --work-dir (default $TMPDIR), which must be writable —
 // the container rootfs is read-only, so the pipeline mounts a tmpfs there. If the
 // logs are absent, or replay fails, or the work dir is not writable, it falls
@@ -40,7 +39,7 @@ import (
 	"www.velocidex.com/golang/regparser"
 )
 
-// record mirrors the columns AmcacheParser's file-entry CSV carries (the subset
+// record carries the emitted file-entry columns (the subset
 // the InventoryApplicationFile key supplies).
 type record struct {
 	FileKeyLastWriteTimestamp string `json:"FileKeyLastWriteTimestamp,omitempty"`

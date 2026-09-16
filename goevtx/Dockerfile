@@ -1,15 +1,15 @@
 # syntax=docker/dockerfile:1
 #
-# goevtx — Linux-native Windows Event Log (.evtx) parser, a static-Go substitute
-# for Eric Zimmerman's EvtxECmd for the DX_DFIR pipeline.
+# goevtx — Linux-native Windows Event Log (.evtx) parser for the DX_DFIR
+# pipeline.
 #
-# EvtxECmd runs under the .NET runtime; this image replaces it with a single
-# static Go binary on Velociraptor's go-evtx that parses .evtx and emits the
-# EvtxECmd *.json shape the evtx lane + byakugan's winevt/evtx maps consume
+# A single static Go binary on Velociraptor's go-evtx parses .evtx and emits
+# the evtx JSON record shape the evtx lane + byakugan's winevt/evtx maps
+# consume
 # (EventId, Provider, Channel, Computer, EventRecordId, TimeCreated, UserId,
 # Payload={"EventData":{"Data":[{@Name,#text}...]}}, SourceFile, MapDescription).
-# It does NOT reproduce EvtxECmd's Maps layer (PayloadData/MapDescription) —
-# byakugan reads the raw EventData, not those derived columns.
+# Per-provider derived columns (PayloadData1-6; MapDescription stays null) are
+# not produced — byakugan reads the raw EventData, not derived columns.
 #
 # The final image is FROM scratch: one static binary, nothing else — no shell,
 # no python, no package manager, no setuid, no libc; runs as uid 2000.
@@ -18,7 +18,7 @@
 #   docker run --rm --cap-drop ALL --security-opt no-new-privileges \
 #     --network none --read-only -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
 #     get-sybers/goevtx:latest -f /input/Security.evtx --json /output \
-#     --jsonf Security_EvtxECmd_Output.json --xml /output --xmlf Security_EvtxECmd_Output.xml
+#     --jsonf security_events.json --xml /output --xmlf security_events.xml
 
 ARG GO_VERSION=1.24
 
@@ -43,7 +43,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/goevtx"]
 LABEL org.opencontainers.image.title="get-sybers/goevtx" \
-      org.opencontainers.image.description="Linux-native Windows Event Log (.evtx) parser (static Go, go-evtx): emits the EvtxECmd JSON shape (EventId/Channel/Computer/Provider/EventRecordId/TimeCreated + Payload EventData.Data[@Name/#text]) — a .NET-free substitute for EvtxECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Event Log (.evtx) parser (static Go, go-evtx): emits the evtx JSON record shape byakugan's winevt/evtx maps consume (EventId/Channel/Computer/Provider/EventRecordId/TimeCreated + Payload EventData.Data[@Name/#text]). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/evtx" \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="goevtx" \

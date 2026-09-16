@@ -1,21 +1,20 @@
 // goevtx — Linux-native Windows Event Log (.evtx) parser for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's EvtxECmd: it parses .evtx with
-// Velociraptor's go-evtx and emits one JSON record per event in the EvtxECmd
-// output shape the DX_DFIR evtx lane + the byakugan winevt/evtx maps consume —
+// Parses .evtx with Velociraptor's go-evtx and emits one JSON record per
+// event in the evtx JSON record shape the DX_DFIR evtx lane + the byakugan
+// winevt/evtx maps consume —
 // EventId, Provider, Channel, Computer, EventRecordId, TimeCreated, Level,
 // UserId, and Payload (the event's EventData rendered as the classic
 // {"EventData":{"Data":[{"@Name","#text"}...]}} form, or {"UserData":...}) plus
 // SourceFile and a null MapDescription. It runs on Linux with no .NET, no shell
 // and no libc (see Dockerfile: FROM scratch, uid 2000).
 //
-// What it does NOT do (never faked): EvtxECmd's Maps layer — the per-provider
-// YAML that derives PayloadData1-6 / MapDescription / ExecutableInfo. byakugan
-// reads the RAW EventData out of Payload, not those Maps-derived columns, so the
-// substitute is faithful to what the pipeline actually consumes. MapDescription
-// is emitted as null.
+// What it does NOT do (never faked): per-provider derived columns —
+// PayloadData1-6 / MapDescription / ExecutableInfo. byakugan reads the RAW
+// EventData out of Payload, not derived columns, so the output is exactly
+// what the pipeline actually consumes. MapDescription is emitted as null.
 //
-// Output: JSONL (--json/--jsonf) — one event per line, EvtxECmd's *.json shape.
+// Output: JSONL (--json/--jsonf) — one event per line in that record shape.
 // A best-effort XML sidecar (--xml/--xmlf) reconstructs <Event> per record for
 // manual review (not ingested); it is not the original binary XML byte-for-byte.
 //
@@ -42,8 +41,8 @@ import (
 	"www.velocidex.com/golang/evtx"
 )
 
-// record is the EvtxECmd *.json per-event shape the pipeline consumes. Field
-// order follows EvtxECmd; byakugan reads by key so order is cosmetic.
+// record is the per-event JSON shape the pipeline consumes. Field order is
+// fixed; byakugan reads by key so order is cosmetic.
 type record struct {
 	// Every key is always emitted (no omitempty) so the per-event JSON schema is
 	// stable across records — a consumer can rely on the field set.
@@ -60,7 +59,7 @@ type record struct {
 	Payload        string      `json:"Payload"` // JSON string, EventData/UserData
 }
 
-// asText renders an EventData value the way EvtxECmd stamps #text: a plain
+// asText renders an EventData value as the #text convention requires: a plain
 // string, never a Go type artefact.
 func asText(v interface{}) string {
 	switch t := v.(type) {
@@ -85,7 +84,7 @@ func asText(v interface{}) string {
 	}
 }
 
-// buildPayload renders the event's data block as the EvtxECmd Payload JSON
+// buildPayload renders the event's data block as the Payload JSON
 // string: EventData -> {"EventData":{"Data":[{"@Name","#text"}...]}} (the
 // classic form byakugan's payload() indexes), UserData -> {"UserData":...}
 // passed through (byakugan's userdata() walks its single nested child), else "".

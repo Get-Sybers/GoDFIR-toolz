@@ -1,19 +1,16 @@
 # syntax=docker/dockerfile:1
 #
-# gore — Linux-native Windows Registry batch parser, a static-Go substitute for
-# Eric Zimmerman's RECmd for the DX_DFIR pipeline.
+# gore — Linux-native Windows Registry batch parser for the DX_DFIR pipeline.
 #
-# RECmd runs under the .NET runtime and applies a batch (.reb) of keys/values
-# across a set of hives. This image replaces it with a single static Go binary on
-# Velociraptor's regparser: it reads a batch file, walks each requested key in
+# A single static Go binary on Velociraptor's regparser reads a batch file
+# (.reb) of keys/values, walks each requested key in
 # each hive under -d (content-detected regf; HiveType from the file name), and
 # emits one record per value (HivePath, HiveType, Category, KeyPath, ValueName,
 # ValueType, ValueData, LastWriteTimestamp, …) as JSONL or CSV — the same shape
 # byakugan's recmd_batch map consumes.
 #
 # The bundled /batch/default.reb is a CURATED forensic-key set (persistence /
-# execution / config), NOT Eric Zimmerman's Kroll_Batch.reb (which is not
-# redistributable here). Supply your own with --bn /path/to/batch.reb.
+# execution / config). Supply your own with --bn /path/to/batch.reb.
 #
 # Dirty-hive .LOG1/.LOG2 replay (see main.go): when the logs sit beside a hive it
 # recovers them into a copy written under --work-dir. That dir must be WRITABLE —
@@ -27,7 +24,7 @@
 #   docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
 #     --read-only --tmpfs /work:rw,nosuid,nodev,uid=2000,gid=2000 \
 #     -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-#     get-sybers/gore:latest -d /input --json /output --jsonf RECmd_Batch_Output.json --work-dir /work
+#     get-sybers/gore:latest -d /input --json /output --work-dir /work
 
 ARG GO_VERSION=1.24
 
@@ -52,7 +49,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gore"]
 LABEL org.opencontainers.image.title="get-sybers/gore" \
-      org.opencontainers.image.description="Linux-native Windows Registry batch parser (static Go, regparser): applies a .reb batch across hives and emits one record per value (HivePath, HiveType, Category, KeyPath, ValueName, ValueType, ValueData, LastWriteTimestamp) as JSONL/CSV for byakugan recmd_batch — a .NET-free substitute for RECmd. Bundles a curated default.reb (NOT Kroll_Batch.reb). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows Registry batch parser (static Go, regparser): applies a .reb batch across hives and emits one record per value (HivePath, HiveType, Category, KeyPath, ValueName, ValueType, ValueData, LastWriteTimestamp) as JSONL/CSV for byakugan recmd_batch. Bundles a curated default.reb. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="gore" \

@@ -1,11 +1,10 @@
 // gorb — Linux-native Windows Recycle Bin ($I) parser for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's RBCmd: it parses the modern
-// Recycle Bin metadata files ($I<id>, one per deleted item, that pair with the
-// $R<id> payload) and emits the same facts — original path, logical size,
-// deletion time — as CSV or JSONL. It runs on Linux with no .NET, no shell and
-// no libc (see Dockerfile: FROM scratch, uid 2000), matching the get-sybers
-// hardening contract of the prefetch/esedump Go substitutes.
+// Parses the modern Recycle Bin metadata files ($I<id>, one per deleted item,
+// that pair with the $R<id> payload) and emits the facts — original path,
+// logical size, deletion time — as CSV or JSONL. Runs on Linux with no .NET,
+// no shell and no libc (see Dockerfile: FROM scratch, uid 2000), matching the
+// get-sybers hardening contract of the other GoDFIR tools.
 //
 // Two on-disk layouts are handled (both little-endian):
 //   - v1 (Windows Vista–8.0): [int64 version=1][int64 size][FILETIME deleted]
@@ -13,13 +12,13 @@
 //   - v2 (Windows 8.1/10/11):  [int64 version=2][int64 size][FILETIME deleted]
 //     [uint32 nameLen (wchar, incl NUL)][nameLen*2 bytes UTF-16LE path].
 //
-// The legacy XP INFO2 container is NOT handled (RBCmd's "INFO2" FileType) — it
+// The legacy XP INFO2 container is NOT handled — it
 // is obsolete and not in the pipeline's extraction filter; such a file is
 // reported as a parse failure rather than mis-read.
 //
-// Output columns mirror RBCmd: SourceName, FileType, FileName, FileSize,
-// DeletedOn. DeletedOn is rendered RFC3339 UTC (RBCmd renders local/UTC per its
-// --dt flag; the pipeline consumes the field, not its exact rendering).
+// Output columns: SourceName, FileType, FileName, FileSize, DeletedOn.
+// DeletedOn is rendered RFC3339 UTC (the pipeline consumes the field, not a
+// particular locale rendering).
 //
 // Exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at least one
 // file failed to parse (failures listed on stderr, the rest still emitted).

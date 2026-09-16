@@ -1,10 +1,8 @@
 # syntax=docker/dockerfile:1
 #
-# gomft — Linux-native Windows $MFT parser, a static-Go substitute for Eric
-# Zimmerman's MFTECmd ($MFT mode) for the DX_DFIR pipeline.
+# gomft — Linux-native Windows $MFT parser for the DX_DFIR pipeline.
 #
-# MFTECmd runs under the .NET runtime; this image replaces it with a single
-# static Go binary on Velociraptor's go-ntfs that parses a raw $MFT and emits
+# A single static Go binary on Velociraptor's go-ntfs parses a raw $MFT and emits
 # one record per entry (entry/sequence, parent ref, name+extension, size, the
 # $SI/$FN MACB timestamps, flags, ADS) as JSONL or CSV. Same get-sybers/<tool>
 # pattern and CLI as the other GoDFIR tools; `-d` finds the $MFT by its "FILE"
@@ -16,7 +14,7 @@
 #   docker build -t get-sybers/gomft:latest -f gomft/Dockerfile gomft
 #   docker run --rm --cap-drop ALL --security-opt no-new-privileges \
 #     --network none --read-only -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-#     get-sybers/gomft:latest -d /input --json /output --jsonf mftecmd.json
+#     get-sybers/gomft:latest -d /input --json /output --jsonf mft.json
 
 # go-ntfs's module graph requires go >= 1.25; the official images pin
 # GOTOOLCHAIN=local, so the builder must itself be >= 1.25.
@@ -45,7 +43,7 @@ ARG DFIR_GID=2000
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gomft"]
 LABEL org.opencontainers.image.title="get-sybers/gomft" \
-      org.opencontainers.image.description="Linux-native Windows \$MFT parser (static Go, go-ntfs): parses a raw \$MFT to JSONL/CSV (entry/parent refs, name, size, \$SI/\$FN MACB timestamps, flags, ADS) — a .NET-free substitute for MFTECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Linux-native Windows \$MFT parser (static Go, go-ntfs): parses a raw \$MFT to JSONL/CSV (entry/parent refs, name, size, \$SI/\$FN MACB timestamps, flags, ADS). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/go-ntfs" \
       org.opencontainers.image.licenses="MIT" \
       com.get-sybers.tool="gomft" \

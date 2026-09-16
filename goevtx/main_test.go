@@ -86,7 +86,7 @@ func TestPayloadIsEventDataDataForm(t *testing.T) {
 	for _, d := range p.EventData.Data {
 		got[d["@Name"]] = d["#text"]
 	}
-	if got["ProcessId"] != "6256" { // int stringified as EvtxECmd stamps it
+	if got["ProcessId"] != "6256" { // ints are stringified in #text
 		t.Errorf("ProcessId #text = %q", got["ProcessId"])
 	}
 	if got["Image"] != `C:\Program Files\Google\Chrome\Application\chrome.exe` {

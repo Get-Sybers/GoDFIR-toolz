@@ -1,11 +1,11 @@
 // gole — Linux-native Windows .lnk (shortcut) parser for the DX_DFIR pipeline.
 //
-// A static-Go substitute for Eric Zimmerman's LECmd: it parses .lnk shell-link
-// files with parsiya/golnk and emits LECmd's JSON columns (source mtime/atime,
+// Parses .lnk shell-link files with parsiya/golnk and emits JSON columns
+// (source mtime/atime,
 // target MACB times, target path, working dir, arguments, name, relative path,
 // file size, header/attribute flags). It runs on Linux with no .NET, no shell
 // and no libc (FROM scratch, uid 2000), matching the get-sybers hardening
-// contract. Source birth time (LECmd's SourceCreated) is not exposed by the Go
+// contract. A source birth time (SourceCreated) is not exposed by the Go
 // stdlib on Linux, so that column is dropped rather than emitted always-empty.
 //
 // Fields golnk does not resolve (a fully-walked TargetIDAbsolutePath from the
@@ -38,7 +38,7 @@ import (
 type record struct {
 	SourceFile string `json:"SourceFile"`
 	// SourceCreated (the .lnk's own birth time) is deliberately absent: Linux
-	// does not expose a file birth time through the Go stdlib, so LECmd's
+	// does not expose a file birth time through the Go stdlib, so a
 	// SourceCreated column can never be populated here — we drop it rather than
 	// emit an always-empty field. SourceModified/SourceAccessed come from the
 	// .lnk file's own mtime/atime.
@@ -123,7 +123,7 @@ func parseOne(path string) (*record, error) {
 		HeaderFlags:      setFlags(f.Header.LinkFlags),
 		FileAttributes:   setFlags(f.Header.FileAttributes),
 	}
-	// the .lnk file's own fs timestamps (LECmd's Source* columns). mtime is
+	// the .lnk file's own fs timestamps (the Source* columns). mtime is
 	// portable; atime comes from the Linux stat_t (the container is Linux). A
 	// birth time (SourceCreated) is not exposed by the Go stdlib on Linux, so
 	// that column is intentionally not part of the schema — see the record type.

@@ -1,12 +1,8 @@
 // goese — Linux-native ESE database dumper (SRUM / SUM) for the DX_DFIR
 // pipeline.
 //
-// SrumECmd and SumECmd cannot run on non-Windows hosts: both read ESE
-// databases through Microsoft.Database.ManagedEsent, a P/Invoke wrapper over
-// Windows' native esent.dll ("Non-Windows platforms not supported due to the
-// need to load ESI specific Windows libraries!"). This tool uses
-// Velociraptor's go-ese, a pure-Go ESE implementation, so SRUDB.dat and SUM
-// databases (Current.mdb / SystemIdentity.mdb) parse on Linux.
+// Uses Velociraptor's go-ese, a pure-Go ESE implementation, so SRUDB.dat and
+// SUM databases (Current.mdb / SystemIdentity.mdb) parse natively on Linux.
 //
 // Two run modes:
 //
@@ -19,7 +15,7 @@
 // Output is one JSONL (or CSV) file per table. For SRUM databases the
 // SruDbIdMapTable is decoded automatically: AppId/UserId columns in the data
 // tables gain AppIdName / UserIdName fields (UTF-16LE strings, or the SID for
-// IdType 3 entries), which is the useful part of SrumECmd's enrichment.
+// IdType 3 entries) — the enrichment the pipeline relies on.
 // Well-known SRUM provider GUID tables are given friendly file names; the raw
 // table name is always kept in the rows. ESE DateTime columns arrive as
 // RFC3339 strings (go-ese converts them); raw integer FILETIME columns are

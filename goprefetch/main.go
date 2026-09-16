@@ -1,14 +1,10 @@
 // goprefetch — Linux-native Windows Prefetch parser for the DX_DFIR pipeline.
 //
-// PECmd cannot run on non-Windows hosts: its startup guard exits ("Non-Windows
-// platforms not supported due to the need to load decompression specific
-// Windows libraries!") because the upstream Prefetch library P/Invokes
-// ntdll!RtlDecompressBufferEx for Win8+/Win10 MAM (LZXpress-Huffman) files.
-// This tool uses Velociraptor's go-prefetch, which carries a pure-Go
-// LZXpress-Huffman implementation, so XP-era through Win11 prefetch — MAM
-// compressed included — parse on Linux.
+// Uses Velociraptor's go-prefetch, which carries a pure-Go LZXpress-Huffman
+// implementation, so XP-era through Win11 prefetch — MAM compressed included —
+// parse natively on Linux.
 //
-// Output is JSONL (one object per .pf) or CSV. Field mapping vs PECmd:
+// Output is JSONL (one object per .pf) or CSV. Field notes:
 // Executable/RunCount/LastRun/PreviousRunN/FilesAccessed/Hash/Version carry
 // the same artifact facts; volume info blocks are not emitted (not exposed by
 // go-prefetch). SourceFilename and SourceModified come from the input file.
