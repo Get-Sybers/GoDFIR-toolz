@@ -36,22 +36,18 @@ ARG EZTOOL_URL
 ARG EZTOOL_SHA256=""
 ARG EZTOOL_ALLOW_WINDOWS_ONLY=""
 RUN set -eux; \
-    # Fail FAST on the four tools that cannot parse on Linux (all verified
-    # empirically against real artifacts AND in upstream source): PECmd's
-    # startup guard exits on any non-Windows platform (Prefetch P/Invokes
-    # ntdll!RtlDecompressBufferEx); SrumECmd and SumECmd read ESE through
-    # ManagedEsent (P/Invokes Windows' esent.dll); VSCMount symlinks the
-    # Windows VSS device namespace. All four print their refusal and exit 0,
-    # so a built image would LOOK healthy while producing nothing. Linux
-    # substitutes: prefetch/ (PECmd), srum/ (SrumECmd, SumECmd); VSS access on
-    # Linux is libvshadow on the host. Set EZTOOL_ALLOW_WINDOWS_ONLY=1 to
-    # build anyway (e.g. just to extract a release).
+    # Fail FAST on the four Windows-bound tools — run on Linux each prints a
+    # refusal and exits 0: PECmd (Windows decompression libraries), SrumECmd
+    # and SumECmd (esent.dll via ManagedEsent), VSCMount (the Windows VSS
+    # device namespace; on Linux, mount VSCs with libvshadow on the host).
+    # Substitutes: goprefetch/ (PECmd), goese/ (SrumECmd, SumECmd). Set
+    # EZTOOL_ALLOW_WINDOWS_ONLY=1 to build anyway (e.g. to extract a release).
     tool_lc="$(printf '%s' "${EZTOOL}" | tr '[:upper:]' '[:lower:]')"; \
     case "${tool_lc}" in \
         pecmd|srumecmd|sumecmd|vscmount) \
             if [ "${EZTOOL_ALLOW_WINDOWS_ONLY}" != "1" ]; then \
                 echo "ERROR: ${EZTOOL} cannot parse artifacts on Linux (Windows-native" >&2; \
-                echo "dependency). Use the prefetch/ or srum/ image instead, or set" >&2; \
+                echo "dependency). Use the goprefetch/ or goese/ image instead, or set" >&2; \
                 echo "--build-arg EZTOOL_ALLOW_WINDOWS_ONLY=1 to build it anyway." >&2; \
                 exit 1; \
             fi ;; \

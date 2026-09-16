@@ -39,38 +39,27 @@ that builds it** — the parameterized `.NET` per-tool images share
 
 ### Why three tools are substituted, not packaged
 
-"Installs on Linux" and "parses artefacts on Linux" are different claims.
-Linux installer scripts for the EZ tools set up all 19 and validate them with
-`--help` — which genuinely succeeds for every tool. But three of the requested
-tools (PECmd, SrumECmd, SumECmd) refuse at *parse* time, and (verified against
-v2026.5.0 built from upstream source, run against real artefacts) they print
-their refusal and **exit 0**, so a pipeline that only checks exit codes records
-a successful run that produced nothing — and a fourth, VSCMount, cannot work
-off-Windows at all:
+Four of the EZ tools are Windows-bound; run on Linux, each prints a refusal
+and exits 0:
 
-- **PECmd** — `Non-Windows platforms not supported due to the need to load
-  decompression specific Windows libraries! Exiting...` on *any* input, even
-  uncompressed XP-era prefetch (blanket guard in `Program.cs`; the Prefetch
-  library P/Invokes `ntdll!RtlDecompressBufferEx` for Win8+/Win10 MAM files).
-- **SrumECmd / SumECmd** — `Non-Windows platforms not supported due to the
-  need to load ESI specific Windows libraries! Exiting...`; both depend on
-  `Microsoft.Database.ManagedEsent`, a P/Invoke wrapper over Windows' native
-  `esent.dll`.
-- **VSCMount** — creates symlinks to
-  `\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopyN`; the concept it
-  manipulates does not exist off-Windows.
+- **PECmd** — needs Windows decompression libraries
+  (`ntdll!RtlDecompressBufferEx`) for MAM-compressed prefetch.
+- **SrumECmd / SumECmd** — read ESE through `Microsoft.Database.ManagedEsent`,
+  a P/Invoke wrapper over Windows' `esent.dll`.
+- **VSCMount** — mounts Volume Shadow Copies through the Windows VSS device
+  namespace; on Linux, mount VSCs with libvshadow on the host.
 
-`eztool/Dockerfile` therefore fails fast if asked to build one of the four
+`eztool/Dockerfile` fails fast if asked to build one of the four
 (`--build-arg EZTOOL_ALLOW_WINDOWS_ONLY=1` overrides, e.g. to unpack a
-release), and this repo ships native substitutes instead.
+release); goprefetch substitutes PECmd, goese substitutes SrumECmd and
+SumECmd.
 
 ## The Go substitutes (FROM scratch, a few MB, no runtime at all)
 
 Two of these (goprefetch, goese) exist because their three originals cannot
 parse off-Windows (above); the other ten replaced tools that parsed fine under
-.NET — porting to a
-static Go binary drops the ~300 MB .NET runtime from the image (DX_DFIR #188,
-initiative 2). All twelve Go images are `FROM scratch`: one static binary, no shell, no
+.NET — porting to a static Go binary drops the ~300 MB .NET runtime from the
+image. All twelve Go images are `FROM scratch`: one static binary, no shell, no
 python, no libc, `USER 2000:2000` — the hardening contract holds by
 construction, and the `docker export` scan verifies it the same way as for
 the .NET images. Each one's docs:
