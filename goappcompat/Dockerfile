@@ -57,6 +57,5 @@ LABEL org.opencontainers.image.title="get-sybers/goappcompat" \
       org.opencontainers.image.description="Linux-native Windows AppCompatCache (ShimCache) parser (static Go, regparser): reads the AppCompatCache value from a SYSTEM hive to CSV/JSONL (ControlSet, position, path, last-modified) — a .NET-free substitute for AppCompatCacheParser. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="goappcompat" \
-      com.get-sybers.eztool.substitute-for="AppCompatCacheParser" \
+      com.get-sybers.tool="goappcompat" \
       com.get-sybers.hardened="true"

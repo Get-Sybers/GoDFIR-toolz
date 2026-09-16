@@ -48,6 +48,5 @@ ENTRYPOINT ["/gorb"]
 LABEL org.opencontainers.image.title="get-sybers/gorb" \
       org.opencontainers.image.description="Linux-native Windows Recycle Bin (\$I) parser (static Go): parses v1 (Vista–8.0) and v2 (Win8.1/10/11) \$I metadata records to CSV/JSONL — a .NET-free substitute for RBCmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="gorb" \
-      com.get-sybers.eztool.substitute-for="RBCmd" \
+      com.get-sybers.tool="gorb" \
       com.get-sybers.hardened="true"

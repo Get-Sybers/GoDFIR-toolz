@@ -1,7 +1,7 @@
-# `get-sybers/gole` — gole (replaces LECmd)
+# `get-sybers/gole` — shell link (`.lnk`) parser
 
-Static Go binary on `parsiya/golnk`. Parses Windows Shell Link (`.lnk`) files and emits one record per shortcut in the
-LECmd operator/CSV shape — target `Created`/`Modified`/`Accessed`, `FileSize`,
+Static Go binary on `parsiya/golnk`. Parses Windows Shell Link (`.lnk`) files and emits one record per shortcut in an
+operator-friendly CSV shape — target `Created`/`Modified`/`Accessed`, `FileSize`,
 `LocalPath`, `RelativePath`, `WorkingDirectory`, `Arguments`, `IconLocation`,
 `CommonPath`, and the decoded `HeaderFlags`/`FileAttributes` sets — as JSONL or
 CSV. `-d` content-detects `.lnk` by the `0x4C` Shell Link header, so Plaso's
@@ -16,5 +16,5 @@ and flag sets.
 docker build -t get-sybers/gole:latest -f gole/Dockerfile gole
 docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   --read-only -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-  get-sybers/gole:latest -d /input --csv /output --csvf LECmd_Output.csv
+  get-sybers/gole:latest -d /input --csv /output --csvf lnk.csv
 ```

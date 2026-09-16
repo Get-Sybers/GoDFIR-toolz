@@ -1,12 +1,10 @@
-# `get-sybers/goamcache` — goamcache (replaces AmcacheParser)
+# `get-sybers/goamcache` — `Amcache.hve` parser
 
 Static Go binary on Velociraptor's `regparser`. Parses an `Amcache.hve` and emits one record per program-execution file entry
 (`Root\InventoryApplicationFile`) — the key's last-write time, ProgramId, the
 SHA-1 (the `0000`-prefixed `FileId` stripped to the bare 40-hex hash), full path,
-name, publisher/product/version and size — as CSV or JSONL, mirroring
-AmcacheParser's `-i` columns. Dirty-hive `.LOG1/.LOG2` transaction logs **are
-replayed** (`regparser.RecoverHive`) when they sit beside the hive, matching
-AmcacheParser's fidelity; replay writes a recovered copy under `--work-dir`
+name, publisher/product/version and size — as CSV or JSONL. Dirty-hive `.LOG1/.LOG2` transaction logs **are
+replayed** (`regparser.RecoverHive`) when they sit beside the hive; replay writes a recovered copy under `--work-dir`
 (default `$TMPDIR`), which must be writable — mount a **tmpfs** there (the rootfs
 is read-only). If the logs are absent or replay fails it falls back to the
 committed hive with a stderr note (never a hard fail). Parse-verified on a real

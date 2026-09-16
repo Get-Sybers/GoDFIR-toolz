@@ -1,8 +1,8 @@
-# `get-sybers/gorb` — gorb (replaces RBCmd)
+# `get-sybers/gorb` — Recycle Bin `$I` parser
 
 Static Go binary. Parses the modern Recycle Bin `$I` records — v1 (Vista–8.0, fixed 260-wchar path) and v2 (Win8.1/10/11,
-length-prefixed path) — and emits RBCmd's columns (`SourceName`, `FileType`,
-`FileName`, `FileSize`, `DeletedOn`) as CSV or JSONL. The legacy XP `INFO2`
+length-prefixed path) — and emits `SourceName`, `FileType`,
+`FileName`, `FileSize` and `DeletedOn` as CSV or JSONL. The legacy XP `INFO2`
 container is not handled (obsolete, not in the pipeline's extraction filter).
 
 `-d` finds records by their header, not their filename, so it picks up both a

@@ -1,4 +1,4 @@
-# `get-sybers/goese` — goese (replaces SrumECmd and SumECmd)
+# `get-sybers/goese` — ESE database dumper (SRUM / SUM)
 
 Static Go binary on Velociraptor's `go-ese` (pure-Go ESE). Verified in this
 repo against a real 7.8 MB `SRUDB.dat`: all provider tables dumped (16k+ rows

@@ -47,6 +47,5 @@ ENTRYPOINT ["/gowxt"]
 LABEL org.opencontainers.image.title="get-sybers/gowxt" \
       org.opencontainers.image.description="Linux-native Windows Timeline (ActivitiesCache.db) parser (static Go, modernc sqlite): emits WxTCmd-style Activity CSV/JSONL — a .NET-free substitute for WxTCmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="gowxt" \
-      com.get-sybers.eztool.substitute-for="WxTCmd" \
+      com.get-sybers.tool="gowxt" \
       com.get-sybers.hardened="true"

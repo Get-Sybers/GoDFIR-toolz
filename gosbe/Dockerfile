@@ -52,6 +52,5 @@ LABEL org.opencontainers.image.title="get-sybers/gosbe" \
       org.opencontainers.image.description="Linux-native Windows ShellBags parser (static Go, regparser): walks the BagMRU tree in NTUSER.DAT/UsrClass.dat, decodes shell items (GUID folders, volumes, file/dir BEEF0004 long names), reconstructs AbsolutePath, emits one record per shellbag (BagPath, Slot, NodeSlot, MRUPosition, ShellType, Value, AbsolutePath, LastWriteTime) as JSONL — a .NET-free substitute for SBECmd. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.eztool="gosbe" \
-      com.get-sybers.eztool.substitute-for="SBECmd" \
+      com.get-sybers.tool="gosbe" \
       com.get-sybers.hardened="true"

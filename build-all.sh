@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 #
 # Build the hardened DFIR images: one per-tool image per Linux-viable EZ tool
-# still on .NET (eztool/Dockerfile), the GoDFIR Go tools (goprefetch/, goese/,
-# gorb/), the DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/),
-# and — on request — the all-in-one image (eztools-all/).
+# still on .NET (godfir-tool/Dockerfile), the GoDFIR Go tools (goprefetch/, goese/,
+# gorb/), and the DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/).
 #
 #   ./build-all.sh                 # every .NET per-tool image + all the Go tools
 #   ./build-all.sh gore mftecmd    # a subset (names case-insensitive)
-#   ./build-all.sh all-in-one      # the single get-sybers/eztools image
+#   ./build-all.sh sqlecmd bstrings # the .NET per-tool images by name
 #   ./build-all.sh byakugan plaso signatures zeek
 #
 # PECmd, SrumECmd, SumECmd and VSCMount cannot parse artifacts on Linux (see
@@ -31,11 +30,11 @@ LINUX_TOOLS=(
 
 lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
-build_eztool() {
+build_godfir_tool() {
   local tool="$1"
-  echo "==> get-sybers/$(lc "${tool}") (eztool/Dockerfile, EZTOOL=${tool})"
+  echo "==> get-sybers/$(lc "${tool}") (godfir-tool/Dockerfile, GODFIR_TOOL=${tool})"
   docker build -t "get-sybers/$(lc "${tool}"):latest" \
-    --build-arg EZTOOL="${tool}" -f eztool/Dockerfile .
+    --build-arg GODFIR_TOOL="${tool}" -f godfir-tool/Dockerfile .
 }
 
 build_goprefetch() {
@@ -135,11 +134,6 @@ build_zeek() {
   docker build -t get-sybers/zeek:latest -f zeek/Dockerfile .
 }
 
-build_all_in_one() {
-  echo "==> get-sybers/eztools (all-in-one, eztools-all/Dockerfile)"
-  docker build -t get-sybers/eztools:latest -f eztools-all/Dockerfile .
-}
-
 resolve() {
   local want
   want="$(lc "$1")"
@@ -161,7 +155,6 @@ resolve() {
     plaso|log2timeline|psort) build_plaso; return ;;
     signatures|yara|suricata|hayabusa) build_signatures; return ;;
     zeek) build_zeek; return ;;
-    all-in-one|eztools|all) build_all_in_one; return ;;
     vscmount)
       echo "VSCMount manipulates the Windows VSS device namespace and has no" >&2
       echo "Linux container; use libvshadow (vshadowinfo/vshadowmount) on the host." >&2
@@ -170,11 +163,11 @@ resolve() {
   local tool
   for tool in "${LINUX_TOOLS[@]}"; do
     if [ "$(lc "${tool}")" = "${want}" ]; then
-      build_eztool "${tool}"
+      build_godfir_tool "${tool}"
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt piiat-mem byakugan plaso signatures zeek all-in-one" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt piiat-mem byakugan plaso signatures zeek" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -182,7 +175,7 @@ resolve() {
 if [ "$#" -gt 0 ]; then
   for arg in "$@"; do resolve "${arg}"; done
 else
-  for tool in "${LINUX_TOOLS[@]}"; do build_eztool "${tool}"; done
+  for tool in "${LINUX_TOOLS[@]}"; do build_godfir_tool "${tool}"; done
   build_goprefetch
   build_goese
   build_gorb
