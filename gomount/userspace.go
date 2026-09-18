@@ -442,6 +442,10 @@ func runStream(argv []string) int {
 		fmt.Fprintln(os.Stderr, "gomount stream: usage: stream [--volume N] [--filter GLOB] [--jsonl] <image>")
 		return 1
 	}
+	if _, err := path.Match(*filter, ""); err != nil {
+		fmt.Fprintf(os.Stderr, "gomount stream: invalid --filter pattern %q: %v\n", *filter, err)
+		return 1
+	}
 	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)

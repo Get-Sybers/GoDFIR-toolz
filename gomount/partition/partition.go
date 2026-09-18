@@ -285,8 +285,11 @@ func mkPart(ra io.ReaderAt, imgSize, off, sz int64, typeName string) Partition {
 	if off < 0 {
 		off = 0
 	}
+	if off > imgSize {
+		off = imgSize // an out-of-range entry becomes a zero-length volume at the end
+	}
 	if sz < 0 || off+sz > imgSize {
-		sz = imgSize - off
+		sz = imgSize - off // off <= imgSize here, so Size is never negative
 	}
 	return Partition{
 		Offset:     off,

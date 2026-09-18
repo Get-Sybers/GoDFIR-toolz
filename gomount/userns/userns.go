@@ -54,9 +54,12 @@ func Ensure() error {
 	if os.Getenv(sentinel) == "1" {
 		return nil // we are the re-exec'd child: already root-in-userns.
 	}
-	if Active() {
-		return nil // rootless podman / outer unshare already placed us here.
+	if Active() && os.Geteuid() == 0 {
+		return nil // rootless podman / outer unshare already placed us root-in-userns.
 	}
+	// In a userns but not uid 0 (e.g. a non-root container user) — or not in one at
+	// all — we lack the CAP_SYS_ADMIN the FUSE mount needs, so re-exec into a fresh
+	// userns that maps us to root.
 	return reexec()
 }
 

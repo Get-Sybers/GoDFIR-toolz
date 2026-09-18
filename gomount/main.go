@@ -125,7 +125,7 @@ func runMount(argv []string) int {
 	volume := fs.Int("volume", 0, "1-based volume to mount; 0 = auto (largest NTFS volume)")
 	work := fs.String("work", "", "FUSE work dir for volume.img (default: derived from --mount-point)")
 	noSelfUnshare := fs.Bool("no-self-unshare", false, "do not create a user namespace; assume already root-in-userns")
-	_ = fs.Bool("foreground", true, "hold the mount up in the foreground until unmount (default true)")
+	foreground := fs.Bool("foreground", true, "hold the mount up in the foreground until unmount (default true)")
 	fs.Usage = usage
 	_ = fs.Parse(argv)
 
@@ -136,6 +136,10 @@ func runMount(argv []string) int {
 	}
 	if !*readOnly {
 		fmt.Fprintln(os.Stderr, "gomount: read-only is the only supported mode; --read-only=false is not accepted")
+		return 1
+	}
+	if !*foreground {
+		fmt.Fprintln(os.Stderr, "gomount: only foreground operation is supported; --foreground=false is not accepted")
 		return 1
 	}
 	imgPath := fs.Arg(0)
