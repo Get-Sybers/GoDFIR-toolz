@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	yaml "github.com/Velocidex/yaml/v2"
 )
@@ -118,7 +119,9 @@ func runMaterialise(argv []string) int {
 		}
 	}
 	for _, g := range selects {
-		if _, err := path.Match(g, ""); err != nil {
+		// Validate the normalised form the matcher uses (Windows "\" separators
+		// become "/"), so a valid selector is not rejected as a bad pattern.
+		if _, err := path.Match(strings.ReplaceAll(g, "\\", "/"), ""); err != nil {
 			fmt.Fprintf(os.Stderr, "gomount materialise: invalid --select pattern %q: %v\n", g, err)
 			return 1
 		}
@@ -136,8 +139,14 @@ func runMaterialise(argv []string) int {
 	for _, name := range sets {
 		resolveSet(fsys, catalogue[name], *siblings, targets)
 	}
+	walkErrs := 0
 	for _, glob := range selects {
-		resolveSelect(fsys, glob, targets)
+		if err := resolveSelect(fsys, glob, targets); err != nil {
+			// A partial walk still yields what it could read; surface it so the
+			// operator knows the --select result may be incomplete.
+			fmt.Fprintf(os.Stderr, "gomount materialise: --select %q incomplete: %v\n", glob, err)
+			walkErrs++
+		}
 	}
 
 	if err := os.MkdirAll(*out, 0o755); err != nil {
@@ -173,7 +182,7 @@ func runMaterialise(argv []string) int {
 	}
 
 	fmt.Fprintf(os.Stderr, "gomount materialise: %d file(s), %d byte(s) -> %s\n", files, bytesCopied, *out)
-	if errCount > 0 {
+	if errCount+walkErrs > 0 {
 		return 2
 	}
 	return 0
@@ -231,8 +240,8 @@ func resolveSet(fsys volumeFS, set artefactSet, siblings bool, targets *targetSe
 // glob, reusing the same matchGlob semantics as the stream verb (base name, or
 // the whole path when the glob contains "/"). Ad-hoc selects carry no sibling
 // rule.
-func resolveSelect(fsys volumeFS, glob string, targets *targetSet) {
-	_ = fsys.Walk(func(e fileEntry, _ func() (io.ReadCloser, error)) error {
+func resolveSelect(fsys volumeFS, glob string, targets *targetSet) error {
+	return fsys.Walk(func(e fileEntry, _ func() (io.ReadCloser, error)) error {
 		if matchGlob(glob, e.Path) {
 			targets.add(e)
 		}
@@ -273,7 +282,7 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 			return
 		}
 		for _, e := range entries {
-			if ok, _ := path.Match(comp, e.Name); !ok {
+			if ok, _ := path.Match(strings.ToLower(comp), strings.ToLower(e.Name)); !ok {
 				continue
 			}
 			if last {
@@ -318,7 +327,7 @@ func materialiseFile(fsys volumeFS, e fileEntry, outRoot string) (int64, error) 
 		return 0, fmt.Errorf("refusing to write outside --out: %s", e.Path)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+	if err := ensureDirBeneath(absOut, filepath.Dir(absDest)); err != nil {
 		return 0, err
 	}
 	r, err := fsys.Open(e.Path)
@@ -330,7 +339,7 @@ func materialiseFile(fsys volumeFS, e fileEntry, outRoot string) (int64, error) 
 	// Remove any prior pull first: a 0o400 file cannot be re-opened O_WRONLY, so
 	// this keeps a re-run idempotent.
 	_ = os.Remove(dest)
-	w, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o400)
+	w, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|syscall.O_NOFOLLOW, 0o400)
 	if err != nil {
 		return 0, err
 	}
@@ -347,6 +356,47 @@ func materialiseFile(fsys volumeFS, e fileEntry, outRoot string) (int64, error) 
 		return n, err
 	}
 	return n, nil
+}
+
+// ensureDirBeneath creates dir and any missing parents under base, refusing to
+// traverse or create through a pre-existing symlink so a crafted volume path or a
+// symlinked output tree cannot redirect a write outside base. base must be an
+// existing real directory (the created --out). Combined with O_NOFOLLOW on the
+// file open, the whole path from base to the file is symlink-free.
+func ensureDirBeneath(base, dir string) error {
+	rel, err := filepath.Rel(base, dir)
+	if err != nil {
+		return err
+	}
+	if rel == "." {
+		return nil
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("refusing to write outside --out: %s", dir)
+	}
+	cur := base
+	for _, comp := range strings.Split(rel, string(os.PathSeparator)) {
+		if comp == "" {
+			continue
+		}
+		cur = filepath.Join(cur, comp)
+		switch fi, err := os.Lstat(cur); {
+		case err == nil:
+			if fi.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("refusing to write through symlink: %s", cur)
+			}
+			if !fi.IsDir() {
+				return fmt.Errorf("output path component is not a directory: %s", cur)
+			}
+		case os.IsNotExist(err):
+			if err := os.Mkdir(cur, 0o755); err != nil {
+				return err
+			}
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 // writeManifest writes one JSON object per pulled file to dest (newline-

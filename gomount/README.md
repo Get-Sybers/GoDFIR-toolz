@@ -19,7 +19,7 @@ gomount stat   <image> <path>      print one entry's metadata
 gomount tree   <image> [path]      list a subtree
 gomount browse <image>             navigate the volume interactively
 gomount stream [--jsonl] <image>   walk the whole filesystem for tools
-gomount materialise --out DIR [--set NAME]... [--select GLOB]... <image>
+gomount materialise --out DIR [--set NAME]... [--select GLOB]... [--siblings] [--manifest] <image>
 ```
 
 `materialise` copies targeted artefacts out of the volume into a real directory,
