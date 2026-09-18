@@ -29,7 +29,8 @@ ARG HB_SHA_arm64=9a112ed5ead6850c0f7f1b2a18b2c9c71c6eddc469cc2e1a31f5ed1170afa62
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        yara suricata ansible-core ca-certificates curl unzip; \
+        yara suricata ansible-core ca-certificates curl unzip \
+        ewf-tools ntfs-3g fuse3; \
     case "${TARGETARCH:-amd64}" in \
       amd64) hbarch=x64;     hbsha="${HB_SHA_amd64}" ;; \
       arm64) hbarch=aarch64; hbsha="${HB_SHA_arm64}" ;; \
@@ -44,6 +45,16 @@ RUN set -eux; \
     chmod 0755 /opt/dxdfir/hayabusa/hayabusa; \
     rm -rf /opt/dxdfir/hayabusa/rules/.git /tmp/hb.zip
 COPY signatures/scan-list.sh /opt/dxdfir/scan-list.sh
+# Bake the pinned DetectRaptor YARA ruleset into the image: the vendored provisioner
+# downloads the pinned assets, verifies each sha256, and dedup-merges them into
+# /opt/dxdfir/yara-rules/detectraptor.yar at BUILD time (exactly what the pipeline's
+# --fetch does at runtime). python3 (an ansible-core dependency) is present here and
+# is removed with the hardener below, leaving only the merged rules on the image.
+COPY signatures/detectraptor.py /tmp/detectraptor.py
+RUN set -eux; \
+    python3 /tmp/detectraptor.py --rules-dir /opt/dxdfir/yara-rules; \
+    test -s /opt/dxdfir/yara-rules/detectraptor/detectraptor.yar; \
+    rm -f /tmp/detectraptor.py
 COPY hardening/harden.yml /tmp/hardening/harden.yml
 RUN set -eux; \
     chmod 0755 /opt/dxdfir/scan-list.sh; \
