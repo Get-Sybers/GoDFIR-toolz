@@ -19,7 +19,19 @@ gomount stat   <image> <path>      print one entry's metadata
 gomount tree   <image> [path]      list a subtree
 gomount browse <image>             navigate the volume interactively
 gomount stream [--jsonl] <image>   walk the whole filesystem for tools
+gomount materialise --out DIR [--set NAME]... [--select GLOB]... <image>
 ```
+
+`materialise` copies targeted artefacts out of the volume into a real directory,
+so a downstream tool consumes them from a plain `-d <dir>`. `--set` names a
+built-in artefact set (`registry-core`, `amcache`, `shimcache`, `ntuser`,
+`usrclass`, `srum`, `sum`, `timeline`); `--select` adds an ad-hoc volume-path
+glob. Each file lands at `<out>/<volume-path>` at mode `0400`. `--siblings`
+(default `true`) also copies each artefact's named siblings — a hive's
+`.LOG1`/`.LOG2`, a SQLite `-wal`/`-shm` — from the same directory. `--manifest`
+writes `<out>/materialise.jsonl` with `{path,size,mtime,mftid}` per pulled file.
+The artefact sets are defined in `materialise-sets.yml`, embedded at build time.
+A selector that matches nothing copies nothing and is not an error.
 
 The **direct backend** is the `mount` subcommand: it exports the volume as one
 regular file over FUSE and execs the distro `ntfs-3g -o ro` onto that file,

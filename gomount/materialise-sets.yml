@@ -1,0 +1,56 @@
+# materialise-sets.yml — the artefact-set catalogue for `gomount materialise`.
+#
+# Each named set lists one or more PRIMARY artefacts to copy out of an NTFS
+# volume, plus the SIBLING suffixes that must travel with each primary (registry
+# transaction logs, SQLite WAL/SHM) so the downstream go* tool sees a complete
+# artefact. Paths are volume-relative; "\" and "/" separators are both accepted
+# and matching is case-insensitive. A "*" path component matches every immediate
+# child — a user profile under \Users, a ConnectedDevicesPlatform profile, or a
+# *.mdb leaf. Add a set or a sibling suffix by editing this data file; the Go
+# code reads it (go:embed) and is never edited to add an artefact.
+sets:
+  registry-core:
+    primaries:
+      - '\Windows\System32\config\SYSTEM'
+      - '\Windows\System32\config\SOFTWARE'
+      - '\Windows\System32\config\SAM'
+      - '\Windows\System32\config\SECURITY'
+    siblings: ['.LOG1', '.LOG2']
+
+  amcache:
+    primaries:
+      - '\Windows\AppCompat\Programs\Amcache.hve'
+    siblings: ['.LOG1', '.LOG2']
+
+  shimcache:
+    primaries:
+      - '\Windows\System32\config\SYSTEM'
+    siblings: ['.LOG1', '.LOG2']
+
+  ntuser:
+    primaries:
+      - '\Users\*\NTUSER.DAT'
+    siblings: ['.LOG1', '.LOG2']
+
+  usrclass:
+    primaries:
+      - '\Users\*\AppData\Local\Microsoft\Windows\UsrClass.dat'
+    siblings: ['.LOG1', '.LOG2']
+
+  srum:
+    primaries:
+      - '\Windows\System32\sru\SRUDB.dat'
+    siblings: []
+
+  # SUM: *.mdb databases live under a literal SUM directory. The SUM/ parent is
+  # preserved in the output (goese only treats a *.mdb as a SUM database when its
+  # immediate parent directory is literally named SUM).
+  sum:
+    primaries:
+      - '\Windows\System32\LogFiles\SUM\*.mdb'
+    siblings: []
+
+  timeline:
+    primaries:
+      - '\Users\*\AppData\Local\ConnectedDevicesPlatform\*\ActivitiesCache.db'
+    siblings: ['-wal', '-shm']
