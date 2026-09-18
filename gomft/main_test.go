@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"io"
@@ -69,5 +71,81 @@ func TestParseMinimalRecordNoError(t *testing.T) {
 	e := &emitter{enc: json.NewEncoder(io.Discard)}
 	if _, err := parseFile(p, 1024, 4096, e); err != nil {
 		t.Errorf("parseFile on a minimal FILE record: %v", err)
+	}
+}
+
+// minimalMFT returns a single well-formed 1 KiB $MFT record — the "FILE"
+// signature plus the record-size fields go-ntfs reads — the same record
+// TestParseMinimalRecordNoError parses from disk.
+func minimalMFT() []byte {
+	rec := make([]byte, 1024)
+	copy(rec, "FILE")
+	binary.LittleEndian.PutUint16(rec[24:], 1024) // mft_entry_size
+	binary.LittleEndian.PutUint16(rec[28:], 1024) // mft_entry_allocated
+	return rec
+}
+
+// tarOf builds an in-memory tar of (name, body) pairs, mirroring gomount's
+// stream: regular-file entries, mode 0400, Size = body length.
+func tarOf(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for name, body := range files {
+		if err := tw.WriteHeader(&tar.Header{
+			Name:     name,
+			Size:     int64(len(body)),
+			Mode:     0o400,
+			Typeflag: tar.TypeReg,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// TestParseTarStream feeds a tar carrying one $MFT (FILE signature) and one
+// non-$MFT file (a registry hive) through parseTarStream, the same end-to-end
+// path as `gomount stream --filter '$MFT' <image> | gomft --tar`. It confirms the
+// $MFT is buffered, content-detected and parsed while the other entry is skipped,
+// and that every counted entry reached the emitter.
+func TestParseTarStream(t *testing.T) {
+	tarball := tarOf(t, map[string][]byte{
+		"$MFT":   minimalMFT(),
+		"SYSTEM": []byte("regf"), // a hive, not the FILE signature — skipped
+	})
+
+	var out bytes.Buffer
+	e := &emitter{enc: json.NewEncoder(&out)}
+	parsed, entries, failed, err := parseTarStream(bytes.NewReader(tarball), 1024, 4096, e)
+	if err != nil {
+		t.Fatalf("parseTarStream: %v", err)
+	}
+	if parsed != 1 {
+		t.Errorf("parsed = %d, want 1 (only the $MFT entry, the hive skipped)", parsed)
+	}
+	if failed != 0 {
+		t.Errorf("failed = %d, want 0", failed)
+	}
+	// json.Encoder writes one line per record, so the emitted line count must
+	// equal the entries parseTarStream reports.
+	if emitted := bytes.Count(out.Bytes(), []byte("\n")); emitted != entries {
+		t.Errorf("emitted %d records, want entries=%d", emitted, entries)
+	}
+}
+
+// TestParseTarStreamCorrupt confirms a truncated/garbage tar is fatal (non-nil
+// err) rather than silently producing partial output.
+func TestParseTarStreamCorrupt(t *testing.T) {
+	e := &emitter{enc: json.NewEncoder(io.Discard)}
+	junk := bytes.Repeat([]byte{0x7f}, 2048) // not a valid tar header
+	if _, _, _, err := parseTarStream(bytes.NewReader(junk), 1024, 4096, e); err == nil {
+		t.Error("parseTarStream on garbage input: want a fatal error, got nil")
 	}
 }

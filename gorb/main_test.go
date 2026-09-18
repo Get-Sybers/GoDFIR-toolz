@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -117,6 +119,110 @@ func TestParseRejectsUnknownVersionAndTruncation(t *testing.T) {
 	mustWrite(t, truncPath, v2)
 	if _, err := parseOne(truncPath); err == nil {
 		t.Error("expected error for overrunning v2 name length")
+	}
+}
+
+// tarEntry is one regular-file entry for tarOf: name = the file's volume path (as
+// gomount emits it), body = the file's bytes.
+type tarEntry struct {
+	name string
+	body []byte
+}
+
+func entry(name string, body []byte) tarEntry { return tarEntry{name, body} }
+
+// tarOf builds an in-memory tar of the given entries — the shape `gomount stream`
+// emits (one regular-file entry per file, entry name = the file's volume path).
+func tarOf(t *testing.T, entries ...tarEntry) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, e := range entries {
+		if err := tw.WriteHeader(&tar.Header{
+			Name:     e.name,
+			Size:     int64(len(e.body)),
+			Mode:     0o400,
+			Typeflag: tar.TypeReg,
+		}); err != nil {
+			t.Fatalf("write header %s: %v", e.name, err)
+		}
+		if _, err := tw.Write(e.body); err != nil {
+			t.Fatalf("write body %s: %v", e.name, err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("close tar: %v", err)
+	}
+	return &buf
+}
+
+func TestParseTarStreamPicksRecordsAndSkipsSiblings(t *testing.T) {
+	when := time.Date(2021, 6, 1, 8, 15, 0, 0, time.UTC)
+	// The $Recycle.Bin/* glob carries the $I records alongside the $R payloads
+	// (whole deleted files) and desktop.ini; only the $I records are parsed, and
+	// they are detected by header so a raw-mount "$I" and a Plaso-renamed "_I"
+	// both parse regardless of name.
+	tr := tarOf(t,
+		entry(`$Recycle.Bin/S-1-5-21/$IAAAAAA.docx`, makeV2(4096, when, `C:\Users\jo\report.docx`)),
+		entry(`$Recycle.Bin/S-1-5-21/_IBBBBBB.lnk`, makeV1(20, when, `C:\b.lnk`)),
+		entry(`$Recycle.Bin/S-1-5-21/$RAAAAAA.docx`, []byte("the actual deleted file bytes, not a $I header")),
+		entry(`$Recycle.Bin/S-1-5-21/desktop.ini`, []byte("[.ShellClassInfo]\n")),
+	)
+
+	var got []*record
+	emitted, failed, err := parseTarStream(tr, func(r *record) error {
+		got = append(got, r)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("parseTarStream: %v", err)
+	}
+	if failed != 0 {
+		t.Errorf("failed = %d, want 0", failed)
+	}
+	if emitted != 2 || len(got) != 2 {
+		t.Fatalf("emitted %d records, want 2 ($I only): %+v", emitted, got)
+	}
+	// SourceName is the tar entry name verbatim (the file's volume path).
+	if got[0].SourceName != `$Recycle.Bin/S-1-5-21/$IAAAAAA.docx` {
+		t.Errorf("SourceName = %q", got[0].SourceName)
+	}
+	if got[0].FileType != "$I" {
+		t.Errorf("FileType = %q", got[0].FileType)
+	}
+	if got[0].FileName != `C:\Users\jo\report.docx` || got[0].FileSize != 4096 {
+		t.Errorf("record[0] = %+v", got[0])
+	}
+	if got[0].DeletedOn != "2021-06-01T08:15:00Z" {
+		t.Errorf("DeletedOn = %q", got[0].DeletedOn)
+	}
+	if got[1].FileName != `C:\b.lnk` {
+		t.Errorf("record[1] FileName = %q", got[1].FileName)
+	}
+}
+
+func TestParseTarStreamCountsPerFileErrorsAndKeepsGoing(t *testing.T) {
+	when := time.Date(2022, 2, 2, 2, 2, 2, 0, time.UTC)
+	// A $I header whose v2 name length overruns the entry is a per-file failure;
+	// the good record before and after it still parse.
+	badV2 := make([]byte, 28)
+	binary.LittleEndian.PutUint64(badV2[0:8], 2)
+	binary.LittleEndian.PutUint32(badV2[24:28], 999) // name overruns the 28-byte entry
+	tr := tarOf(t,
+		entry("$IGOOD1", makeV2(1, when, `C:\ok1`)),
+		entry("$IBAD", badV2),
+		entry("$IGOOD2", makeV1(2, when, `C:\ok2`)),
+	)
+
+	emitted, failed, err := parseTarStream(tr, func(*record) error { return nil })
+	if err != nil {
+		t.Fatalf("parseTarStream: %v", err)
+	}
+	if emitted != 2 {
+		t.Errorf("emitted = %d, want 2", emitted)
+	}
+	if failed != 1 {
+		t.Errorf("failed = %d, want 1", failed)
 	}
 }
 

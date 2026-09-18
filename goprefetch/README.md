@@ -15,6 +15,22 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   get-sybers/goprefetch:latest -d /input --json /output
 ```
 
+## Reading a disk image over a pipe (`--tar`)
+
+`--tar` reads a TAR archive on stdin — one entry per file, entry name = the
+file's volume path, body = the file's bytes, exactly as `gomount stream` emits —
+and parses every `*.pf` entry. A disk image is processed by a plain pipe, with
+no mount and no intermediate extraction:
+
+```sh
+gomount stream --filter '*.pf' disk.E01 | goprefetch --tar --json /output
+```
+
+Each entry is buffered in memory (prefetch files are small), so the whole
+archive is never held. A read or parse failure on one entry is logged on stderr
+and counted; the stream continues. Exactly one of `-f`, `-d`, or `--tar` is
+given per run.
+
 JSONL (or `--csv`) per file: `SourceFilename`, `Executable`, `Path`, `Hash`,
 `Version`, `FileSize`, `RunCount`, `LastRun`, `PreviousRuns`,
 `FilesAccessed`. Volume info blocks are not emitted (not exposed by the
