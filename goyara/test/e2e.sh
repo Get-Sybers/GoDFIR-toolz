@@ -31,11 +31,7 @@
 # ASSERTIONS (all must hold for exit 0):
 #   A. goyara emits EXACTLY ONE JSON match record.
 #   B. that record's "rule"          == detectraptor_smoke.
-#   C. that record's file path field == /hit.txt   (the file carrying the marker).
-#      The task spells this key "target"; the current build spells it "path".
-#      C accepts either key so it enforces the semantic contract (the right rule
-#      fired on the right file) regardless of which spelling ships — reconcile the
-#      two before merge (rename the JSON tag, or this assertion, to match).
+#   C. that record's "target"        == /hit.txt   (the file carrying the marker).
 #   D. goyara's stderr summary shows matches>=1 AND files_scanned>=2.
 #   E. sha256(source image) is UNCHANGED across the whole pipe (read-only proof).
 #
@@ -226,11 +222,11 @@ assert_pipeline() {
     fail "B: match rule is not $RULE_NAME"; rc=2
   fi
 
-  # ---- C: file path field == /hit.txt  (accept the task's "target" or the build's "path") ----
-  if grep -qE "\"(target|path)\":\"/$HIT_NAME\"" "$out"; then
-    ok "C: match file path == /$HIT_NAME"
+  # ---- C: match target == /hit.txt ----
+  if grep -qF "\"target\":\"/$HIT_NAME\"" "$out"; then
+    ok "C: match target == /$HIT_NAME"
   else
-    fail "C: match file path is not /$HIT_NAME"; rc=2
+    fail "C: match target is not /$HIT_NAME"; rc=2
   fi
 
   # ---- D: stderr summary matches>=1 and files_scanned>=2 ----

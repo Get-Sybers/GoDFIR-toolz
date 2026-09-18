@@ -60,6 +60,7 @@ func run(argv []string) int {
 		fmt.Fprintf(os.Stderr, "goyara: %v\n", err)
 		return 1
 	}
+	defer rules.Destroy() // free libyara resources on every exit path
 
 	out := os.Stdout
 	if *jsonOut != "-" {
