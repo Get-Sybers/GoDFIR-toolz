@@ -18,10 +18,19 @@
 // friendly-name table covers well-known ids only; those get a Description,
 // unknown ids get "" (never invented).
 //
+// Input is one of three modes: a single file (-f), a directory scanned recursively
+// (-d), or a tar archive on stdin (--tar) as `gomount stream` emits — one entry
+// per file, entry name = the file's volume path. The tar mode buffers each
+// AutomaticDestinations entry (mscfb needs an io.ReaderAt) and runs the same
+// OLE/DestList parse the file modes use, one file in memory at a time:
+//
+//	gomount stream --filter '*.automaticDestinations-ms' <image> | gojle --tar
+//
 // Exit codes: 0 = every file parsed; 1 = usage/fatal; 2 = a file failed to parse.
 package main
 
 import (
+	"archive/tar"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -214,13 +223,13 @@ func readStream(r *mscfb.Reader, f *mscfb.File) []byte {
 	return buf[:n]
 }
 
-func parseOne(path string) (*record, error) {
-	fh, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer fh.Close()
-	doc, err := mscfb.New(fh)
+// parseReader parses one AutomaticDestinations OLE compound file read through ra
+// and builds the record. ra is an *os.File on disk (-f/-d) or a *bytes.Reader over
+// a buffered tar entry (--tar); mscfb.New needs an io.ReaderAt, which both satisfy.
+// sourceFile is recorded verbatim as SourceFile, and its base name's stem is the
+// AppId (mapped to a friendly Description for well-known ids).
+func parseReader(ra io.ReaderAt, sourceFile string) (*record, error) {
+	doc, err := mscfb.New(ra)
 	if err != nil {
 		return nil, err
 	}
@@ -266,13 +275,32 @@ func parseOne(path string) (*record, error) {
 			}
 		}
 	}
-	base := filepath.Base(path)
+	base := filepath.Base(sourceFile)
 	id := strings.SplitN(base, ".", 2)[0] // the AppId is the file stem
 	return &record{
 		AppId:           appID{AppId: id, Description: appIDName(id)},
-		SourceFile:      path,
+		SourceFile:      sourceFile,
 		DestListEntries: entries,
 	}, nil
+}
+
+// parseOne opens an AutomaticDestinations file on disk and parses it. The image
+// is only ever read.
+func parseOne(path string) (*record, error) {
+	fh, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	return parseReader(fh, path)
+}
+
+// isJumpList reports whether name is an AutomaticDestinations jump list, by the
+// same "automaticdestinations" substring the -d directory walk uses. It matches
+// both the leaf (*.automaticDestinations-ms) and the containing directory, and
+// never matches CustomDestinations.
+func isJumpList(name string) bool {
+	return strings.Contains(strings.ToLower(name), "automaticdestinations")
 }
 
 func collectInputs(file, dir string) ([]string, error) {
@@ -291,7 +319,7 @@ func collectInputs(file, dir string) ([]string, error) {
 			}
 			return nil
 		}
-		if !d.IsDir() && strings.Contains(strings.ToLower(p), "automaticdestinations") {
+		if !d.IsDir() && isJumpList(p) {
 			out = append(out, p)
 		}
 		return nil
@@ -313,21 +341,116 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 	return os.Create(filepath.Join(dir, name))
 }
 
+// runTar reads a tar archive from r (one entry per file, entry name = the file's
+// volume path, as `gomount stream` emits) and parses every AutomaticDestinations
+// entry with the same OLE/DestList path the -f/-d modes use, encoding one record
+// per file. Each matching entry is buffered whole (mscfb needs an io.ReaderAt),
+// one file in memory at a time. A per-file parse failure is counted and skipped —
+// the stream keeps going. A corrupt tar or an output write error is fatal. It
+// returns the number of files that failed to parse.
+func runTar(r io.Reader, enc *json.Encoder, quiet bool) int {
+	tr := tar.NewReader(r)
+	failed := 0
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			// A malformed tar desynchronises every entry after it — fatal.
+			fmt.Fprintf(os.Stderr, "gojle: read tar: %v\n", err)
+			os.Exit(1)
+		}
+		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+			continue // only regular files carry a jump list
+		}
+		if !isJumpList(hdr.Name) {
+			continue // e.g. CustomDestinations, or any other file gomount walked
+		}
+		// Buffer this one entry: mscfb.New seeks within the OLE compound file, so
+		// it needs an io.ReaderAt. Jump lists are small OLE files and only one is
+		// held at a time, so memory stays bounded to a single file.
+		buf, err := io.ReadAll(tr)
+		if err != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "gojle: FAILED %s: read: %v\n", hdr.Name, err)
+			continue
+		}
+		rec, err := parseReader(bytes.NewReader(buf), hdr.Name)
+		if err != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "gojle: FAILED %s: %v\n", hdr.Name, err)
+			continue
+		}
+		if err := enc.Encode(rec); err != nil {
+			fmt.Fprintf(os.Stderr, "gojle: write: %v\n", err)
+			os.Exit(1)
+		}
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "gojle: parsed %s (%d entries)\n", hdr.Name, len(rec.DestListEntries))
+		}
+	}
+	return failed
+}
+
+func usage() {
+	fmt.Fprint(os.Stderr,
+		"gojle — parse Windows AutomaticDestinations jump lists to the jlecmd_dest record shape\n\n"+
+			"Input is one of: a single file (-f), a directory scanned recursively (-d), or a\n"+
+			"tar archive on stdin (--tar), as `gomount stream` emits (one entry per file):\n\n"+
+			"  gojle -d <dir> [--json OUT] [--jsonf NAME]\n"+
+			"  gomount stream --filter '*.automaticDestinations-ms' <image> | gojle --tar\n\n"+
+			"Flags:\n")
+	flag.PrintDefaults()
+}
+
 func main() {
 	var (
 		file    = flag.String("f", "", "single *.automaticDestinations-ms file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for AutomaticDestinations")
+		tarIn   = flag.Bool("tar", false, "read a tar archive on stdin (one entry per file, as `gomount stream` emits) and parse each AutomaticDestinations entry")
 		jsonDir = flag.String("json", "", "directory to write JSONL output to (default: stdout)")
 		jsonF   = flag.String("jsonf", "", "JSONL file name (default: JLECmd_Output.json)")
 		quiet   = flag.Bool("q", false, "suppress per-file progress on stderr")
 	)
+	flag.Usage = usage
 	flag.Parse()
 
-	if (*file == "") == (*dir == "") {
-		fmt.Fprintln(os.Stderr, "gojle: exactly one of -f <file> or -d <dir> is required")
+	// Exactly one input mode.
+	modes := 0
+	for _, on := range []bool{*file != "", *dir != "", *tarIn} {
+		if on {
+			modes++
+		}
+	}
+	if modes != 1 {
+		fmt.Fprintln(os.Stderr, "gojle: exactly one of -f <file>, -d <dir>, or --tar is required")
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	w, err := openOut(*jsonDir, *jsonF, "JLECmd_Output.json")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gojle: %v\n", err)
+		os.Exit(1)
+	}
+	closeOut := func() {
+		if w != os.Stdout {
+			w.Close()
+		}
+	}
+	enc := json.NewEncoder(w)
+
+	if *tarIn {
+		failed := runTar(os.Stdin, enc, *quiet)
+		closeOut()
+		if failed > 0 {
+			fmt.Fprintf(os.Stderr, "gojle: %d file(s) failed\n", failed)
+			os.Exit(2)
+		}
+		return
+	}
+
 	inputs, err := collectInputs(*file, *dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gojle: %v\n", err)
@@ -338,19 +461,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	w, err := openOut(*jsonDir, *jsonF, "JLECmd_Output.json")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gojle: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if w != os.Stdout {
-			w.Close()
-		}
-	}()
-	enc := json.NewEncoder(w)
-
-	failed, emitted := 0, 0
+	failed := 0
 	for _, p := range inputs {
 		rec, err := parseOne(p)
 		if err != nil {
@@ -362,16 +473,15 @@ func main() {
 			fmt.Fprintf(os.Stderr, "gojle: write: %v\n", err)
 			os.Exit(1)
 		}
-		emitted++
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "gojle: parsed %s (%d entries)\n", p, len(rec.DestListEntries))
 		}
 	}
+	closeOut()
 	if failed > 0 {
 		fmt.Fprintf(os.Stderr, "gojle: %d of %d files failed\n", failed, len(inputs))
 		os.Exit(2)
 	}
-	_ = emitted
 }
 
 // appIDName maps a handful of well-known AppIds to their friendly name.

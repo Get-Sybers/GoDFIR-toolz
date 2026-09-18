@@ -13,11 +13,19 @@
 // target path is LinkInfo's LocalBasePath(+CommonPathSuffix), which is what the
 // artefact records directly.
 //
+// Input is either a single file (-f), a directory walked recursively for .lnk
+// (-d), or a TAR archive on stdin (--tar) as `gomount stream` emits — one entry
+// per file, entry name = the file's volume path, body = the file's bytes. In
+// --tar mode SourceModified comes from the tar header's mtime; a tar header
+// carries no atime, so SourceAccessed is empty there.
+//
 // Exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at least one
 // file failed (failures listed on stderr, the rest still emitted).
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -94,11 +102,11 @@ func setFlags(fm lnk.FlagMap) string {
 	return strings.Join(on, ", ")
 }
 
-func parseOne(path string) (*record, error) {
-	f, err := lnk.File(path)
-	if err != nil {
-		return nil, err
-	}
+// recordFromLnk maps a parsed golnk LnkFile into a record. It fills everything
+// that comes from the .lnk content itself — the target MACB times, path, flags —
+// and leaves the Source* fs timestamps to the caller, since those come from the
+// file's own metadata, which differs between an on-disk file and a tar entry.
+func recordFromLnk(f lnk.LnkFile, sourceFile string) *record {
 	local := f.LinkInfo.LocalBasePathUnicode
 	if local == "" {
 		local = f.LinkInfo.LocalBasePath
@@ -107,8 +115,8 @@ func parseOne(path string) (*record, error) {
 	if common == "" {
 		common = f.LinkInfo.CommonPathSuffix
 	}
-	rec := &record{
-		SourceFile:       path,
+	return &record{
+		SourceFile:       sourceFile,
 		TargetCreated:    ts(f.Header.CreationTime),
 		TargetModified:   ts(f.Header.WriteTime),
 		TargetAccessed:   ts(f.Header.AccessTime),
@@ -123,6 +131,14 @@ func parseOne(path string) (*record, error) {
 		HeaderFlags:      setFlags(f.Header.LinkFlags),
 		FileAttributes:   setFlags(f.Header.FileAttributes),
 	}
+}
+
+func parseOne(path string) (*record, error) {
+	f, err := lnk.File(path)
+	if err != nil {
+		return nil, err
+	}
+	rec := recordFromLnk(f, path)
 	// the .lnk file's own fs timestamps (the Source* columns). mtime is
 	// portable; atime comes from the Linux stat_t (the container is Linux). A
 	// birth time (SourceCreated) is not exposed by the Go stdlib on Linux, so
@@ -138,6 +154,13 @@ func parseOne(path string) (*record, error) {
 
 const lnkMagic = "\x4c\x00\x00\x00" // ShellLinkHeader HeaderSize = 0x4C
 
+// hasLnkMagic reports whether b begins with the 0x4C shell-link header, the same
+// content signal looksLikeLnk uses on disk — so a tar entry with a renamed or
+// missing extension is still recognised as a .lnk.
+func hasLnkMagic(b []byte) bool {
+	return len(b) >= len(lnkMagic) && string(b[:len(lnkMagic)]) == lnkMagic
+}
+
 func looksLikeLnk(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -148,7 +171,69 @@ func looksLikeLnk(path string) bool {
 	if _, err := io.ReadFull(f, hdr[:]); err != nil {
 		return false
 	}
-	return string(hdr[:]) == lnkMagic
+	return hasLnkMagic(hdr[:])
+}
+
+// maxTarEntry caps how many bytes of a single tar entry are buffered before the
+// .lnk parse. A shell link is a few KB; the cap only bounds memory against a
+// pathological oversized entry (which is not a real .lnk and fails the parse,
+// counted and skipped like any other bad file).
+const maxTarEntry int64 = 32 << 20 // 32 MiB
+
+// parseTarStream reads a TAR archive from r — as `gomount stream` emits it: one
+// entry per regular file, entry name = the file's volume path, body = its bytes —
+// and parses each .lnk entry, selected by the .lnk extension or the 0x4C
+// shell-link magic (the same content detection -d uses). emit is called once per
+// parsed record. It returns the number of records emitted and the number of
+// per-file failures (a read or parse failure on one entry is counted and
+// skipped; the stream keeps going). err is non-nil only for a fatal condition: a
+// corrupt tar, or an emit callback that itself failed.
+//
+// A tar header carries the entry's mtime but not its atime, so SourceModified is
+// filled from the header while SourceAccessed stays empty in this mode.
+func parseTarStream(r io.Reader, emit func(*record) error, quiet bool) (parsed, failed int, err error) {
+	tr := tar.NewReader(r)
+	for {
+		hdr, nextErr := tr.Next()
+		if nextErr == io.EOF {
+			break
+		}
+		if nextErr != nil {
+			// A malformed tar desynchronises every entry after it — fatal.
+			return parsed, failed, fmt.Errorf("read tar: %w", nextErr)
+		}
+		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+			continue // only regular files carry bytes to parse
+		}
+		byExt := strings.EqualFold(filepath.Ext(hdr.Name), ".lnk")
+		buf, readErr := io.ReadAll(io.LimitReader(tr, maxTarEntry))
+		if !byExt && !(readErr == nil && hasLnkMagic(buf)) {
+			continue // not a .lnk by name or magic — skip without counting
+		}
+		if readErr != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "gole: FAILED %s: read: %v\n", hdr.Name, readErr)
+			continue
+		}
+		f, parseErr := lnk.Read(bytes.NewReader(buf), uint64(len(buf)))
+		if parseErr != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "gole: FAILED %s: %v\n", hdr.Name, parseErr)
+			continue
+		}
+		rec := recordFromLnk(f, hdr.Name)
+		// The tar header carries mtime (SourceModified) but no atime, so
+		// SourceAccessed is left empty here rather than faked.
+		rec.SourceModified = ts(hdr.ModTime)
+		if emitErr := emit(rec); emitErr != nil {
+			return parsed, failed, emitErr
+		}
+		parsed++
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "gole: parsed %s -> %s\n", hdr.Name, rec.LocalPath)
+		}
+	}
+	return parsed, failed, nil
 }
 
 func collectInputs(file, dir string) ([]string, error) {
@@ -193,6 +278,7 @@ func main() {
 	var (
 		file    = flag.String("f", "", "single .lnk file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for .lnk")
+		tarMode = flag.Bool("tar", false, "read a TAR archive on stdin (gomount stream) and parse each .lnk entry")
 		jsonDir = flag.String("json", "", "directory to write JSONL output to (default: stdout)")
 		jsonF   = flag.String("jsonf", "", "JSONL file name (default: LECmd_Output.json)")
 		csvDir  = flag.String("csv", "", "directory to write CSV output to instead of JSONL")
@@ -201,19 +287,31 @@ func main() {
 	)
 	flag.Parse()
 
-	if (*file == "") == (*dir == "") {
-		fmt.Fprintln(os.Stderr, "gole: exactly one of -f <file> or -d <dir> is required")
+	switch {
+	case *tarMode:
+		if *file != "" || *dir != "" {
+			fmt.Fprintln(os.Stderr, "gole: --tar reads the tar stream on stdin; do not combine it with -f or -d")
+			flag.Usage()
+			os.Exit(1)
+		}
+	case (*file == "") == (*dir == ""):
+		fmt.Fprintln(os.Stderr, "gole: exactly one of -f <file>, -d <dir> or --tar is required")
 		flag.Usage()
 		os.Exit(1)
 	}
-	inputs, err := collectInputs(*file, *dir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gole: %v\n", err)
-		os.Exit(1)
-	}
-	if len(inputs) == 0 {
-		fmt.Fprintln(os.Stderr, "gole: no .lnk files found")
-		os.Exit(1)
+
+	var inputs []string
+	var err error
+	if !*tarMode {
+		inputs, err = collectInputs(*file, *dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gole: %v\n", err)
+			os.Exit(1)
+		}
+		if len(inputs) == 0 {
+			fmt.Fprintln(os.Stderr, "gole: no .lnk files found")
+			os.Exit(1)
+		}
 	}
 
 	var w io.WriteCloser
@@ -241,25 +339,41 @@ func main() {
 	}
 	enc := json.NewEncoder(w)
 
-	failed := 0
-	for _, p := range inputs {
-		rec, err := parseOne(p)
-		if err != nil {
-			failed++
-			fmt.Fprintf(os.Stderr, "gole: FAILED %s: %v\n", p, err)
-			continue
-		}
+	// emit routes one record to the active output (CSV row or JSONL object),
+	// shared by the -f/-d walk and the --tar stream.
+	emit := func(rec *record) error {
 		if cw != nil {
-			if err := cw.Write(rec.csvRow()); err != nil {
+			return cw.Write(rec.csvRow())
+		}
+		return enc.Encode(rec)
+	}
+
+	var failed, total int
+	if *tarMode {
+		var parsed int
+		var perr error
+		parsed, failed, perr = parseTarStream(os.Stdin, emit, *quiet)
+		if perr != nil {
+			fmt.Fprintf(os.Stderr, "gole: %v\n", perr)
+			os.Exit(1)
+		}
+		total = parsed + failed
+	} else {
+		total = len(inputs)
+		for _, p := range inputs {
+			rec, err := parseOne(p)
+			if err != nil {
+				failed++
+				fmt.Fprintf(os.Stderr, "gole: FAILED %s: %v\n", p, err)
+				continue
+			}
+			if err := emit(rec); err != nil {
 				fmt.Fprintf(os.Stderr, "gole: write: %v\n", err)
 				os.Exit(1)
 			}
-		} else if err := enc.Encode(rec); err != nil {
-			fmt.Fprintf(os.Stderr, "gole: write: %v\n", err)
-			os.Exit(1)
-		}
-		if !*quiet {
-			fmt.Fprintf(os.Stderr, "gole: parsed %s -> %s\n", p, rec.LocalPath)
+			if !*quiet {
+				fmt.Fprintf(os.Stderr, "gole: parsed %s -> %s\n", p, rec.LocalPath)
+			}
 		}
 	}
 	if cw != nil {
@@ -270,7 +384,7 @@ func main() {
 		}
 	}
 	if failed > 0 {
-		fmt.Fprintf(os.Stderr, "gole: %d of %d files failed\n", failed, len(inputs))
+		fmt.Fprintf(os.Stderr, "gole: %d of %d files failed\n", failed, total)
 		os.Exit(2)
 	}
 }

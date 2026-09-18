@@ -18,3 +18,17 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   --read-only -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
   get-sybers/gole:latest -d /input --csv /output --csvf lnk.csv
 ```
+
+## Input modes
+
+- `-f <file>` — parse a single `.lnk`.
+- `-d <dir>` — walk a directory recursively, selecting `.lnk` by extension or the `0x4C` header.
+- `--tar` — read a TAR archive on stdin, as `gomount stream` emits it (one entry per file, entry name = the file's volume path, body = its bytes), and parse each `.lnk` entry, selected by the `.lnk` extension or the `0x4C` header. Records go to the same JSONL or CSV output. The orchestration is a pipe:
+
+```sh
+gomount stream --filter '*.lnk' disk.E01 | gole --tar --csv /output --csvf lnk.csv
+```
+
+In `--tar` mode `SourceModified` comes from the tar entry's mtime. A tar header
+carries no atime, so `SourceAccessed` is empty in this mode; `SourceModified` and
+the target `Created`/`Modified`/`Accessed` times are unaffected.

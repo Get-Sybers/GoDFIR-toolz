@@ -11,6 +11,12 @@
 // header regardless of name — a raw-mount "$MFT" and Plaso image_export's
 // rename ("$" → "_", i.e. "_MFT") both parse.
 //
+// `--tar` reads a tar archive on stdin instead of a path — one entry per file,
+// as `gomount stream` emits — and parses every entry carrying the FILE
+// signature, so `gomount stream --filter '$MFT' <image> | gomft --tar` parses an
+// NTFS image's $MFT without a mount. A tar entry is sequential, so each candidate
+// is buffered whole into memory before parsing (go-ntfs needs random access).
+//
 // Fields go-ntfs does not expose are not emitted (ReparseTarget, SecurityId,
 // ObjectId, ZoneId) — never faked. Timestamps are RFC3339 (UTC), omitted when
 // zero. $MFT-only parsing resolves paths and resident data; a non-resident
@@ -21,6 +27,8 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -162,8 +170,16 @@ func parseFile(p string, recordSize, clusterSize int64, e *emitter) (int, error)
 	if err != nil {
 		return 0, err
 	}
+	return parseReaderAt(f, st.Size(), recordSize, clusterSize, e)
+}
+
+// parseReaderAt streams every MFT entry in a $MFT of the given byte size through
+// `emit`, returning the number of entries emitted. go-ntfs needs random access,
+// so the source is an io.ReaderAt — an *os.File for -f/-d, a *bytes.Reader for a
+// buffered tar entry under --tar.
+func parseReaderAt(r io.ReaderAt, size, recordSize, clusterSize int64, e *emitter) (int, error) {
 	n := 0
-	ch := ntfs.ParseMFTFile(context.Background(), f, st.Size(), clusterSize, recordSize)
+	ch := ntfs.ParseMFTFile(context.Background(), r, size, clusterSize, recordSize)
 	for h := range ch {
 		if err := e.emit(highlightToRecord(h)); err != nil {
 			return n, err
@@ -174,6 +190,13 @@ func parseFile(p string, recordSize, clusterSize int64, e *emitter) (int, error)
 }
 
 const mftMagic = "FILE"
+
+// hasMFTMagic reports whether b begins with the "FILE" record signature every
+// $MFT starts with — the content test both -d (on a file header) and --tar (on a
+// buffered tar entry) pick the table out by.
+func hasMFTMagic(b []byte) bool {
+	return len(b) >= len(mftMagic) && string(b[:len(mftMagic)]) == mftMagic
+}
 
 // looksLikeMFT peeks the "FILE" record signature — a $MFT (raw "$MFT" or Plaso's
 // renamed "_MFT") begins with it, letting -d find the table by content.
@@ -187,7 +210,55 @@ func looksLikeMFT(p string) bool {
 	if _, err := io.ReadFull(f, hdr[:]); err != nil {
 		return false
 	}
-	return string(hdr[:]) == mftMagic
+	return hasMFTMagic(hdr[:])
+}
+
+// parseTarStream reads a TAR archive from r — one entry per file, as
+// `gomount stream` emits (entry name = the file's volume path, body = its bytes)
+// — and parses every regular-file entry that carries the "FILE" $MFT signature,
+// streaming its entries through `emit`. It returns the number of $MFT files
+// parsed, the total entries emitted, and the number of per-file failures: a read
+// or parse error on one entry is counted and skipped, and the stream keeps going.
+// err is non-nil only for a fatal condition — a corrupt tar, or an emit that
+// itself failed.
+//
+// go-ntfs's ParseMFTFile wants random access (io.ReaderAt + size), but a tar
+// entry is sequential, so each candidate entry is buffered whole into a
+// bytes.Reader before parsing. A raw $MFT can be large (~128 MB), so this one
+// entry is the tool's heaviest buffer — one at a time, never the whole tar.
+func parseTarStream(r io.Reader, recordSize, clusterSize int64, e *emitter) (parsed, entries, failed int, err error) {
+	tr := tar.NewReader(r)
+	for {
+		hdr, nextErr := tr.Next()
+		if nextErr == io.EOF {
+			break
+		}
+		if nextErr != nil {
+			// A malformed tar desynchronises every entry after it — fatal.
+			return parsed, entries, failed, fmt.Errorf("read tar: %w", nextErr)
+		}
+		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+			continue // only regular files carry $MFT bytes
+		}
+		buf, readErr := io.ReadAll(tr)
+		if readErr != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "gomft: FAILED %s: read: %v\n", hdr.Name, readErr)
+			continue
+		}
+		if !hasMFTMagic(buf) {
+			continue // pick the $MFT out of the stream by its FILE signature
+		}
+		n, parseErr := parseReaderAt(bytes.NewReader(buf), int64(len(buf)), recordSize, clusterSize, e)
+		if parseErr != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "gomft: FAILED %s: %v\n", hdr.Name, parseErr)
+			continue
+		}
+		parsed++
+		entries += n
+	}
+	return parsed, entries, failed, nil
 }
 
 func collectInputs(file, dir string) ([]string, error) {
@@ -232,6 +303,7 @@ func main() {
 	var (
 		file    = flag.String("f", "", "single $MFT file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for a $MFT (by FILE signature)")
+		tarMode = flag.Bool("tar", false, "read a tar archive on stdin and parse each $MFT entry (by FILE signature), as `gomount stream` emits")
 		jsonDir = flag.String("json", "", "directory to write JSONL output to (default: stdout)")
 		jsonF   = flag.String("jsonf", "", "JSONL file name (default: MFTECmd_Output.jsonl)")
 		csvDir  = flag.String("csv", "", "directory to write CSV output to instead of JSONL")
@@ -242,24 +314,24 @@ func main() {
 	)
 	flag.Parse()
 
-	if (*file == "") == (*dir == "") {
-		fmt.Fprintln(os.Stderr, "gomft: exactly one of -f <file> or -d <dir> is required")
+	modes := 0
+	for _, on := range []bool{*file != "", *dir != "", *tarMode} {
+		if on {
+			modes++
+		}
+	}
+	if modes != 1 {
+		fmt.Fprintln(os.Stderr, "gomft: exactly one of -f <file>, -d <dir> or --tar is required")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	dirMode := *dir != ""
-	inputs, err := collectInputs(*file, *dir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gomft: %v\n", err)
-		os.Exit(1)
-	}
-	if len(inputs) == 0 {
-		fmt.Fprintln(os.Stderr, "gomft: no files found")
-		os.Exit(1)
-	}
 
-	var w io.WriteCloser
+	var (
+		w   io.WriteCloser
+		err error
+	)
 	e := &emitter{}
 	if *csvDir != "" {
 		w, err = openOut(*csvDir, *csvF, "MFTECmd_Output.csv")
@@ -286,20 +358,38 @@ func main() {
 	}
 
 	failed, parsed, entries := 0, 0, 0
-	for _, p := range inputs {
-		if dirMode && !looksLikeMFT(p) {
-			continue // -d: pick the $MFT out of the tree by its FILE signature
+	if *tarMode {
+		var tarErr error
+		parsed, entries, failed, tarErr = parseTarStream(os.Stdin, *recSize, *cluSize, e)
+		if tarErr != nil {
+			fmt.Fprintf(os.Stderr, "gomft: %v\n", tarErr)
+			os.Exit(1)
 		}
-		n, err := parseFile(p, *recSize, *cluSize, e)
-		if err != nil {
-			failed++
-			fmt.Fprintf(os.Stderr, "gomft: FAILED %s: %v\n", p, err)
-			continue
+	} else {
+		inputs, cerr := collectInputs(*file, *dir)
+		if cerr != nil {
+			fmt.Fprintf(os.Stderr, "gomft: %v\n", cerr)
+			os.Exit(1)
 		}
-		parsed++
-		entries += n
-		if !*quiet {
-			fmt.Fprintf(os.Stderr, "gomft: parsed %s (%d entries)\n", p, n)
+		if len(inputs) == 0 {
+			fmt.Fprintln(os.Stderr, "gomft: no files found")
+			os.Exit(1)
+		}
+		for _, p := range inputs {
+			if dirMode && !looksLikeMFT(p) {
+				continue // -d: pick the $MFT out of the tree by its FILE signature
+			}
+			n, err := parseFile(p, *recSize, *cluSize, e)
+			if err != nil {
+				failed++
+				fmt.Fprintf(os.Stderr, "gomft: FAILED %s: %v\n", p, err)
+				continue
+			}
+			parsed++
+			entries += n
+			if !*quiet {
+				fmt.Fprintf(os.Stderr, "gomft: parsed %s (%d entries)\n", p, n)
+			}
 		}
 	}
 	if e.cw != nil {
@@ -311,6 +401,10 @@ func main() {
 	}
 	if dirMode && parsed == 0 && failed == 0 {
 		fmt.Fprintf(os.Stderr, "gomft: no $MFT found under %s\n", *dir)
+		os.Exit(1)
+	}
+	if *tarMode && parsed == 0 && failed == 0 {
+		fmt.Fprintln(os.Stderr, "gomft: no $MFT found in the tar stream")
 		os.Exit(1)
 	}
 	if !*quiet {

@@ -9,11 +9,20 @@
 // the same artifact facts; volume info blocks are not emitted (not exposed by
 // go-prefetch). SourceFilename and SourceModified come from the input file.
 //
+// Inputs: -f a single file, -d a directory tree, or --tar a TAR archive on
+// stdin. --tar consumes `gomount stream` — one tar entry per regular file, entry
+// name = the file's volume path, body = the file's bytes — and parses every
+// *.pf entry, so a disk image is processed by a plain pipe with no mount:
+//
+//	gomount stream --filter '*.pf' disk.E01 | goprefetch --tar
+//
 // Exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at least
 // one file failed to parse (failures listed on stderr, the rest still emitted).
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -44,20 +53,19 @@ type record struct {
 	FilesAccessed  []string `json:"FilesAccessed"`
 }
 
-func parseOne(path string) (*record, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	info, err := prefetch.LoadPrefetch(f)
+// parseReader parses one prefetch file from r, tagging the record with name as
+// its SourceFilename and mod as its SourceModified (mod is dropped when zero).
+// go-prefetch reads via io.ReaderAt, so callers with a sequential stream (the
+// --tar path) buffer the entry into a bytes.Reader first — prefetch files are
+// small, so the whole file lives in memory anyway.
+func parseReader(r io.ReaderAt, name string, mod time.Time) (*record, error) {
+	info, err := prefetch.LoadPrefetch(r)
 	if err != nil {
 		return nil, err
 	}
 
 	rec := &record{
-		SourceFilename: path,
+		SourceFilename: name,
 		Executable:     info.Executable,
 		Path:           info.Path,
 		Hash:           info.Hash,
@@ -66,8 +74,8 @@ func parseOne(path string) (*record, error) {
 		RunCount:       info.RunCount,
 		FilesAccessed:  info.FilesAccessed,
 	}
-	if st, err := f.Stat(); err == nil {
-		rec.SourceModified = st.ModTime().UTC().Format(time.RFC3339)
+	if !mod.IsZero() {
+		rec.SourceModified = mod.UTC().Format(time.RFC3339)
 	}
 
 	// go-prefetch returns run times newest-first for Win8+; normalise anyway.
@@ -80,6 +88,70 @@ func parseOne(path string) (*record, error) {
 		}
 	}
 	return rec, nil
+}
+
+func parseOne(path string) (*record, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var mod time.Time
+	if st, err := f.Stat(); err == nil {
+		mod = st.ModTime()
+	}
+	return parseReader(f, path, mod)
+}
+
+// parseTarStream reads a TAR archive from r and parses each *.pf entry with the
+// same per-file parse as -f/-d, calling emit once per parsed file. It returns the
+// count parsed and the count failed — a read or parse failure on one entry is
+// counted and skipped, and the stream keeps going, mirroring gomount's first
+// consumer (goyara). err is non-nil only for a fatal condition: a corrupt tar
+// (which desynchronises every entry after it) or an emit callback that itself
+// failed. One entry is buffered at a time, so the whole tar is never held.
+func parseTarStream(r io.Reader, emit func(*record) error, quiet bool) (parsed, failed int, err error) {
+	tr := tar.NewReader(r)
+	for {
+		hdr, nextErr := tr.Next()
+		if nextErr == io.EOF {
+			break
+		}
+		if nextErr != nil {
+			return parsed, failed, fmt.Errorf("read tar: %w", nextErr)
+		}
+		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+			continue // only regular files carry bytes to parse
+		}
+		if !strings.EqualFold(filepath.Ext(hdr.Name), ".pf") {
+			continue // located by the .pf extension, exactly like the -d walk
+		}
+
+		// go-prefetch needs an io.ReaderAt; the tar entry reader is sequential,
+		// so buffer this one entry. tar.Reader bounds the read to the entry size.
+		buf, readErr := io.ReadAll(tr)
+		if readErr != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "goprefetch: FAILED %s: %v\n", hdr.Name, readErr)
+			continue
+		}
+		rec, parseErr := parseReader(bytes.NewReader(buf), hdr.Name, hdr.ModTime)
+		if parseErr != nil {
+			failed++
+			fmt.Fprintf(os.Stderr, "goprefetch: FAILED %s: %v\n", hdr.Name, parseErr)
+			continue
+		}
+		if emitErr := emit(rec); emitErr != nil {
+			return parsed, failed, emitErr
+		}
+		parsed++
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "goprefetch: parsed %s (%s, run count %d)\n",
+				hdr.Name, rec.Version, rec.RunCount)
+		}
+	}
+	return parsed, failed, nil
 }
 
 func collectInputs(file, dir string) ([]string, error) {
@@ -127,6 +199,7 @@ func main() {
 	var (
 		file    = flag.String("f", "", "single prefetch file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for *.pf")
+		tarMode = flag.Bool("tar", false, "read a TAR archive on stdin (as gomount stream emits) and parse each *.pf entry")
 		jsonDir = flag.String("json", "", "directory to write JSONL output to (default: stdout)")
 		jsonF   = flag.String("jsonf", "", "JSONL file name (default: PrefetchDump_Output.jsonl)")
 		csvDir  = flag.String("csv", "", "directory to write CSV output to instead of JSONL")
@@ -135,24 +208,21 @@ func main() {
 	)
 	flag.Parse()
 
-	if (*file == "") == (*dir == "") {
-		fmt.Fprintln(os.Stderr, "goprefetch: exactly one of -f <file> or -d <dir> is required")
+	modes := 0
+	for _, on := range []bool{*file != "", *dir != "", *tarMode} {
+		if on {
+			modes++
+		}
+	}
+	if modes != 1 {
+		fmt.Fprintln(os.Stderr, "goprefetch: exactly one of -f <file>, -d <dir>, or --tar is required")
 		flag.Usage()
-		os.Exit(1)
-	}
-
-	inputs, err := collectInputs(*file, *dir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "goprefetch: %v\n", err)
-		os.Exit(1)
-	}
-	if len(inputs) == 0 {
-		fmt.Fprintln(os.Stderr, "goprefetch: no .pf files found")
 		os.Exit(1)
 	}
 
 	var w io.WriteCloser
 	var cw *csv.Writer
+	var err error
 	if *csvDir != "" {
 		w, err = openOut(*csvDir, *csvF, "PrefetchDump_Output.csv")
 	} else {
@@ -178,31 +248,55 @@ func main() {
 	}
 
 	enc := json.NewEncoder(w)
-	failed := 0
-	for _, p := range inputs {
-		rec, err := parseOne(p)
-		if err != nil {
-			failed++
-			fmt.Fprintf(os.Stderr, "goprefetch: FAILED %s: %v\n", p, err)
-			continue
-		}
+	// emit writes one parsed record on the chosen output — CSV row or JSONL
+	// object — and is the single record-emitting path both input modes share.
+	emit := func(rec *record) error {
 		if cw != nil {
-			if err := cw.Write([]string{rec.SourceFilename, rec.SourceModified, rec.Executable,
+			return cw.Write([]string{rec.SourceFilename, rec.SourceModified, rec.Executable,
 				rec.Path, rec.Hash, rec.Version, strconv.FormatUint(uint64(rec.FileSize), 10),
 				strconv.FormatUint(uint64(rec.RunCount), 10), rec.LastRun,
-				strings.Join(rec.PreviousRuns, "|"), strings.Join(rec.FilesAccessed, "|")}); err != nil {
+				strings.Join(rec.PreviousRuns, "|"), strings.Join(rec.FilesAccessed, "|")})
+		}
+		return enc.Encode(rec)
+	}
+
+	var failed, total int
+	if *tarMode {
+		parsed, tarFailed, err := parseTarStream(os.Stdin, emit, *quiet)
+		failed, total = tarFailed, parsed+tarFailed
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "goprefetch: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		inputs, err := collectInputs(*file, *dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "goprefetch: %v\n", err)
+			os.Exit(1)
+		}
+		if len(inputs) == 0 {
+			fmt.Fprintln(os.Stderr, "goprefetch: no .pf files found")
+			os.Exit(1)
+		}
+		total = len(inputs)
+		for _, p := range inputs {
+			rec, err := parseOne(p)
+			if err != nil {
+				failed++
+				fmt.Fprintf(os.Stderr, "goprefetch: FAILED %s: %v\n", p, err)
+				continue
+			}
+			if err := emit(rec); err != nil {
 				fmt.Fprintf(os.Stderr, "goprefetch: write: %v\n", err)
 				os.Exit(1)
 			}
-		} else if err := enc.Encode(rec); err != nil {
-			fmt.Fprintf(os.Stderr, "goprefetch: write: %v\n", err)
-			os.Exit(1)
-		}
-		if !*quiet {
-			fmt.Fprintf(os.Stderr, "goprefetch: parsed %s (%s, run count %d)\n",
-				p, rec.Version, rec.RunCount)
+			if !*quiet {
+				fmt.Fprintf(os.Stderr, "goprefetch: parsed %s (%s, run count %d)\n",
+					p, rec.Version, rec.RunCount)
+			}
 		}
 	}
+
 	if cw != nil {
 		cw.Flush()
 		if err := cw.Error(); err != nil {
@@ -211,7 +305,7 @@ func main() {
 		}
 	}
 	if failed > 0 {
-		fmt.Fprintf(os.Stderr, "goprefetch: %d of %d files failed\n", failed, len(inputs))
+		fmt.Fprintf(os.Stderr, "goprefetch: %d of %d files failed\n", failed, total)
 		os.Exit(2)
 	}
 }
