@@ -14,8 +14,8 @@ identifiers — so this module downloads the pinned assets, verifies their sha25
 and merges them into a single deduplicated ``detectraptor/detectraptor.yar``
 (imports hoisted, first occurrence of each rule identifier wins, per-rule ``meta``
 provenance kept intact). Nothing third-party is vendored in the repository: the
-merged file lands under ``data_store/dependencies/yara-rules/`` (deny-by-default
-gitignored) and is re-fetchable from the pin.
+merged file is produced under the given rules dir (baked into the
+get-sybers/signatures image at build time) and is re-fetchable from the pin.
 
 CAUTION: the sets are largely YARA-Forge extracts, so the merged file repeats rule
 names from the YARA-Forge packages. Do not put both in one rules dir (e.g. a
@@ -23,7 +23,7 @@ downloaded YARA-Forge release) — the lane's single index would fail to compile
 
 Stdlib only (urllib, gzip, hashlib), like the rest of the signatures package.
 
-    python -m get_sybers_dxdfir.signatures.detectraptor --rules-dir <yara-rules>
+    python3 detectraptor.py --rules-dir <yara-rules>
 
 or implicitly: the yara lane's ``--fetch`` calls :func:`fetch` when the merged
 file is absent.
@@ -170,12 +170,12 @@ def fetch(rules_dir: str, *, assets: list[str] | None = None, force: bool = Fals
     merged, stats = merge_rules(named_texts)
 
     header = (
-        "// DetectRaptor YARA rules — fetched and merged by get_sybers_dxdfir, do not edit.\n"
+        "// DetectRaptor YARA rules — fetched and merged into get-sybers/signatures at build, do not edit.\n"
         f"// Upstream: https://github.com/{_REPO} @ {_PIN}\n"
         f"// Assets:   {', '.join(ASSETS[n][0] for n in names)}\n"
         "// Duplicate rule identifiers across upstream sets are dropped (first wins);\n"
         "// per-rule meta (author, source_url, license_url) is upstream's, unmodified.\n"
-        "// Provenance/licensing: THIRD_PARTY_NOTICES.md (DetectRaptor section).\n\n"
+        "// Provenance/licensing: see the upstream repo above and each rule's meta.\n\n"
     )
     os.makedirs(os.path.dirname(out), exist_ok=True)
     tmp = out + ".part"
@@ -189,12 +189,12 @@ def fetch(rules_dir: str, *, assets: list[str] | None = None, force: bool = Fals
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        prog="get_sybers_dxdfir.signatures.detectraptor",
+        prog="detectraptor.py",
         description="Fetch DetectRaptor YARA content (pinned + sha256-verified) and "
                     "merge it into <rules-dir>/detectraptor/detectraptor.yar",
     )
     ap.add_argument("--rules-dir",
-                    help="YARA rules dir (normally data_store/dependencies/yara-rules); "
+                    help="YARA rules dir (baked into the image at build time); "
                          "required unless --print-hashes")
     ap.add_argument("--assets", action="append", choices=list(ASSETS),
                     help="asset to include (repeatable); default all")
