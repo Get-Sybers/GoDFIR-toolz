@@ -1,10 +1,10 @@
 """Emerging Threats Open ruleset provisioning for the Suricata lane.
 
-The suricata lane needs rules to alert; the hardened get-sybers/suricata image ships
-none. This module fetches the free **ET Open** ruleset and concatenates its
-``*.rules`` into one ``<rules-dir>/suricata.rules`` — the file
-:func:`suricata.run` looks for and mounts. The yara lane's ``--fetch`` provisions
-DetectRaptor the same way (see :mod:`detectraptor`); this is its Suricata analogue.
+The Suricata detection engine needs rules to alert; the get-sybers/signatures image
+ships none by default. This build-time provisioner fetches the free **ET Open**
+ruleset and concatenates its ``*.rules`` into one ``<rules-dir>/suricata.rules`` —
+the file the pipeline's Suricata lane looks for and mounts. The YARA rules are baked
+the same way (see the detectraptor provisioner); this is its Suricata analogue.
 
 **Why no content sha256 pin** (unlike DetectRaptor): ET Open is a *rolling* feed —
 the tarball at a version URL is rebuilt daily, so a content hash would be stale
@@ -12,12 +12,12 @@ within a day. Instead we pin the ENGINE-VERSION URL (the stable addressing ET
 publishes per Suricata release) and fetch it over HTTPS, then structurally
 validate (it must be a gzip tar that yields ``*.rules`` text) — the same trust
 model as the official ``suricata-update``. An air-gapped run drops its own
-ruleset into the rules dir instead (``suricata.run`` finds any ``suricata.rules``
-and never calls this); ``--fetch`` is online-only by contract.
+ruleset into the rules dir instead (the Suricata lane finds any ``suricata.rules``
+and never calls this); fetching is online-only by contract.
 
-Stdlib only (urllib, tarfile, io), like the rest of the signatures package.
+Stdlib only (urllib, tarfile, io).
 
-    python -m get_sybers_dxdfir.signatures.suricata_rules --rules-dir <suricata-rules>
+    python3 suricata_rules.py --rules-dir <suricata-rules>
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ import urllib.request
 # Pinned upstream addressing: ET Open, by Suricata engine version. ET publishes a
 # rolling tarball per version; we pin the VERSION path (stable), not the content
 # (it rolls daily — see the module docstring). To advance: bump _SURICATA_VER to
-# match the get-sybers/suricata image's engine.
+# match the get-sybers/signatures image's Suricata engine.
 _SURICATA_VER = "7.0.3"
 _ET_OPEN_URL = f"https://rules.emergingthreats.net/open/suricata-{_SURICATA_VER}/emerging.rules.tar.gz"
 _RULES_FILE = "suricata.rules"
@@ -53,7 +53,8 @@ def extract_rules(tar_bytes: bytes) -> tuple[str, int]:
             fh = tar.extractfile(member)
             if fh is None:
                 continue
-            text = fh.read().decode("utf-8", errors="replace")
+            with fh:
+                text = fh.read().decode("utf-8", errors="replace")
             chunks.append(f"# --- {os.path.basename(member.name)} ---\n{text.rstrip()}\n")
             n += 1
     if n == 0:
@@ -79,17 +80,17 @@ def fetch(rules_dir: str, *, url: str = _ET_OPEN_URL, force: bool = False) -> di
         return {"tool": "et-open", "output": out, "skipped": True}
     text, n = extract_rules(_download(url))
     header = (
-        "# Emerging Threats Open ruleset — fetched by get_sybers_dxdfir, do not edit.\n"
+        "# Emerging Threats Open ruleset — baked into get-sybers/signatures at build, do not edit.\n"
         f"# Source: {url}\n"
         f"# {n} rule files concatenated. ET Open is a rolling feed; re-fetch to update.\n"
-        "# Licence: ET Open (BSD-style) — see THIRD_PARTY_NOTICES.md.\n\n"
+        "# Licence: Emerging Threats Open ruleset (ET Open terms; see the Source URL above).\n\n"
     )
     os.makedirs(rules_dir, exist_ok=True)
     tmp = out + ".part"
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write(header + text)
     os.replace(tmp, out)
-    rule_lines = sum(1 for ln in text.splitlines()
+    rule_lines = sum(1 for ln in io.StringIO(text)
                      if ln.strip() and not ln.lstrip().startswith("#"))
     return {"tool": "et-open", "output": out, "skipped": False,
             "rule_files": n, "rules": rule_lines, "source": url}
@@ -97,11 +98,11 @@ def fetch(rules_dir: str, *, url: str = _ET_OPEN_URL, force: bool = False) -> di
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        prog="get_sybers_dxdfir.signatures.suricata_rules",
+        prog="suricata_rules.py",
         description="Fetch the ET Open ruleset (pinned Suricata version) into "
                     "<rules-dir>/suricata.rules.")
     ap.add_argument("--rules-dir", required=True,
-                    help="Suricata rules dir (normally data_store/dependencies/suricata-rules)")
+                    help="Suricata rules dir (baked into the image at build time)")
     ap.add_argument("--url", default=_ET_OPEN_URL, help="override the ET Open tarball URL")
     ap.add_argument("--force", action="store_true", help="refresh an existing ruleset")
     args = ap.parse_args(argv)
