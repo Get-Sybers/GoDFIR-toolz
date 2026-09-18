@@ -55,6 +55,15 @@ RUN set -eux; \
     python3 /tmp/detectraptor.py --rules-dir /opt/dxdfir/yara-rules; \
     test -s /opt/dxdfir/yara-rules/detectraptor/detectraptor.yar; \
     rm -f /tmp/detectraptor.py
+# Bake the pinned ET Open Suricata ruleset into the image the same way: the vendored
+# provisioner downloads the engine-version tarball, structurally validates it, and
+# concatenates its *.rules into /opt/dxdfir/suricata-rules/suricata.rules at BUILD
+# time (exactly what the pipeline's --fetch does at runtime).
+COPY signatures/suricata_rules.py /tmp/suricata_rules.py
+RUN set -eux; \
+    python3 /tmp/suricata_rules.py --rules-dir /opt/dxdfir/suricata-rules; \
+    test -s /opt/dxdfir/suricata-rules/suricata.rules; \
+    rm -f /tmp/suricata_rules.py
 COPY hardening/harden.yml /tmp/hardening/harden.yml
 RUN set -eux; \
     chmod 0755 /opt/dxdfir/scan-list.sh; \
