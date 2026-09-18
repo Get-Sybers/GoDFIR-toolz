@@ -566,11 +566,15 @@ func padZeros(w io.Writer, n int64) error {
 }
 
 // matchGlob reports whether p passes filter. An empty filter passes everything;
-// a filter with a '/' matches the whole path, otherwise the base name.
+// a filter with a '/' matches the whole path, otherwise the base name. Matching
+// is case-insensitive and accepts Windows-style "\" separators, matching NTFS
+// name semantics.
 func matchGlob(filter, p string) bool {
 	if filter == "" {
 		return true
 	}
+	filter = strings.ToLower(strings.ReplaceAll(filter, "\\", "/"))
+	p = strings.ToLower(p)
 	if strings.ContainsRune(filter, '/') {
 		ok, _ := path.Match(filter, strings.TrimPrefix(p, "/"))
 		return ok

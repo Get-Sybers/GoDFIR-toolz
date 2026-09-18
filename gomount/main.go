@@ -68,6 +68,8 @@ func main() {
 		os.Exit(runBrowse(os.Args[2:]))
 	case "stream":
 		os.Exit(runStream(os.Args[2:]))
+	case "materialise":
+		os.Exit(runMaterialise(os.Args[2:]))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -95,6 +97,8 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   gomount tree   [--volume N] [--depth D] <image> [path]
   gomount browse [--volume N] <image>
   gomount stream [--volume N] [--filter GLOB] [--jsonl] <image>
+  gomount materialise [--volume N] --out DIR [--set NAME]... [--select GLOB]... \
+                 [--siblings=true] [--manifest] <image>
 
   <image>       E01/Ex01 (segmented) or raw/dd/img disk image (opened read-only)
   --volume N    1-based volume to read; 0 = auto (largest NTFS volume) (default 0)
@@ -104,11 +108,19 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   path[:stream] an alternate data stream is addressed as name:stream
   --filter GLOB stream: glob the base name, or the path when it holds '/' (default: all)
   --jsonl       stream: one JSON object per file {path,size,mtime,mftid} instead of a tar
+  --out DIR     materialise: output directory for the pulled artefacts (required)
+  --set NAME    materialise: named artefact set to pull, repeatable (registry-core,
+                amcache, shimcache, ntuser, usrclass, srum, sum, timeline)
+  --select GLOB materialise: ad-hoc volume-path glob to pull, repeatable
+  --siblings    materialise: also pull each artefact's named siblings (default true)
+  --manifest    materialise: write <out>/materialise.jsonl for the pulled files
 
   browse is an interactive REPL (ls, cd, cat, stat, get, pwd, help, quit); stream
   writes a tar of the filtered files to stdout for a downstream tool (e.g. goyara),
   a per-file {path,size,mtime,mftid} JSONL with --jsonl, and a {files,bytes,errors}
-  summary on stderr. Every verb opens the image read-only and never writes to it.
+  summary on stderr. materialise copies targeted artefacts (and their siblings)
+  to <out>/<volume-path> at mode 0400 for the model-B go* tools' -d <dir>. Every
+  verb opens the image read-only and never writes to it.
 
   DIRECT-backend flags: --mount-point (default /mnt/ntfs), --read-only (default true),
   --work PATH (FUSE work dir), --no-self-unshare, --foreground (default true).
