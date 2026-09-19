@@ -34,7 +34,7 @@ FROM ${GO_BASE} AS engine
 ARG BYAKUGAN_REPO
 ARG BYAKUGAN_REF
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOFLAGS=-trimpath
-# git + CA certs installed explicitly (like flashback) — never assume the
+# git + CA certs installed explicitly (like anamnesis) — never assume the
 # golang base happens to ship them.
 RUN set -eux; \
     apt-get update; \
