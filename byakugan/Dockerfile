@@ -71,7 +71,7 @@ RUN set -eux; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID}; \
     # remove the build-time hardener + the shell; KEEP python3 + python3-yaml +
-    # the baked engine tree (python is the tool, like plaso/volatility).
+    # the baked engine tree (python is the tool, like plaso).
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
            /etc/ansible /root/.ansible /tmp/hardening \
            /usr/bin/bash /bin/bash /usr/bin/bashbug /usr/bin/perl*

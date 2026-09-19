@@ -23,7 +23,7 @@
 # arguments it runs its built-in batch orchestrator: it discovers every memory
 # image under the mounted memory dir and processes each, per-plugin idempotent,
 # printing ONE JSON summary line on stdout for the caller to gate on. No wrapper
-# on the host: the DX_DFIR ansible volatility lane just runs
+# on the host: the DX_DFIR ansible memory lane just runs
 #
 #   docker run --rm --network none --read-only --tmpfs /tmp \
 #     -e ANAMNESIS_PLUGINS= -e ANAMNESIS_FORCE=0 -e ANAMNESIS_SYMBOLS_ONLINE=0 \
@@ -139,7 +139,7 @@ ENV PATH=/opt/anamnesis:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/opt/anamnesis/anamnesis"]
 LABEL org.opencontainers.image.title="get-sybers/anamnesis" \
-      org.opencontainers.image.description="Minimal hardened anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR volatility lane: source cloned + built in at the sources.yml pin (-tags memprocfs, CGO_ENABLED=0), MemProcFS vmm/leechcore libraries bundled at a pinned upstream release, uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as a fixed non-root uid (default 2000). glibc kept for the native libraries. Self-orchestrating: env-driven (ANAMNESIS_MEMORY_DIR/ANAMNESIS_OUT_DIR/ANAMNESIS_SYMBOLS_DIR/ANAMNESIS_PLUGINS/ANAMNESIS_FORCE/ANAMNESIS_SYMBOLS_ONLINE) batch over a mounted memory dir." \
+      org.opencontainers.image.description="Minimal hardened anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR memory lane: source cloned + built in at the sources.yml pin (-tags memprocfs, CGO_ENABLED=0), MemProcFS vmm/leechcore libraries bundled at a pinned upstream release, uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as a fixed non-root uid (default 2000). glibc kept for the native libraries. Self-orchestrating: env-driven (ANAMNESIS_MEMORY_DIR/ANAMNESIS_OUT_DIR/ANAMNESIS_SYMBOLS_DIR/ANAMNESIS_PLUGINS/ANAMNESIS_FORCE/ANAMNESIS_SYMBOLS_ONLINE) batch over a mounted memory dir." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/Anamnesis" \
       com.get-sybers.hardened="true" \
       com.get-sybers.anamnesis.ref="${ANAMNESIS_REF}" \

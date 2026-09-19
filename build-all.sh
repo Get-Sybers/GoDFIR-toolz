@@ -146,7 +146,7 @@ resolve() {
     gole|lecmd) build_gole; return ;;
     gojle|jlecmd) build_gojle; return ;;
     gowxt|wxtcmd) build_gowxt; return ;;
-    anamnesis|volatility|memory) build_anamnesis; return ;;
+    anamnesis|memory) build_anamnesis; return ;;
     byakugan|mitrecar|car) build_byakugan; return ;;
     plaso|log2timeline|psort) build_plaso; return ;;
     signatures|yara|suricata|hayabusa) build_signatures; return ;;
