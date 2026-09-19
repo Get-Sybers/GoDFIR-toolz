@@ -11,8 +11,8 @@
 # The engine's `byakugan` console binary IS the ENTRYPOINT (byakugan-entry.py):
 # one binary, dispatched on its first argument to the engine's three operations
 # (build / timeline / car-vocab) — see that file. It is a python engine, so
-# python3 stays (like get-sybers/plaso and get-sybers/piiat-mem); everything
-# else is stripped by the shared build-time hardener.
+# python3 stays (like get-sybers/plaso); everything else is stripped by the
+# shared build-time hardener.
 #
 #   docker build -t get-sybers/byakugan:latest \
 #     --build-arg BYAKUGAN_REF=<40-hex sha> -f byakugan/Dockerfile .
@@ -34,7 +34,7 @@ FROM ${GO_BASE} AS engine
 ARG BYAKUGAN_REPO
 ARG BYAKUGAN_REF
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOFLAGS=-trimpath
-# git + CA certs installed explicitly (like piiat-mem) — never assume the
+# git + CA certs installed explicitly (like anamnesis) — never assume the
 # golang base happens to ship them.
 RUN set -eux; \
     apt-get update; \
@@ -71,7 +71,7 @@ RUN set -eux; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID}; \
     # remove the build-time hardener + the shell; KEEP python3 + python3-yaml +
-    # the baked engine tree (python is the tool, like plaso/volatility).
+    # the baked engine tree (python is the tool, like plaso).
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
            /etc/ansible /root/.ansible /tmp/hardening \
            /usr/bin/bash /bin/bash /usr/bin/bashbug /usr/bin/perl*

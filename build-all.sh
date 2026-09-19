@@ -2,7 +2,7 @@
 #
 # Build the hardened DFIR images: the twelve Go parsers (goprefetch/ … gowxt/),
 # one per-tool image per remaining .NET tool (godfir-tool/Dockerfile), and the
-# DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/, piiat-mem/).
+# DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/, anamnesis/).
 #
 #   ./build-all.sh                  # everything
 #   ./build-all.sh gore gomft       # a subset (names case-insensitive;
@@ -89,15 +89,19 @@ build_gowxt() {
   docker build -t get-sybers/gowxt:latest -f gowxt/Dockerfile gowxt
 }
 
-build_piiat_mem() {
-  # PIIAT-Mem (Volatility 3 memory forensics), python. Context is the repo root
-  # so hardening/harden.yml and piiat-mem/piiat_mem_batch.py (the env-driven
-  # batch ENTRYPOINT) are in reach; the source is cloned at build time at
-  # PIIAT_MEM_REF (default main here — DX_DFIR passes its sources.yml pin).
-  echo "==> get-sybers/piiat-mem (python, PIIAT-Mem / Volatility 3, env-driven batch, --native)"
-  docker build -t get-sybers/piiat-mem:latest \
-    ${PIIAT_MEM_REF:+--build-arg PIIAT_MEM_REF="${PIIAT_MEM_REF}"} \
-    -f piiat-mem/Dockerfile .
+build_anamnesis() {
+  # anamnesis (pure-Go memory forensics on MemProcFS — no Volatility, no Python).
+  # Context is the repo root so hardening/harden.yml is in reach; the source is
+  # cloned at build time at ANAMNESIS_REF (default main here — DX_DFIR passes its
+  # sources.yml pin). The MemProcFS libraries are fetched at MEMPROCFS_VERSION and
+  # verified against MEMPROCFS_SHA256 when set. The batch ENTRYPOINT is built into
+  # the binary (no host wrapper).
+  echo "==> get-sybers/anamnesis (Go, MemProcFS memory forensics, env-driven batch)"
+  docker build -t get-sybers/anamnesis:latest \
+    ${ANAMNESIS_REF:+--build-arg ANAMNESIS_REF="${ANAMNESIS_REF}"} \
+    ${MEMPROCFS_VERSION:+--build-arg MEMPROCFS_VERSION="${MEMPROCFS_VERSION}"} \
+    ${MEMPROCFS_SHA256:+--build-arg MEMPROCFS_SHA256="${MEMPROCFS_SHA256}"} \
+    -f anamnesis/Dockerfile .
 }
 
 build_byakugan() {
@@ -142,7 +146,7 @@ resolve() {
     gole|lecmd) build_gole; return ;;
     gojle|jlecmd) build_gojle; return ;;
     gowxt|wxtcmd) build_gowxt; return ;;
-    piiat-mem|piiatmem|volatility|memory) build_piiat_mem; return ;;
+    anamnesis|memory) build_anamnesis; return ;;
     byakugan|mitrecar|car) build_byakugan; return ;;
     plaso|log2timeline|psort) build_plaso; return ;;
     signatures|yara|suricata|hayabusa) build_signatures; return ;;
@@ -159,7 +163,7 @@ resolve() {
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt piiat-mem byakugan plaso signatures zeek" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt anamnesis byakugan plaso signatures zeek" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -180,7 +184,7 @@ else
   build_gole
   build_gojle
   build_gowxt
-  build_piiat_mem
+  build_anamnesis
   build_byakugan
   build_plaso
   build_signatures
