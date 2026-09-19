@@ -40,13 +40,13 @@ verifies it the same way as for the .NET images.
   detection lane in one image (YARA + Suricata + Hayabusa)
 - [zeek/](zeek/README.md) — `get-sybers/zeek`: minimal hardened Zeek LTS for
   offline capture parsing, deterministically fetched and pinned
-- [piiat-mem/](piiat-mem/README.md) — `get-sybers/piiat-mem`: PIIAT-Mem +
-  Volatility 3 memory forensics fused into one self-orchestrating, env-driven
-  hardened image
+- [flashback/](flashback/README.md) — `get-sybers/flashback`: flashback (pure-Go
+  memory forensics on MemProcFS — no Volatility, no Python) in one
+  self-orchestrating, env-driven hardened image (replaces `get-sybers/piiat-mem`)
 
 The four lane images (byakugan, plaso, signatures, zeek) moved here from
 DX_DFIR's `docker/` — that repo now keeps only its Elastic stack. Like
-`piiat-mem`, they build with the **repo root as context**, so each consumes
+`flashback`, they build with the **repo root as context**, so each consumes
 the canonical `hardening/harden.yml` directly — no synced copy.
 
 ## The .NET images

@@ -11,8 +11,8 @@
 # The engine's `byakugan` console binary IS the ENTRYPOINT (byakugan-entry.py):
 # one binary, dispatched on its first argument to the engine's three operations
 # (build / timeline / car-vocab) — see that file. It is a python engine, so
-# python3 stays (like get-sybers/plaso and get-sybers/piiat-mem); everything
-# else is stripped by the shared build-time hardener.
+# python3 stays (like get-sybers/plaso); everything else is stripped by the
+# shared build-time hardener.
 #
 #   docker build -t get-sybers/byakugan:latest \
 #     --build-arg BYAKUGAN_REF=<40-hex sha> -f byakugan/Dockerfile .
@@ -34,7 +34,7 @@ FROM ${GO_BASE} AS engine
 ARG BYAKUGAN_REPO
 ARG BYAKUGAN_REF
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOFLAGS=-trimpath
-# git + CA certs installed explicitly (like piiat-mem) — never assume the
+# git + CA certs installed explicitly (like flashback) — never assume the
 # golang base happens to ship them.
 RUN set -eux; \
     apt-get update; \
