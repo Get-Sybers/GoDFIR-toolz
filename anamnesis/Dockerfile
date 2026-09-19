@@ -3,7 +3,8 @@
 # get-sybers/anamnesis — the anamnesis memory-forensics tool in ONE hardened
 # image. anamnesis is a pure-Go tool built on MemProcFS (no Volatility, no
 # Python): it parses a memory image natively and renders flat per-plugin JSONL +
-# a CAR store (car.db) for the DX_DFIR CAR lane. It replaces get-sybers/piiat-mem.
+# a CAR store (car.db) for the DX_DFIR CAR lane. It supersedes the previous
+# Volatility-based memory image.
 #
 # The anamnesis SOURCE is cloned at build time at the pinned commit (no vendored
 # checkout in DX_DFIR); the Go binary is built with `-tags memprocfs` (still

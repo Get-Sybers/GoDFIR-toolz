@@ -3,7 +3,7 @@
 This repo builds **`get-sybers/anamnesis`** (`anamnesis/Dockerfile`):
 [anamnesis](https://github.com/Get-Sybers/Anamnesis) (pure-Go memory forensics on
 [MemProcFS](https://github.com/ufrisk/MemProcFS)) in one hardened image — **no
-Volatility, no Python**. It replaces the old `get-sybers/piiat-mem` image. The
+Volatility, no Python**. It supersedes the previous Volatility-based memory image. The
 anamnesis source is cloned at build time at `--build-arg ANAMNESIS_REF` (DX_DFIR
 passes its `sources.yml` pin); the Go binary is built `-tags memprocfs`
 (CGO_ENABLED=0, purego) and the MemProcFS `vmm`/`leechcore` shared libraries are
