@@ -129,6 +129,7 @@ COPY --from=hardened / /
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
 ARG ANAMNESIS_REF
+ARG MEMPROCFS_VERSION
 # HOME/cache -> /tmp (the only writable path on a read-only rootfs). The vmm
 # library is dlopen'd from here; LD_LIBRARY_PATH lets it find leechcore.so.
 ENV PATH=/opt/anamnesis:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin \
