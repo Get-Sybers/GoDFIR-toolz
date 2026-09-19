@@ -15,9 +15,12 @@
 #
 #   docker build -t get-sybers/anamnesis:latest \
 #     --build-arg ANAMNESIS_REF=<40-hex sha> \
-#     --build-arg MEMPROCFS_VERSION=5.18 \
-#     --build-arg MEMPROCFS_SHA256=<sha256 of the linux tarball> \
 #     -f anamnesis/Dockerfile .
+#
+# The MemProcFS release (tag, asset filename and sha256) is pinned by the
+# MEMPROCFS_* ARG defaults below; override them only to move to a new release.
+# The upstream tag (v5.18) and the asset filename (v5.18.11 + a date stamp)
+# differ, so the tag and the full asset name are pinned separately.
 #
 # SELF-ORCHESTRATING, ENV-DRIVEN. The ENTRYPOINT is the anamnesis binary; with NO
 # arguments it runs its built-in batch orchestrator: it discovers every memory
@@ -47,8 +50,14 @@ ARG GO_VERSION=1.25
 ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 ARG ANAMNESIS_REF=main
-ARG MEMPROCFS_VERSION=5.18
-ARG MEMPROCFS_SHA256=
+# MemProcFS upstream release pin. The release TAG is major.minor (v5.18) but the
+# published asset filename carries the full patch version and a date stamp, so
+# the tag and the asset name are pinned as separate values. Bump all three (and
+# the checksum) together to move to a new MemProcFS release.
+ARG MEMPROCFS_VERSION=5.18.11
+ARG MEMPROCFS_TAG=v5.18
+ARG MEMPROCFS_ASSET=MemProcFS_files_and_binaries_v5.18.11-linux_x64-20260914.tar.gz
+ARG MEMPROCFS_SHA256=55648725838cae111c428131b619845b88fee45be61ea2d962e869ec0e8012aa
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
 
@@ -75,20 +84,18 @@ RUN /anamnesis --version
 
 # --- stage 3: fetch + verify the pinned MemProcFS Linux libraries -------------
 FROM debian:trixie-slim AS memprocfs
-ARG MEMPROCFS_VERSION
+ARG MEMPROCFS_TAG
+ARG MEMPROCFS_ASSET
 ARG MEMPROCFS_SHA256
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends curl ca-certificates; \
     rm -rf /var/lib/apt/lists/*
 RUN set -eux; \
-    url="https://github.com/ufrisk/MemProcFS/releases/download/v${MEMPROCFS_VERSION}/MemProcFS_files_and_binaries_v${MEMPROCFS_VERSION}-linux_x64.tar.gz"; \
+    test -n "${MEMPROCFS_SHA256}" || { echo "MEMPROCFS_SHA256 must be pinned in this Dockerfile" >&2; exit 1; }; \
+    url="https://github.com/ufrisk/MemProcFS/releases/download/${MEMPROCFS_TAG}/${MEMPROCFS_ASSET}"; \
     curl -fsSL "$url" -o /tmp/mpfs.tgz; \
-    if [ -n "${MEMPROCFS_SHA256}" ]; then \
-      echo "${MEMPROCFS_SHA256}  /tmp/mpfs.tgz" | sha256sum -c -; \
-    else \
-      echo "WARNING: MEMPROCFS_SHA256 unset — the download is NOT verified (pin it in DX_DFIR sources.yml)" >&2; \
-    fi; \
+    echo "${MEMPROCFS_SHA256}  /tmp/mpfs.tgz" | sha256sum -c -; \
     mkdir -p /extract /opt/anamnesis/lib; \
     tar -xzf /tmp/mpfs.tgz -C /extract; \
     cp "$(find /extract -name vmm.so | head -1)" /opt/anamnesis/lib/; \
