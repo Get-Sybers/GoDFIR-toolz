@@ -95,9 +95,10 @@ ARG DFIR_UID
 ARG DFIR_GID
 COPY --from=fetch /opt/godfir-tool /opt/godfir-tool
 COPY --chmod=0644 godfir-tool/contract.yml /opt/godfir-tool/contract.yml
-# Build-stage sanity gate: the runtime runs and reports its version, and the
-# tool DLL loads (its --help exit code is the tool's own).
-RUN dotnet --version && (dotnet /opt/godfir-tool/tool.dll --help > /dev/null || true)
+# Build-stage sanity gate: the host runs and lists its runtimes (a runtime-only
+# image has no SDK, so `dotnet --version` is not the gate here), and the tool
+# DLL loads (its --help exit code is the tool's own).
+RUN dotnet --list-runtimes && (dotnet /opt/godfir-tool/tool.dll --help > /dev/null || true)  # no SDK: --list-runtimes stands in for --version
 COPY hardening/harden.yml /tmp/hardening/harden.yml
 # harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
 # values below (tool=godfir-tool, the recipe; the built tool's name is a label);
