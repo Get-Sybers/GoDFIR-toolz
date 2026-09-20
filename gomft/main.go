@@ -22,8 +22,15 @@
 // zero. $MFT-only parsing resolves paths and resident data; a non-resident
 // $DATA run length beyond the record is not followed (there is no volume here).
 //
-// Exit codes: 0 = every $MFT parsed; 1 = usage or fatal error; 2 = at least one
-// file failed to parse (failures listed on stderr, the rest still emitted).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOMFT_INPUT_DIR / GOMFT_OUT_DIR / GOMFT_FORCE /
+// GOMFT_FORMAT, content-detects every $MFT under the input tree, writes one
+// output folder per table and prints one JSON summary line. The argv flags
+// below are the debug pass-through.
+//
+// argv exit codes: 0 = every $MFT parsed; 1 = usage or fatal error; 2 = at
+// least one file failed to parse (failures listed on stderr, the rest still
+// emitted). Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -299,7 +306,59 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 	return os.Create(filepath.Join(dir, name))
 }
 
+// gomftTool binds the shared batch runtime to this tool.
+var gomftTool = batchTool{
+	name:     "gomft",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover walks the input tree and keeps every file that carries the
+// FILE record signature — the same content test -d applies.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	files, err := collectInputs("", cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	var items []string
+	for _, p := range files {
+		if looksLikeMFT(p) {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
+// batchEmitter builds the record emitter over w for the configured format:
+// JSONL, or CSV with its header row. The returned flush commits buffered CSV.
+func batchEmitter(w io.Writer, format string) (*emitter, func() error, error) {
+	if format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return nil, nil, err
+		}
+		return &emitter{cw: cw}, func() error { cw.Flush(); return cw.Error() }, nil
+	}
+	return &emitter{enc: json.NewEncoder(w)}, func() error { return nil }, nil
+}
+
+// batchProcess parses one $MFT into its record file with the standard NTFS
+// geometry (1024-byte records, 4096-byte clusters).
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	e, flush, err := batchEmitter(w, cfg.Format)
+	if err != nil {
+		return 0, err
+	}
+	n, err := parseFile(item, 1024, 4096, e)
+	if err != nil {
+		return n, err
+	}
+	return n, flush()
+}
+
 func main() {
+	runFrameworkEntry(gomftTool)
 	var (
 		file    = flag.String("f", "", "single $MFT file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for a $MFT (by FILE signature)")
