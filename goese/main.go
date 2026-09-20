@@ -21,9 +21,16 @@
 // RFC3339 strings (go-ese converts them); raw integer FILETIME columns are
 // left as-is.
 //
-// Exit codes: 0 = all requested tables dumped; 1 = usage or fatal error;
-// 2 = at least one table or database failed (the rest still written,
-// failures on stderr).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOESE_INPUT_DIR / GOESE_OUT_DIR / GOESE_FORCE /
+// GOESE_FORMAT / GOESE_TABLES, finds every SRUM/SUM database under the input
+// tree, dumps each into its own output folder (one file per table plus a
+// goese.jsonl index) and prints one JSON summary line. The argv flags below
+// are the debug pass-through.
+//
+// argv exit codes: 0 = all requested tables dumped; 1 = usage or fatal error;
+// 2 = at least one table or database failed (the rest still written, failures
+// on stderr). Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -360,10 +367,12 @@ func dbSubdir(hit dbHit, used map[string]int) string {
 
 // processDb opens and dumps one database. strictTables makes an unknown -t
 // entry fatal (single -f mode); in root-scan mode it is noted and skipped
-// instead, since a SUM database has no SRUM tables and vice versa. Returns
-// the number of failed tables plus any fatal open/catalog error.
+// instead, since a SUM database has no SRUM tables and vice versa. onTable,
+// when non-nil, is called once per successfully dumped table with the output
+// file name and row count. Returns the number of failed tables plus any fatal
+// open/catalog error.
 func processDb(path, sourceDb, jsonDir, csvDir, tablesFlag string,
-	list, strictTables, quiet bool) (int, error) {
+	list, strictTables, quiet bool, onTable func(table, file string, rows int)) (int, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, err
@@ -459,11 +468,101 @@ func processDb(path, sourceDb, jsonDir, csvDir, tablesFlag string,
 		if !quiet {
 			fmt.Fprintf(os.Stderr, "goese: dumped %s (%d rows)\n", label(table), rows)
 		}
+		if onTable != nil {
+			ext := ".jsonl"
+			if csvDir != "" {
+				ext = ".csv"
+			}
+			onTable(table, safeName(table)+ext, rows)
+		}
 	}
 	return failed, nil
 }
 
+// goeseTool binds the shared batch runtime to this tool.
+var goeseTool = batchTool{
+	name:     "goese",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover finds every SRUM (SRUDB.dat) and SUM (SUM/*.mdb) database under
+// the input tree — the same selection -d applies.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	hits, err := findDatabases(cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]string, 0, len(hits))
+	for _, h := range hits {
+		items = append(items, h.path)
+	}
+	return items, nil
+}
+
+// tableIndexEntry is one line of the per-database index (goese.jsonl / .csv)
+// that lists every table dumped beside it.
+type tableIndexEntry struct {
+	Table string `json:"Table"`
+	Alias string `json:"TableAlias,omitempty"`
+	File  string `json:"File"`
+	Rows  int    `json:"Rows"`
+}
+
+// batchProcess dumps every requested table of one database into itemDir (one
+// file per table) and writes the table index to w. A table that fails leaves
+// the item failed; the tables that did dump stay on disk and are rewritten on
+// the next run.
+func batchProcess(cfg *batchConfig, item, itemDir string, w io.Writer) (int, error) {
+	rel, err := filepath.Rel(cfg.InputDir, item)
+	if err != nil {
+		rel = item
+	}
+	jsonDir, csvDir := itemDir, ""
+	if cfg.Format == "csv" {
+		jsonDir, csvDir = "", itemDir
+	}
+	var index []tableIndexEntry
+	total := 0
+	failed, err := processDb(item, rel, jsonDir, csvDir, cfg.env("TABLES", ""), false, false, cfg.quiet(),
+		func(table, file string, rows int) {
+			index = append(index, tableIndexEntry{Table: table, Alias: aliasFor(table), File: file, Rows: rows})
+			total += rows
+		})
+	if err != nil {
+		return 0, err
+	}
+	if cfg.Format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write([]string{"Table", "TableAlias", "File", "Rows"}); err != nil {
+			return total, err
+		}
+		for _, e := range index {
+			if err := cw.Write([]string{e.Table, e.Alias, e.File, fmt.Sprint(e.Rows)}); err != nil {
+				return total, err
+			}
+		}
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			return total, err
+		}
+	} else {
+		enc := json.NewEncoder(w)
+		for _, e := range index {
+			if err := enc.Encode(e); err != nil {
+				return total, err
+			}
+		}
+	}
+	if failed > 0 {
+		return total, fmt.Errorf("%d table(s) failed to dump", failed)
+	}
+	return total, nil
+}
+
 func main() {
+	runFrameworkEntry(goeseTool)
 	var (
 		file    = flag.String("f", "", "one ESE database to parse (SRUDB.dat, Current.mdb, ...)")
 		root    = flag.String("d", "", "mounted disk image root (or staged tree) to scan for SRUM/SUM databases")
@@ -483,7 +582,7 @@ func main() {
 
 	// Mode 2: one extracted database, output exactly as requested.
 	if *file != "" {
-		failed, err := processDb(*file, "", *jsonDir, *csvDir, *tables, *list, true, *quiet)
+		failed, err := processDb(*file, "", *jsonDir, *csvDir, *tables, *list, true, *quiet, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "goese: %s: %v\n", *file, err)
 			os.Exit(1)
@@ -524,7 +623,7 @@ func main() {
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "goese: %s database %s -> %s\n", hit.kind, rel, sub)
 		}
-		ft, err := processDb(hit.path, rel, jd, cd, *tables, *list, false, *quiet)
+		ft, err := processDb(hit.path, rel, jd, cd, *tables, *list, false, *quiet, nil)
 		if err != nil {
 			failedDbs++
 			fmt.Fprintf(os.Stderr, "goese: FAILED %s: %v\n", rel, err)
