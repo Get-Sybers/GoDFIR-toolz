@@ -1,0 +1,37 @@
+# zeek/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: zeek
+image: get-sybers/zeek:latest
+entrypoint: self-orchestrating
+description: >
+  Zeek LTS for offline capture parsing, fronted by zeek-run, a static Go
+  entrypoint that batches over the mounted capture tree: every pcap/pcapng is
+  parsed by one zeek invocation into its own output folder (JSON logs with
+  ISO-8601 timestamps by default), with an index of the produced logs.
+
+env:
+  ZEEK_INPUT_DIR: {required: false, default: /input,  desc: capture tree, recursed read-only; every file with a .pcap/.pcapng/.cap extension or a pcap/pcapng magic number is an item}
+  ZEEK_OUT_DIR:   {required: false, default: /output, desc: output root, one folder per capture}
+  ZEEK_WORK_DIR:  {required: false, default: /work,   desc: scratch (writable tmpfs); zeek-run needs none but honours it}
+  ZEEK_FORCE:     {required: false, default: "0", type: bool, desc: 1/true/yes/on reruns captures that already have valid output}
+  ZEEK_FORMAT:    {required: false, default: json,    desc: log format, json (LogAscii JSON with ISO-8601 timestamps, logs renamed *.json) or tsv (zeek's default tab-separated *.log)}
+  ZEEK_SCRIPTS:   {required: false, default: "",      desc: space-separated extra zeek argv appended after -C -r <capture>, i.e. scripts to load and option assignments (for example "local Log::default_rotation_interval=0sec"); empty = zeek's default script set}
+  ZEEK_LOG_LEVEL: {required: false, default: info,    desc: error|warn|info|debug, stderr only}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: ZEEK_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: ZEEK_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: ZEEK_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/<log>.json (or <log>.log with ZEEK_FORMAT=tsv) — zeek's per-capture logs (conn, dns, http, files, …) — plus <OUT_DIR>/<item>/zeek.jsonl, the index of produced logs and their record counts that marks the item done; <item> is the capture path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: any argument is handed to the zeek binary
+  verbatim (e.g. -C -r /input/x.pcap LogAscii::use_json=T), with zeek's own
+  exit code; --version and --print-contract are answered by zeek-run.
