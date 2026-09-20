@@ -6,7 +6,7 @@ description: >
   Raw NTFS $MFT parser (static Go on Velociraptor's go-ntfs). Batches over the
   mounted evidence tree, content-detects every $MFT by its FILE record
   signature (a raw-mount $MFT and Plaso's renamed _MFT both match), and writes
-  one record per MFT entry into one output folder per table.
+  one record per MFT entry into one output folder per $MFT file.
 
 env:
   GOMFT_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every file carrying the FILE signature is an item'}

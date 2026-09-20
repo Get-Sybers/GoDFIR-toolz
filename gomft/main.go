@@ -24,9 +24,9 @@
 //
 // With no arguments the binary runs the container-framework batch mode (see
 // batch.go): it reads GOMFT_INPUT_DIR / GOMFT_OUT_DIR / GOMFT_FORCE /
-// GOMFT_FORMAT, content-detects every $MFT under the input tree, writes one
-// output folder per table and prints one JSON summary line. The argv flags
-// below are the debug pass-through.
+// GOMFT_FORMAT, content-detects every $MFT file under the input tree, writes
+// one output folder per $MFT file (the input item) and prints one JSON summary
+// line. The argv flags below are the debug pass-through.
 //
 // argv exit codes: 0 = every $MFT parsed; 1 = usage or fatal error; 2 = at
 // least one file failed to parse (failures listed on stderr, the rest still
