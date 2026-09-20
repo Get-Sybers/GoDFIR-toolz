@@ -1,18 +1,18 @@
 # syntax=docker/dockerfile:1
-#
 # get-sybers/byakugan — the external Byakugan MITRE CAR engine in ONE hardened
-# image. Byakugan used to run as `python -m byakugan` DIRECTLY ON THE ANALYST
-# HOST off a sibling git checkout (a host-execution gap a container-safety audit
-# flagged, and a cross-repo checkout DX_DFIR had to provision + keep on-pin);
-# it now runs confined here, and the engine is cloned + built INTO the image at
-# the commit pinned by sources.yml, so the only thing the DX_DFIR checkout holds
-# is how it INVOKES this image (get_sybers_dxdfir.mitrecar).
+# image. The engine is cloned + built INTO the image at the ref DX_DFIR's
+# sources.yml pins, so the only thing the DX_DFIR checkout holds is how it
+# INVOKES this image.
 #
 # The engine's `byakugan` console binary IS the ENTRYPOINT (byakugan-entry.py):
-# one binary, dispatched on its first argument to the engine's three operations
-# (build / timeline / car-vocab) — see that file. It is a python engine, so
-# python3 stays (like get-sybers/plaso); everything else is stripped by the
-# shared build-time hardener.
+# a multi-tool dispatcher (docs/framework 04 §4.3) — `byakugan build|timeline`
+# with no further arguments self-orchestrates that operation from its
+# BYAKUGAN_<SUBTOOL>_* env block and prints one JSON summary line;
+# `byakugan car-vocab` prints the car_action vocabulary; a sub-tool followed by
+# arguments is the pass-through to the engine's own CLI.
+# Shape B, declared deviation: python=true (the engine is python: python3 +
+# python3-yaml stay). No shell: bash, dash and sh are removed after the
+# build-time hardener runs. static_binary=false (CPython).
 #
 #   docker build -t get-sybers/byakugan:latest \
 #     --build-arg BYAKUGAN_REF=<40-hex sha> -f byakugan/Dockerfile .
@@ -22,6 +22,9 @@ ARG BASE=debian:trixie-slim
 ARG GO_BASE=golang:1.24-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/byakugan
 ARG BYAKUGAN_REF=main
+ARG TOOL_VERSION=0.1.0
+ARG GODFIR_REVISION=unknown
+ARG GODFIR_RELEASE=dev
 
 # --- stage 1: build the Go parse engine -------------------------------------
 # byakugan-parse is stdlib-only Go (go/go.mod has no external requires), so
@@ -54,6 +57,7 @@ FROM ${BASE} AS hardened
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
 ARG BYAKUGAN_REF
+ARG TOOL_VERSION
 # python3 + pyyaml (the engine's ONLY runtime dependency, from apt so there is no
 # pip); ansible-core is the build-time hardener, removed below.
 RUN set -eux; \
@@ -65,33 +69,57 @@ RUN set -eux; \
 # it must run from this tree via PYTHONPATH, never from site-packages.
 COPY --from=engine /src /opt/byakugan
 COPY byakugan/byakugan-entry.py /usr/local/bin/byakugan
+COPY byakugan/contract.yml /opt/byakugan/contract.yml
 COPY hardening/harden.yml /tmp/hardening/harden.yml
+RUN chmod 0755 /usr/local/bin/byakugan && chmod 0644 /opt/byakugan/contract.yml
+# Build-stage sanity gate: the dispatcher runs and reports the version and the
+# pinned engine ref (before the hardener strips the shell this RUN needs).
+RUN BYAKUGAN_VERSION=${TOOL_VERSION} BYAKUGAN_REF=${BYAKUGAN_REF} PYTHONPATH=/opt/byakugan /usr/local/bin/byakugan --version
+# harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
+# values below: python stays (declared); every shell and ansible go.
 RUN set -eux; \
-    chmod 0755 /usr/local/bin/byakugan; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
-      -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID}; \
-    # remove the build-time hardener + the shell; KEEP python3 + python3-yaml +
+      -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
+      -e harden_tool=byakugan -e harden_static_binary=false -e harden_shell=false -e harden_python=true; \
+    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.pipeline, byakugan.timeline, byakugan.carmodel'; \
+    # remove the build-time hardener + every shell; KEEP python3 + python3-yaml +
     # the baked engine tree (python is the tool, like plaso).
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
            /etc/ansible /root/.ansible /tmp/hardening \
-           /usr/bin/bash /bin/bash /usr/bin/bashbug /usr/bin/perl*
+           /usr/bin/bash /bin/bash /usr/bin/bashbug /usr/bin/perl* \
+           /bin/sh /bin/dash /bin/rbash /usr/bin/sh /usr/bin/dash /usr/bin/rbash
 
 FROM scratch
 COPY --from=hardened / /
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
 ARG BYAKUGAN_REF
+ARG TOOL_VERSION
+ARG GODFIR_REVISION
+ARG GODFIR_RELEASE
 # PYTHONPATH: run the engine from its baked source tree. BYAKUGAN_PARSE_BIN: the
 # static Go parse binary (the engine reads this env first). HOME=/tmp: the only
-# writable path on the read-only rootfs.
+# writable path on the read-only rootfs. BYAKUGAN_VERSION/BYAKUGAN_REF: what
+# `byakugan --version` and the summary line report.
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache \
     PYTHONPATH=/opt/byakugan \
     PYTHONDONTWRITEBYTECODE=1 \
-    BYAKUGAN_PARSE_BIN=/opt/byakugan/go/bin/byakugan-parse
+    BYAKUGAN_PARSE_BIN=/opt/byakugan/go/bin/byakugan-parse \
+    BYAKUGAN_VERSION=${TOOL_VERSION} \
+    BYAKUGAN_REF=${BYAKUGAN_REF}
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["byakugan"]
 LABEL org.opencontainers.image.title="get-sybers/byakugan" \
-      org.opencontainers.image.description="Minimal hardened MITRE CAR engine (Byakugan) for DX_DFIR: engine cloned + built into the image at the sources.yml pin, uid0 renamed+locked, no ansible/apt/pip/sudo/setuid/shell, runs as a fixed non-root uid (default 2000). python kept (the engine is python). One entrypoint binary dispatched to build/timeline/car-vocab." \
+      org.opencontainers.image.description="The Byakugan MITRE CAR engine (python + a static Go parse binary) cloned and built at the pinned ref, behind a multi-tool dispatcher: byakugan build|timeline self-orchestrates from its env block with one JSON summary line, byakugan car-vocab prints the car_action vocabulary. Hardened: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid/shell, runs as uid 2000; python kept (declared)." \
+      org.opencontainers.image.source="https://github.com/Get-Sybers/byakugan" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${TOOL_VERSION}" \
+      org.opencontainers.image.revision="${GODFIR_REVISION}" \
+      com.get-sybers.tool="byakugan" \
       com.get-sybers.hardened="true" \
+      com.get-sybers.contract="1" \
+      com.get-sybers.godfir-release="${GODFIR_RELEASE}" \
+      com.get-sybers.engine-ref="${BYAKUGAN_REF}" \
       com.get-sybers.byakugan.ref="${BYAKUGAN_REF}"
