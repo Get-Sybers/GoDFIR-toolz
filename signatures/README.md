@@ -2,7 +2,8 @@
 
 One hardened image for the whole detection lane: **YARA + Suricata**
 (Debian) **+ Hayabusa** (pinned release zip, sha256-verified at build time —
-`HAYABUSA_VERSION` + `HB_SHA_*` build args) **+ the gomount→goyara
+`HAYABUSA_VERSION` + `HB_SHA_*` build args; the build asserts the baked binary
+is that version and provides `dfir-timeline`) **+ the gomount→goyara
 userspace NTFS scan pipe** (both built from their own top-level modules;
 [goyara](../goyara/README.md) links libyara through cgo and has no image of its
 own). The DetectRaptor YARA merge and the ET Open Suricata ruleset are baked
@@ -83,9 +84,12 @@ suricata also needs writable `/var/run/suricata` and `/var/log/suricata`
 | `SIGNATURES_HAYABUSA_RULES` | `/opt/dxdfir/hayabusa/rules` | the sigma rules directory; a mounted directory overrides the baked set |
 | `SIGNATURES_HAYABUSA_PROFILE` | `verbose` | output profile; `verbose` carries the MITRE ATT&CK columns |
 
-Each item runs `hayabusa json-timeline --directory <item> --output
-<item dir>/timeline.jsonl --JSONL-output --profile <profile> --no-wizard
---UTC --quiet --rules <rules>` from the baked hayabusa home.
+Each item runs `hayabusa dfir-timeline --directory <item> --output
+<item dir>/timeline.jsonl --output-type jsonl --profile <profile> --no-wizard
+--utc --quiet --quiet-errors --rules <rules>` from the baked hayabusa home
+(`dfir-timeline` is hayabusa 4's one timeline command; `--quiet-errors` keeps
+hayabusa from saving an error log under its home's `logs/`, read-only in the
+image, which would abort the scan on an unreadable `.evtx`).
 
 `scan` — `SIGNATURES_SCAN_INPUT_DIR`, `SIGNATURES_SCAN_OUT_DIR`,
 `SIGNATURES_SCAN_WORK_DIR`, `SIGNATURES_SCAN_FORCE`, `SIGNATURES_SCAN_FORMAT`,
@@ -148,14 +152,16 @@ docker run --rm … --tmpfs /var/run/suricata:rw,nosuid,nodev --tmpfs /var/log/s
 Builds with the repo root as context so `COPY hardening/harden.yml`, the
 `gomount/` and `goyara/` modules and this directory's module are in reach.
 `test/contract_test.sh` builds the image, runs `yara` over `test/fixtures/`
-(a small staged tree) and `suricata` over its capture, and asserts the summary
-line, the exit codes, idempotency and the config-error exit; the unit tests
-cover every sub-tool's discovery and processing with stub tools.
+(a small staged tree), `suricata` over its capture and `hayabusa` over its
+`.evtx` tree, and asserts the summary line, the exit codes, idempotency, the
+config-error exit and, for `hayabusa`, that `timeline.jsonl` holds the
+detections the summary counts; the unit tests cover every sub-tool's
+discovery and processing with stub tools.
 
 ## argv pass-through (debug only)
 
-`signatures-entry <tool> <args…>` execs `yara`, `suricata`,
-`/opt/dxdfir/hayabusa/hayabusa`, `gomount`, `goyara`,
+`signatures-entry <tool> <args…>` execs `yara`, `suricata`, `hayabusa` (the
+baked `/opt/dxdfir/hayabusa/hayabusa`, by either name), `gomount`, `goyara`,
 `/opt/dxdfir/scan-list.sh` or `sh` verbatim with that tool's exit code;
 `--version` prints the dispatcher's version and `--print-contract` prints
 `contract.yml`. Any other first argument is a config error (exit 2).

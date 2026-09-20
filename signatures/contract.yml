@@ -89,5 +89,5 @@ hardening:
 
 argv_passthrough: >
   Debug only, never used by DX_DFIR: `<tool> <args…>` execs yara, suricata,
-  hayabusa (/opt/dxdfir/hayabusa/hayabusa), gomount, goyara,
-  /opt/dxdfir/scan-list.sh or sh verbatim, with that tool's exit code.
+  hayabusa (the baked /opt/dxdfir/hayabusa/hayabusa, by either name), gomount,
+  goyara, /opt/dxdfir/scan-list.sh or sh verbatim, with that tool's exit code.

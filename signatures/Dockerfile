@@ -88,7 +88,12 @@ RUN set -eux; \
     unzip -q /tmp/hb.zip -d /opt/dxdfir/hayabusa; \
     mv "/opt/dxdfir/hayabusa/hayabusa-${HAYABUSA_VERSION}-lin-${hbarch}-gnu" /opt/dxdfir/hayabusa/hayabusa; \
     chmod 0755 /opt/dxdfir/hayabusa/hayabusa; \
-    rm -rf /opt/dxdfir/hayabusa/rules/.git /tmp/hb.zip
+    rm -rf /opt/dxdfir/hayabusa/rules/.git /tmp/hb.zip; \
+    # build-stage sanity gate for the baked binary: it runs, it is the pinned
+    # version, and it provides the dfir-timeline command signatures-entry drives
+    # (hayabusa 4 replaced csv-timeline/json-timeline with it).
+    /opt/dxdfir/hayabusa/hayabusa help | grep -q "^Hayabusa v${HAYABUSA_VERSION} "; \
+    /opt/dxdfir/hayabusa/hayabusa dfir-timeline --help >/dev/null
 COPY signatures/scan-list.sh /opt/dxdfir/scan-list.sh
 COPY signatures/contract.yml /opt/dxdfir/contract.yml
 # Bake the pinned DetectRaptor YARA ruleset into the image: the vendored provisioner
@@ -146,6 +151,8 @@ ARG DFIR_GID=2000
 ARG TOOL_VERSION
 ARG GODFIR_REVISION
 ARG GODFIR_RELEASE
+# re-declared here so the com.get-sybers.hayabusa.version label below carries it
+ARG HAYABUSA_VERSION
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/usr/local/bin/signatures-entry"]
 LABEL org.opencontainers.image.title="get-sybers/signatures" \
