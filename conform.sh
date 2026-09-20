@@ -324,21 +324,24 @@ if [[ "$DO_BUILD" == true ]]; then
             cid="$(docker create "$IMG" __conform__ 2>/dev/null)"
             if [[ -n "$cid" ]]; then
                 fs="$(docker export "$cid" 2>/dev/null | tar -t 2>/dev/null)"
-                decl="$(printf '%s' "$fs" | grep -q '^etc/dfir-hardened$' && docker export "$cid" 2>/dev/null | tar -xO etc/dfir-hardened 2>/dev/null)"
+                decl=""
+                if grep -q '^etc/dfir-hardened$' <<<"$fs"; then
+                    decl="$(docker export "$cid" 2>/dev/null | tar -xO etc/dfir-hardened 2>/dev/null)"
+                fi
                 docker rm -f "$cid" >/dev/null 2>&1
-                printf '%s' "$fs" | grep -qE '(^|/)(usr/)?bin/(apt-get|dpkg|sudo)$' \
+                grep -qE '(^|/)(usr/)?bin/(apt-get|dpkg|sudo)$' <<<"$fs" \
                     && _f "removed surface present (apt-get/dpkg/sudo) (06.3)" || _p "no apt-get/dpkg/sudo"
-                printf '%s' "$fs" | grep -qE '(^|/)(usr/)?bin/pip[0-9.]*$' \
+                grep -qE '(^|/)(usr/)?bin/pip[0-9.]*$' <<<"$fs" \
                     && _f "pip present (06.3)" || _p "no pip"
-                printf '%s' "$fs" | grep -qE '/ansible([-/]|$)' \
+                grep -qE '/ansible([-/]|$)' <<<"$fs" \
                     && _f "ansible present in runtime image (06.3)" || _p "no ansible in runtime"
                 [[ -n "$decl" ]] && _p "/etc/dfir-hardened present" || _w "/etc/dfir-hardened not found in image"
-                if printf '%s' "$decl" | grep -q 'shell=false'; then
-                    printf '%s' "$fs" | grep -qE '(^|/)bin/(sh|bash|dash)$' \
+                if grep -q 'shell=false' <<<"$decl"; then
+                    grep -qE '(^|/)bin/(sh|bash|dash)$' <<<"$fs" \
                         && _f "declares shell=false but a shell is present (06.4)" || _p "shell=false matches filesystem"
                 fi
-                if printf '%s' "$decl" | grep -q 'python=false'; then
-                    printf '%s' "$fs" | grep -qE '(^|/)bin/python3(\.[0-9]+)?$' \
+                if grep -q 'python=false' <<<"$decl"; then
+                    grep -qE '(^|/)bin/python3(\.[0-9]+)?$' <<<"$fs" \
                         && _f "declares python=false but python is present (06.4)" || _p "python=false matches filesystem"
                 fi
             fi
