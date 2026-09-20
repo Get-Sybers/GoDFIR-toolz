@@ -1,0 +1,3 @@
+/gosbe
+*.test
+.conform-build.log
