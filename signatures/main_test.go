@@ -19,6 +19,10 @@ func stub(t *testing.T, name, body string) string {
 	return p
 }
 
+// shQuote single-quotes s for a POSIX shell, so a path with spaces or other
+// metacharacters survives inside a stub script.
+func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
 func cfgFor(t *testing.T, prefix string, env map[string]string) *batchConfig {
 	t.Helper()
 	return &batchConfig{Tool: "signatures", Prefix: prefix, InputDir: env[prefix+"_INPUT_DIR"],
@@ -109,8 +113,14 @@ func TestHayabusaDiscoverAndProcess(t *testing.T) {
 		t.Fatalf("discover = %v, %v", items, err)
 	}
 	hayabusaHome = t.TempDir()
-	argvFile := filepath.Join(t.TempDir(), "argv")
-	hayabusaBinary = stub(t, "hayabusa", `printf '%s\n' "$@" > `+argvFile+`; o=""; while [ $# -gt 0 ]; do case "$1" in --output) o="$2";; esac; shift; done; printf '{"RuleTitle":"x"}\n' > "$o"`)
+	// the stub records its argv into a directory whose name carries a space,
+	// so the quoted path must survive the shell
+	argvDir := filepath.Join(t.TempDir(), "argv dir")
+	if err := os.MkdirAll(argvDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	argvFile := filepath.Join(argvDir, "argv")
+	hayabusaBinary = stub(t, "hayabusa", `printf '%s\n' "$@" > `+shQuote(argvFile)+`; o=""; while [ $# -gt 0 ]; do case "$1" in --output) o="$2";; esac; shift; done; printf '{"RuleTitle":"x"}\n' > "$o"`)
 	var idx bytes.Buffer
 	n, err := processHayabusa(cfg, items[0], t.TempDir(), &idx)
 	if err != nil || n != 1 {

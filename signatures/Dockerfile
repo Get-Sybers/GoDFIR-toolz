@@ -89,10 +89,12 @@ RUN set -eux; \
     mv "/opt/dxdfir/hayabusa/hayabusa-${HAYABUSA_VERSION}-lin-${hbarch}-gnu" /opt/dxdfir/hayabusa/hayabusa; \
     chmod 0755 /opt/dxdfir/hayabusa/hayabusa; \
     rm -rf /opt/dxdfir/hayabusa/rules/.git /tmp/hb.zip; \
-    # build-stage sanity gate for the baked binary: it runs, it is the pinned
-    # version, and it provides the dfir-timeline command signatures-entry drives
-    # (hayabusa 4 replaced csv-timeline/json-timeline with it).
-    /opt/dxdfir/hayabusa/hayabusa help | grep -q "^Hayabusa v${HAYABUSA_VERSION} "; \
+    # build-stage sanity gate for the baked binary: it runs, it is exactly the
+    # pinned version (the banner's first line is `Hayabusa v<version> - <name>`;
+    # its first two words are matched whole as a fixed string, no regex), and it
+    # provides the dfir-timeline command signatures-entry drives (hayabusa 4
+    # replaced csv-timeline/json-timeline with it).
+    /opt/dxdfir/hayabusa/hayabusa help | head -n 1 | cut -d' ' -f1-2 | grep -Fqx "Hayabusa v${HAYABUSA_VERSION}"; \
     /opt/dxdfir/hayabusa/hayabusa dfir-timeline --help >/dev/null
 COPY signatures/scan-list.sh /opt/dxdfir/scan-list.sh
 COPY signatures/contract.yml /opt/dxdfir/contract.yml
