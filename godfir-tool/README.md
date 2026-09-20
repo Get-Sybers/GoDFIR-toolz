@@ -9,20 +9,43 @@ python itself out of the final image. The tool DLL is the pinned ENTRYPOINT.
 The DLL inside each zip is located case-insensitively (release zip layouts and
 casing vary — a tool may ship its DLL in a differently-cased subdirectory, or
 lowercase like `rla.dll`), and the run-as uid/gid honour the
-`DFIR_UID`/`DFIR_GID` build args the DX_DFIR image role passes.
+`DFIR_UID`/`DFIR_GID` build args.
 
-The five images still built this way, and their status:
+The five images built this way: `sqlecmd` (its `Maps/` ruleset ships in the
+image), `bstrings`, `recentfilecacheparser`, `rla` and `iisgeolocate`. Four
+Windows-bound release binaries refuse to parse off-Windows; the Dockerfile
+fails fast if asked to build one (the Go parsers cover those artefact classes
+— `--build-arg GODFIR_TOOL_ALLOW_WINDOWS_ONLY=1` overrides, e.g. to unpack a
+release).
 
-- `sqlecmd` — parse-verified; its `Maps/` ruleset ships in the image
-- `bstrings`, `recentfilecacheparser` — build-verified; parse-verify on first use
-- `rla` — build-verified (its Registry library's `.LOG` replay is already
-  proven on Linux by goamcache/goappcompat)
-- `iisgeolocate` — build-verified; see the run note below
+## Contract
 
-Four Windows-bound release binaries refuse to parse off-Windows; the
-Dockerfile fails fast if asked to build one (the pipeline's own Go parsers
-cover those artefact classes — `--build-arg GODFIR_TOOL_ALLOW_WINDOWS_ONLY=1`
-overrides, e.g. to unpack a release).
+The built images are driven by the tool's own argv
+([`contract.yml`](contract.yml): `entrypoint: argv`, one entry per built image
+under `images:`) — a declared deviation until each tool gains an env→argv shim
+or a Go port. They read no `GODFIR_TOOL_*` variables. Every built image
+carries the label set with `com.get-sybers.tool=godfir-tool` (the recipe) and
+`com.get-sybers.godfir-tool.name=<GODFIR_TOOL>` (the tool), and declares
+`shell=false python=false static_binary=false` in `/etc/dfir-hardened`.
+
+## Input
+
+The file or directory named by the tool's `-f`/`-d`, mounted read-only
+(`/input` by convention).
+
+## Output
+
+The directory named by the tool's `--csv`/`--json`/`--out` (`/output` by
+convention); `bstrings` prints to stdout. There is no JSON summary line.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | success |
+| 1 | the tool's own error |
+
+## Run
 
 ```sh
 docker build -t get-sybers/sqlecmd:latest  --build-arg GODFIR_TOOL=SQLECmd  -f godfir-tool/Dockerfile .
@@ -32,7 +55,16 @@ docker build -t get-sybers/sqlecmd:latest  --build-arg GODFIR_TOOL=SQLECmd \
   --build-arg GODFIR_TOOL_SHA256=<sha256 of SQLECmd.zip> -f godfir-tool/Dockerfile .
 # or everything at once:
 ./build-all.sh
+
+docker run --rm --network none --read-only --tmpfs /tmp:rw,uid=2000,gid=2000 \
+  --cap-drop ALL --security-opt no-new-privileges \
+  -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
+  get-sybers/sqlecmd:latest -f /input/History --csv /output
 ```
+
+`test/contract_test.sh` builds one image (`GODFIR_TOOL`, default `SQLECmd`)
+and asserts the label set, the self-declaration against the filesystem, and
+that the entrypoint runs.
 
 **iisGeolocate run note:** keep its MaxMind `.mmdb` databases current — mount
 them read-only over the baked copies if the release's are stale.
