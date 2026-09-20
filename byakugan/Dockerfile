@@ -6,15 +6,17 @@
 #
 # The ENTRYPOINT is the engine's own multi-tool dispatcher, byakugan.cli
 # (docs/framework 04 §4.3), reached through the byakugan-entry.py shim —
-# `byakugan build|timeline|verify` with no further arguments self-orchestrates
-# that operation from its BYAKUGAN_<SUBTOOL>_* env block and prints one JSON
-# summary line; `byakugan car-vocab` prints the car_action vocabulary; a
-# sub-tool followed by arguments is the pass-through to the engine's own CLI.
-# The sub-tool set and the processed-layout discovery are the engine's: the
-# cloned ref must ship byakugan/cli.py.
+# `byakugan build|timeline|verify|load` with no further arguments
+# self-orchestrates that operation from its BYAKUGAN_<SUBTOOL>_* env block and
+# prints one JSON summary line; `byakugan car-vocab` prints the car_action
+# vocabulary; a sub-tool followed by arguments is the pass-through to the
+# engine's own CLI. The sub-tool set and the processed-layout discovery are
+# the engine's: the cloned ref must ship byakugan/cli.py.
 # Shape B, declared deviation: python=true (the engine is python: python3 +
 # python3-yaml stay). No shell: bash, dash and sh are removed after the
-# build-time hardener runs. static_binary=false (CPython).
+# build-time hardener runs. static_binary=false (CPython). ca-certificates
+# also stays in the runtime stage: TLS trust for the load sub-tool's push
+# mode (precedent: signatures/Dockerfile runtime stage).
 #
 #   docker build -t get-sybers/byakugan:latest \
 #     --build-arg BYAKUGAN_REF=<40-hex sha> -f byakugan/Dockerfile .
@@ -61,10 +63,12 @@ ARG DFIR_GID=2000
 ARG BYAKUGAN_REF
 ARG TOOL_VERSION
 # python3 + pyyaml (the engine's ONLY runtime dependency, from apt so there is no
-# pip); ansible-core is the build-time hardener, removed below.
+# pip); ca-certificates gives the load sub-tool's push mode a trust store for its
+# Elasticsearch/Kibana TLS calls (signatures/Dockerfile runtime-stage precedent);
+# ansible-core is the build-time hardener, removed below.
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends python3 python3-yaml ansible-core; \
+    apt-get install -y --no-install-recommends python3 python3-yaml ca-certificates ansible-core; \
     rm -rf /var/lib/apt/lists/*
 # The engine SOURCE TREE (package + its pinned model submodules + the static Go
 # parse binary): the engine resolves its model dir relative to the package, so
@@ -83,7 +87,7 @@ RUN set -eux; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=byakugan -e harden_static_binary=false -e harden_shell=false -e harden_python=true; \
-    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel'; \
+    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel, byakugan.load, byakugan.projection, byakugan.inverse_projection'; \
     # remove the build-time hardener + every shell; KEEP python3 + python3-yaml +
     # the baked engine tree (python is the tool, like plaso).
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
@@ -114,7 +118,7 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["byakugan"]
 LABEL org.opencontainers.image.title="get-sybers/byakugan" \
-      org.opencontainers.image.description="The Byakugan MITRE CAR engine (python + a static Go parse binary) cloned and built at the pinned ref, behind the engine's own multi-tool dispatcher: byakugan build|timeline|verify self-orchestrates from its env block with one JSON summary line, byakugan car-vocab prints the car_action vocabulary. Hardened: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid/shell, runs as uid 2000; python kept (declared)." \
+      org.opencontainers.image.description="The Byakugan MITRE CAR engine (python + a static Go parse binary) cloned and built at the pinned ref, behind the engine's own multi-tool dispatcher: byakugan build|timeline|verify|load self-orchestrates from its env block with one JSON summary line, byakugan car-vocab prints the car_action vocabulary. Hardened: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid/shell, runs as uid 2000; python kept (declared); ca-certificates kept for the load sub-tool's push-mode TLS trust." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/byakugan" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${TOOL_VERSION}" \

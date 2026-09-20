@@ -5,21 +5,25 @@ entrypoint: multi-tool
 description: >
   The external Byakugan MITRE CAR engine (python + a static Go parse binary),
   cloned recursively and baked at the pinned ref, behind the engine's own
-  dispatcher (byakugan.cli): `byakugan build` materialises CAR stores from a
+  dispatcher (byakugan.cli): `byakugan build` materialises the CAR tree (the
+  per-source JSONL sets, plus the engine's own working stores) from a
   processed evidence tree, `byakugan timeline` unions a car tree into one
   time-ordered timeline, `byakugan verify` runs the CAR correctness gate over
-  a materialised tree, `byakugan car-vocab` prints the car_action vocabulary.
-  Each batch run prints one JSON summary line.
-subtools: [build, timeline, verify, car-vocab]
+  a materialised tree, `byakugan car-vocab` prints the car_action vocabulary,
+  `byakugan load` bulk-loads a materialised CAR tree into the DX_DFIR Elastic
+  stack as its logs-car.* data streams — offline Elasticsearch _bulk NDJSON
+  bundles by default, or pushed over HTTPS itself when BYAKUGAN_LOAD_ES_URL is
+  set. Each batch run prints one JSON summary line.
+subtools: [build, timeline, verify, car-vocab, load]
 engine:
   repository: https://github.com/Get-Sybers/byakugan
   ref_label: com.get-sybers.engine-ref
   note: the engine is an external repository; DX_DFIR orchestrates and links out, the CAR model and verify gate live in Byakugan
 
 env:
-  # --- build: processed evidence -> car.db per source (byakugan.pipeline --batch) ---
+  # --- build: processed evidence -> the materialised CAR tree per source (byakugan.pipeline --batch) ---
   BYAKUGAN_BUILD_INPUT_DIR: {required: false, default: /input,  desc: 'the processed-evidence tree the engine batches over (its --batch root), read-only'}
-  BYAKUGAN_BUILD_OUT_DIR:   {required: false, default: /output, desc: 'the car/ root the engine writes one store per source into (--out)'}
+  BYAKUGAN_BUILD_OUT_DIR:   {required: false, default: /output, desc: 'the car/ root the engine writes one materialised source into (--out): the car_*.jsonl set plus its working store'}
   BYAKUGAN_BUILD_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on rebuilds sources whose car.db already exists (--force)'}
   BYAKUGAN_BUILD_DERIVE:    {required: false, default: "0", type: bool, desc: 'also run the derived relationship pass into superset.db (--derive)'}
   BYAKUGAN_BUILD_STIX:      {required: false, default: "0", type: bool, desc: 'also derive the STIX 2.1 bundle from the finished stores (--stix)'}
@@ -39,13 +43,29 @@ env:
   BYAKUGAN_VERIFY_OUT_DIR:   {required: false, default: /output, desc: 'where the report verify.txt is written; the default applies only when /output is a mounted, writable directory, otherwise the report goes to stderr alone and the gate still runs'}
   BYAKUGAN_VERIFY_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- car-vocab: no variables; stdout is the vocabulary JSON ---------------------------------
+  # --- load: a materialised car tree -> the DX_DFIR Elastic stack (byakugan.load) -------------
+  BYAKUGAN_LOAD_INPUT_DIR:        {required: false, default: /input,  desc: 'the materialised CAR tree to load (car_<object>.jsonl + car_relationships.jsonl per source, any depth; car_inferred.jsonl only when the build ran BYAKUGAN_BUILD_DERIVE), read-only'}
+  BYAKUGAN_LOAD_OUT_DIR:          {required: false, default: /output, desc: 'where the elastic/ bulk bundles, manifest.json and the load report are written'}
+  BYAKUGAN_LOAD_ES_URL:           {required: false, default: "", desc: 'empty (default) selects bundle mode: no network, bundles are only rendered; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS. The explicit network opt-in, same shape as ANAMNESIS_SYMBOLS_ONLINE'}
+  BYAKUGAN_LOAD_ES_API_KEY:       {required: false, default: "", desc: 'Elasticsearch API key for push mode (Authorization: ApiKey ...)'}
+  BYAKUGAN_LOAD_ES_USER:          {required: false, default: "", desc: 'Elasticsearch basic-auth username for push mode, paired with _ES_PASSWORD or _ES_PASSWORD_FILE'}
+  BYAKUGAN_LOAD_ES_PASSWORD:      {required: false, default: "", desc: 'Elasticsearch basic-auth password for push mode; ignored when _ES_PASSWORD_FILE is set'}
+  BYAKUGAN_LOAD_ES_PASSWORD_FILE: {required: false, default: "", desc: 'file holding the Elasticsearch basic-auth password for push mode; wins over _ES_PASSWORD'}
+  BYAKUGAN_LOAD_ES_CA_FILE:       {required: false, default: /certs/ca/ca.crt, desc: 'CA bundle used to verify the Elasticsearch TLS certificate in push mode; the default applies only when the certs mount is present, otherwise the system trust store is used'}
+  BYAKUGAN_LOAD_KIBANA_URL:       {required: false, default: "", desc: 'empty (default) skips the Kibana saved-objects import; set = also import the rendered Kibana saved objects, push mode only, requires BYAKUGAN_LOAD_SETUP'}
+  BYAKUGAN_LOAD_NAMESPACE:        {required: false, default: default, desc: 'the Elastic data-stream namespace: logs-car.<object>-<namespace>, logs-car.rel-<namespace>, logs-car.inferred-<namespace>'}
+  BYAKUGAN_LOAD_SETUP:            {required: false, default: "0", type: bool, desc: '1/true/yes/on applies the rendered index/component templates before loading (and, with _KIBANA_URL set, imports the Kibana saved objects); push mode only'}
+  BYAKUGAN_LOAD_FORCE:            {required: false, default: "0", type: bool, desc: '1/true/yes/on re-renders bundles and, in push mode, re-pushes even when the manifest/load report already show the run complete'}
+  BYAKUGAN_LOAD_ARGS:             {required: false, default: "", desc: 'extra byakugan.load argv, space-separated'}
+  BYAKUGAN_LOAD_LOG_LEVEL:        {required: false, default: info, desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
   - {name: input,  path: /input,  mode: ro, env: BYAKUGAN_<SUBTOOL>_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: BYAKUGAN_<SUBTOOL>_OUT_DIR,   required: true}
+  - {name: certs,  path: /certs,  mode: ro, required: false, desc: 'the Elastic stack CA (e.g. the compose certs volume); needed only for push mode over TLS'}
   - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: 'HOME under a read-only rootfs (tmpfs)'}
 
-network: none
+network: optional        # none by default; used only by `load`, and only when BYAKUGAN_LOAD_ES_URL / BYAKUGAN_LOAD_KIBANA_URL are set — build/timeline/verify/car-vocab remain fully offline
 # Exit 1 is the general non-success of a run that produced no output: nothing
 # to do (status `nothing`) or, for verify, the gate failed (status `failed`).
 # A consumer reads the summary `status` to tell them apart, never the code
@@ -54,17 +74,19 @@ exit_codes: {0: success, 1: nothing_or_failed, 2: config_error, 3: partial}
 
 summary_schema:
   required: [tool, subtool, version, engine_ref, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
-  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline, the passed/failed/not_exercised/os_families_covered/os_families_total tally for verify); car-vocab's stdout is the vocabulary JSON itself, one line. verify's `status` is the verdict and the only way to tell its two exit-1 outcomes apart: `ok` (exit 0, the gate passed), `failed` (exit 1, `failed` = the checks that failed, named in `failures`), `nothing` (exit 1, no materialised CAR under the input dir)"
+  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline, the passed/failed/not_exercised/os_families_covered/os_families_total tally for verify, the per-stream document counts and the mode (bundle|push) for load); car-vocab's stdout is the vocabulary JSON itself, one line. verify's `status` is the verdict and the only way to tell its two exit-1 outcomes apart: `ok` (exit 0, the gate passed), `failed` (exit 1, `failed` = the checks that failed, named in `failures`), `nothing` (exit 1, no materialised CAR under the input dir). load mirrors the uniform table instead: `ok` (exit 0), `nothing` (exit 1, no materialised CAR under the input dir), `partial` (exit 3, at least one stream loaded and at least one failed)"
 
 outputs:
   build:
-    layout: "<OUT_DIR>/<source>/car.db (+ superset.db with DERIVE, stix_bundle.json with STIX), one store per processed source; records = CAR events; a source whose car.db exists is skipped unless FORCE"
+    layout: "<OUT_DIR>/<source>/car_<object>.jsonl (13 CAR objects) + car_relationships.jsonl, one set per processed source — the materialised CAR tree that timeline/verify/load and downstream ingest read; car.db (+ superset.db with DERIVE, stix_bundle.json with STIX) is the per-source working store the engine also keeps alongside it, for its own internal use; records = CAR events; a source whose car.db exists is skipped unless FORCE"
   timeline:
     layout: "<OUT_DIR>/timeline.jsonl — the property-rich, time-ordered CAR timeline of the input tree; records = entries; skipped when it exists unless FORCE"
   verify:
     layout: "<OUT_DIR>/verify.txt — the gate report (every check, the tally, the verdict), also written to stderr; written (replacing any earlier report) only when at least one materialised CAR source is found (status ok or failed) — an empty tree (status nothing) writes no report; inputs = source directories holding materialised CAR, records = the CAR rows read; the verdict is `status` (ok|failed|nothing), exit 0 only when the gate passed"
   car-vocab:
     layout: "stdout: {object: [car_actions]} as one JSON line"
+  load:
+    layout: "<OUT_DIR>/elastic/*.ndjson — one Elasticsearch _bulk NDJSON bundle per data stream (logs-car.<object>-<namespace> x13, logs-car.rel-<namespace>, logs-car.inferred-<namespace>) with a deterministic per-document _id; <OUT_DIR>/elastic/manifest.json — per-stream document counts, ids and each bundle sha256; <OUT_DIR>/load.txt — the human-readable load report, also written to stderr; bundle mode (BYAKUGAN_LOAD_ES_URL unset) only renders these, push mode (BYAKUGAN_LOAD_ES_URL set) also POSTs them, treats an already-indexed document (409) as already_present, and verifies per-stream counts; records = documents bundled or indexed; the deterministic ids make a re-render or re-push an idempotent no-op"
 
 hardening:
   declared: {shell: false, python: true, static_binary: false}

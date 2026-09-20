@@ -6,8 +6,15 @@
 # nothing-to-do exit 1 with one JSON summary line carrying every summary_schema
 # key, reruns it (same result, no files), runs with a bad environment
 # (missing input mount) asserting exit 2, runs with no sub-tool named asserting
-# exit 2, runs `car-vocab` asserting exit 0 and one JSON line, and runs `verify`
-# over an empty car tree asserting the nothing-to-do exit 1 with no report.
+# exit 2, runs `car-vocab` asserting exit 0 and one JSON line, runs `verify`
+# over an empty car tree asserting the nothing-to-do exit 1 with no report, and
+# runs `load` (bundle mode, no BYAKUGAN_LOAD_ES_URL — never a network) over an
+# empty car tree asserting the nothing-to-do exit 1 with subtool "load", plus a
+# bad environment (bogus log level) asserting exit 2. `load`'s success path
+# (a materialised car tree -> elastic/ bundles) is not exercised here: the
+# engine-side sub-tool is not implemented yet (a separate phase), and the
+# car_<object>.jsonl row shape is owned by the externally-cloned engine, not
+# this repo, so no fixture can be authored against it in advance.
 #
 #   test/contract_test.sh                                   # docker build + run
 #   IMAGE=get-sybers/byakugan:latest test/contract_test.sh      # reuse a built image
@@ -62,6 +69,19 @@ print(json.dumps({k: s[k] for k in ("subtool", "status", "inputs", "processed", 
 PY
 }
 
+# check_field <stdout> <summary key> <expected value>: the summary line's one
+# JSON object carries <key> == <expected value> (string-compared).
+check_field() {
+    python3 - "$@" <<'PY'
+import json, sys
+out, key, want = sys.argv[1], sys.argv[2], sys.argv[3]
+s = json.loads(open(out).read().splitlines()[0])
+got = s.get(key)
+if str(got) != want:
+    sys.exit(f"FAIL {key} = {got!r}, want {want!r}: {s}")
+PY
+}
+
 envfile="$scratch/env"
 printf 'BYAKUGAN_BUILD_INPUT_DIR=/input\nBYAKUGAN_BUILD_OUT_DIR=/output\nBYAKUGAN_BUILD_FORCE=0\nBYAKUGAN_BUILD_LOG_LEVEL=info\n' >"$envfile"
 
@@ -92,5 +112,17 @@ printf 'BYAKUGAN_VERIFY_INPUT_DIR=/input\nBYAKUGAN_VERIFY_OUT_DIR=/output\nBYAKU
 rc=0; run verify "$scratch/env-verify" "$scratch/out6" "$scratch/err6" || rc=$?
 check "$scratch/out6" 1 "$rc" nothing || { cat "$scratch/err6" >&2; exit 1; }
 [[ ! -e "$output/verify.txt" ]] || { echo "FAIL verify wrote a report over an empty tree" >&2; exit 1; }
+
+echo "== load: bundle mode (no BYAKUGAN_LOAD_ES_URL), empty car tree, expect exit 1 (nothing)"
+printf 'BYAKUGAN_LOAD_INPUT_DIR=/input\nBYAKUGAN_LOAD_OUT_DIR=/output\nBYAKUGAN_LOAD_NAMESPACE=default\nBYAKUGAN_LOAD_LOG_LEVEL=info\n' >"$scratch/env-load"
+rc=0; run load "$scratch/env-load" "$scratch/out7" "$scratch/err7" || rc=$?
+check "$scratch/out7" 1 "$rc" nothing || { cat "$scratch/err7" >&2; exit 1; }
+check_field "$scratch/out7" subtool load || { cat "$scratch/err7" >&2; exit 1; }
+[[ ! -e "$output/elastic" ]] || { echo "FAIL load wrote elastic/ over an empty tree" >&2; exit 1; }
+
+echo "== load: bad environment (bogus log level), expect exit 2"
+sed 's|^BYAKUGAN_LOAD_LOG_LEVEL=.*|BYAKUGAN_LOAD_LOG_LEVEL=bogus|' "$scratch/env-load" >"$scratch/env-load-bad"
+rc=0; run load "$scratch/env-load-bad" "$scratch/out8" "$scratch/err8" || rc=$?
+check "$scratch/out8" 2 "$rc" config_error || { cat "$scratch/err8" >&2; exit 1; }
 
 echo "PASS byakugan contract test"
