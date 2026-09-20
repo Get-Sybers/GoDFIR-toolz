@@ -87,7 +87,7 @@ RUN set -eux; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=byakugan -e harden_static_binary=false -e harden_shell=false -e harden_python=true; \
-    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel'; \
+    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel, byakugan.load, byakugan.projection, byakugan.inverse_projection'; \
     # remove the build-time hardener + every shell; KEEP python3 + python3-yaml +
     # the baked engine tree (python is the tool, like plaso).
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
