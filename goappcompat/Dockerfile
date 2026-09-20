@@ -1,59 +1,53 @@
 # syntax=docker/dockerfile:1
-#
-# goappcompat — Linux-native Windows AppCompatCache (ShimCache) parser for the
-# DX_DFIR pipeline.
-#
-# A single static Go binary on Velociraptor's regparser (+ its appcompatcache
-# subpackage) reads the AppCompatCache value from a SYSTEM hive and emits
-# one record per shimcache entry (ControlSet, CacheEntryPosition, Path,
-# LastModifiedTimeUTC, SourceFile) as CSV or JSONL. Same get-sybers/<tool> tag
-# and CLI as the other GoDFIR tools; the godfir-toolz lane calls
-# `-f /in/SYSTEM --csv /out --csvf appcompatcache.csv`.
-#
-# Dirty-hive .LOG replay: when SYSTEM.LOG1/.LOG2 sit alongside the hive, goappcompat
-# recovers a copy (applies the dirty pages) into --work-dir and parses that. The
-# recovered copy needs a WRITABLE work dir — the rootfs here is read-only, so mount
-# a tmpfs at the work dir (default /tmp) and point --work-dir at it, e.g.
-# `--tmpfs /tmp:rw,nosuid,nodev,size=256m` (the DX_DFIR godfir-toolz lane wires this,
-# like gowxt). WITHOUT a writable work dir replay gracefully falls back to the
-# committed hive (a one-line note) — the tool still runs read-only, just no replay.
-#
-# The final image is FROM scratch: one static binary, nothing else — no shell,
-# no python, no package manager, no setuid, no libc; runs as uid 2000.
+# get-sybers/goappcompat — AppCompatCache (ShimCache) parser (static Go on Velociraptor's regparser).
+# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
+# batches over GOAPPCOMPAT_INPUT_DIR into GOAPPCOMPAT_OUT_DIR (one folder per
+# SYSTEM hive, .LOG1/.LOG2 replayed into GOAPPCOMPAT_WORK_DIR)
+# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
+# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
 #
 #   docker build -t get-sybers/goappcompat:latest -f goappcompat/Dockerfile goappcompat
-#   docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
-#     --read-only --tmpfs /tmp:rw,nosuid,nodev,size=256m \
-#     -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-#     get-sybers/goappcompat:latest -f /input/SYSTEM --csv /output --csvf appcompatcache.csv
 
 ARG GO_VERSION=1.24
+ARG TOOL_VERSION=0.2.0
+ARG GODFIR_REVISION=unknown
+ARG GODFIR_RELEASE=dev
 
 FROM golang:${GO_VERSION}-alpine AS build
+ARG TOOL_VERSION
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-COPY main.go .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /goappcompat .
-# Sanity-gate the build: the binary must run and exit 1 (its usage code) with no
-# args — a panic/crash/unexpected exit fails the build here.
-RUN /goappcompat 2>/dev/null; [ $? -eq 1 ]
+COPY *.go contract.yml ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /goappcompat .
+# Build-stage sanity gate: the binary runs and prints its version.
+RUN /goappcompat --version
 
 FROM scratch
 COPY --from=build /goappcompat /goappcompat
 COPY <<EOF /etc/dfir-hardened
-user=dfir uid=2000
+schema=1
+tool=goappcompat
+user=dfir uid=2000 gid=2000
 static_binary=true
+shell=false python=false pkg_mgr=false
 EOF
-# Single run-as uid/gid, passed by the DX_DFIR image role (dxdfir_runtime_uid/gid)
-# so this scratch image honours the same fixed non-root USER as the .NET images.
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
+ARG TOOL_VERSION
+ARG GODFIR_REVISION
+ARG GODFIR_RELEASE
+ENV HOME=/tmp XDG_CACHE_HOME=/tmp/.cache
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/goappcompat"]
 LABEL org.opencontainers.image.title="get-sybers/goappcompat" \
-      org.opencontainers.image.description="Linux-native Windows AppCompatCache (ShimCache) parser (static Go, regparser): reads the AppCompatCache value from a SYSTEM hive to CSV/JSONL (ControlSet, position, path, last-modified). FROM scratch: no shell, no python, no libc, runs as uid 2000." \
-      org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
+      org.opencontainers.image.description="AppCompatCache (ShimCache) parser (static Go, regparser): content-detects every SYSTEM hive with an AppCompatCache under the input tree, replays sibling .LOG1/.LOG2, and writes one record per cache entry (ControlSet, CacheEntryPosition, Path, LastModifiedTimeUTC, SourceFile) as JSONL or CSV, one folder per hive. Env-driven batch entrypoint; FROM scratch, runs as uid 2000." \
+      org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
       org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${TOOL_VERSION}" \
+      org.opencontainers.image.revision="${GODFIR_REVISION}" \
       com.get-sybers.tool="goappcompat" \
-      com.get-sybers.hardened="true"
+      com.get-sybers.hardened="true" \
+      com.get-sybers.contract="1" \
+      com.get-sybers.godfir-release="${GODFIR_RELEASE}" \
+      com.get-sybers.upstream="https://github.com/Velocidex/regparser"

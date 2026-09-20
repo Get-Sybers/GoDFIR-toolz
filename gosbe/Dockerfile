@@ -1,54 +1,53 @@
 # syntax=docker/dockerfile:1
-#
-# gosbe — Linux-native Windows ShellBags parser for the DX_DFIR pipeline.
-#
-# A single static Go binary on Velociraptor's regparser walks every BagMRU
-# root in NTUSER.DAT / UsrClass.dat, decodes the
-# shell items (0x1F GUID folders -> known-folder names, 0x2F volumes, 0x30-0x3F
-# file/dir entries -> the BEEF0004 Unicode long name or the ANSI short name),
-# reconstructs each shellbag's AbsolutePath, and emits one record per shellbag
-# (BagPath, Slot, NodeSlot, MRUPosition, ShellType, Value, AbsolutePath,
-# LastWriteTime) as JSONL. Shell-item types it does not decode are emitted with
-# their ShellType only — never an invented path.
-#
-# Dirty-hive .LOG1/.LOG2 replay (see main.go): recovers the logs into a copy
-# written under --work-dir. That dir must be WRITABLE — the rootfs is read-only,
-# so mount a tmpfs and point --work-dir at it. Without a writable work dir,
-# replay falls back to the committed hive (a stderr note).
-#
-# The final image is FROM scratch: one static binary, nothing else — no shell,
-# no python, no package manager, no libc; runs as uid 2000.
+# get-sybers/gosbe — Windows ShellBags (BagMRU) parser (static Go on Velociraptor's regparser).
+# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
+# batches over GOSBE_INPUT_DIR into GOSBE_OUT_DIR (one folder per NTUSER.DAT /
+# UsrClass.dat hive, .LOG1/.LOG2 replayed into GOSBE_WORK_DIR)
+# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
+# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
 #
 #   docker build -t get-sybers/gosbe:latest -f gosbe/Dockerfile gosbe
-#   docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
-#     --read-only --tmpfs /work:rw,nosuid,nodev,uid=2000,gid=2000 \
-#     -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-#     get-sybers/gosbe:latest -d /input --json /output --work-dir /work
 
 ARG GO_VERSION=1.24
+ARG TOOL_VERSION=0.2.0
+ARG GODFIR_REVISION=unknown
+ARG GODFIR_RELEASE=dev
 
 FROM golang:${GO_VERSION}-alpine AS build
+ARG TOOL_VERSION
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-COPY main.go .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /gosbe .
-# Sanity-gate the build: no args -> usage -> exit 1 (a panic/crash fails here).
-RUN /gosbe 2>/dev/null; [ $? -eq 1 ]
+COPY *.go contract.yml ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gosbe .
+# Build-stage sanity gate: the binary runs and prints its version.
+RUN /gosbe --version
 
 FROM scratch
 COPY --from=build /gosbe /gosbe
 COPY <<EOF /etc/dfir-hardened
-user=dfir uid=2000
+schema=1
+tool=gosbe
+user=dfir uid=2000 gid=2000
 static_binary=true
+shell=false python=false pkg_mgr=false
 EOF
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
+ARG TOOL_VERSION
+ARG GODFIR_REVISION
+ARG GODFIR_RELEASE
+ENV HOME=/tmp XDG_CACHE_HOME=/tmp/.cache
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gosbe"]
 LABEL org.opencontainers.image.title="get-sybers/gosbe" \
-      org.opencontainers.image.description="Linux-native Windows ShellBags parser (static Go, regparser): walks the BagMRU tree in NTUSER.DAT/UsrClass.dat, decodes shell items (GUID folders, volumes, file/dir BEEF0004 long names), reconstructs AbsolutePath, emits one record per shellbag (BagPath, Slot, NodeSlot, MRUPosition, ShellType, Value, AbsolutePath, LastWriteTime) as JSONL. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
-      org.opencontainers.image.source="https://github.com/Velocidex/regparser" \
+      org.opencontainers.image.description="Windows ShellBags (BagMRU) parser (static Go, regparser): finds every NTUSER.DAT / UsrClass.dat under the input tree, replays sibling .LOG1/.LOG2, walks every BagMRU root, decodes the shell items and writes one record per shellbag with its reconstructed AbsolutePath as JSONL, one folder per hive. Env-driven batch entrypoint; FROM scratch, runs as uid 2000." \
+      org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
       org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${TOOL_VERSION}" \
+      org.opencontainers.image.revision="${GODFIR_REVISION}" \
       com.get-sybers.tool="gosbe" \
-      com.get-sybers.hardened="true"
+      com.get-sybers.hardened="true" \
+      com.get-sybers.contract="1" \
+      com.get-sybers.godfir-release="${GODFIR_RELEASE}" \
+      com.get-sybers.upstream="https://github.com/Velocidex/regparser"

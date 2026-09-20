@@ -26,7 +26,14 @@
 //
 //	gomount stream --filter '*.automaticDestinations-ms' <image> | gojle --tar
 //
-// Exit codes: 0 = every file parsed; 1 = usage/fatal; 2 = a file failed to parse.
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOJLE_INPUT_DIR / GOJLE_OUT_DIR / GOJLE_FORCE, finds
+// every AutomaticDestinations file under the input tree, writes one output
+// folder per file and prints one JSON summary line. The argv flags below are
+// the debug pass-through.
+//
+// argv exit codes: 0 = every file parsed; 1 = usage/fatal; 2 = a file failed
+// to parse. Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -404,7 +411,36 @@ func usage() {
 	flag.PrintDefaults()
 }
 
+// gojleTool binds the shared batch runtime to this tool.
+var gojleTool = batchTool{
+	name:     "gojle",
+	formats:  []string{"json"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover walks the input tree and keeps every AutomaticDestinations
+// jump list — the same selection -d applies.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	return collectInputs("", cfg.InputDir)
+}
+
+// batchProcess parses one jump list into its JSONL record file (one record per
+// file, carrying every DestList entry).
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	rec, err := parseOne(item)
+	if err != nil {
+		return 0, err
+	}
+	if err := json.NewEncoder(w).Encode(rec); err != nil {
+		return 0, err
+	}
+	cfg.logf(logDebug, "%s: %d DestList entries", item, len(rec.DestListEntries))
+	return 1, nil
+}
+
 func main() {
+	runFrameworkEntry(gojleTool)
 	var (
 		file    = flag.String("f", "", "single *.automaticDestinations-ms file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for AutomaticDestinations")

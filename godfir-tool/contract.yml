@@ -1,0 +1,70 @@
+# godfir-tool/contract.yml — the single source of truth for the images this recipe builds.
+tool: godfir-tool
+image: get-sybers/godfir-tool:latest
+entrypoint: argv
+description: >
+  One parameterized recipe that bakes a published .NET forensic tool release
+  (GODFIR_TOOL) into a hardened .NET runtime with the tool DLL as the
+  ENTRYPOINT. The built images (sqlecmd, bstrings, iisgeolocate,
+  recentfilecacheparser, rla) are driven by the tool's own argv — a declared
+  deviation until each tool either gains an env→argv shim or is replaced by a
+  Go port (the artefact classes the Go tools already cover are not built here).
+
+env: {}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, required: true,  desc: "the file or directory named by the tool's -f/-d"}
+  - {name: output, path: /output, mode: rw, required: true,  desc: "the directory named by the tool's --csv/--json/--out"}
+  - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: 'HOME and DOTNET_CLI_HOME under a read-only rootfs (tmpfs)'}
+
+network: none
+exit_codes: {0: success, 1: tool error (the tool's own code), 2: unused}
+
+summary_schema:
+  required: [tool]
+  note: >
+    argv mode: the tools print their own progress on stdout and write their
+    records to the output directory; there is no JSON summary line. The
+    env→argv shim that would give every built image a
+    <TOOL>_INPUT_DIR / _OUT_DIR batch mode over these argv templates is open
+    (docs/framework 10 §10.2 Tier 2, godfir-tool).
+
+# The images this recipe builds (build-all.sh LINUX_TOOLS), each with its
+# published argv shape. The built image's identity is com.get-sybers.tool=
+# godfir-tool + com.get-sybers.godfir-tool.name=<GODFIR_TOOL>; its output
+# layout is the matching entry under outputs.
+images:
+  sqlecmd:
+    image: get-sybers/sqlecmd:latest
+    argv: "-f FILE | -d DIR, --csv DIR [--csvf NAME] | --json DIR; --maps /opt/godfir-tool/Maps ships in the image"
+  bstrings:
+    image: get-sybers/bstrings:latest
+    argv: "-f FILE | -d DIR, --lr REGEX | --ls STRING, -m N, --fs/--sa …; results on stdout, -o FILE to save"
+  iisgeolocate:
+    image: get-sybers/iisgeolocate:latest
+    argv: "-d DIR (IIS logs); the MaxMind .mmdb databases are read from the tool directory — mount current ones read-only over the baked copies"
+  recentfilecacheparser:
+    image: get-sybers/recentfilecacheparser:latest
+    argv: "-f RecentFileCache.bcf, --csv DIR [--csvf NAME] | --json DIR"
+  rla:
+    image: get-sybers/rla:latest
+    argv: "-f HIVE | -d DIR, --out DIR (replays .LOG1/.LOG2 into a clean hive copy)"
+
+# One layout per built image, keyed like images above.
+outputs:
+  sqlecmd:
+    layout: "<output>/<timestamp>_<map>.csv per matched SQLite database"
+  bstrings:
+    layout: "stdout, or the -o file"
+  iisgeolocate:
+    layout: "<dir>/… geolocated copies beside the input logs"
+  recentfilecacheparser:
+    layout: "<output>/<timestamp>_RecentFileCacheParser_Output.csv"
+  rla:
+    layout: "<out>/<hive> with the transaction logs applied"
+
+hardening:
+  declared: {shell: false, python: false, static_binary: false}
+  justification: "the .NET runtime (dynamic, glibc); no shell, no python, no package manager"
+
+argv_passthrough: "the tool's own argv is the only interface (see images)"

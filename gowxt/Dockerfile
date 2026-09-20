@@ -1,50 +1,53 @@
 # syntax=docker/dockerfile:1
-#
-# gowxt — Linux-native Windows Timeline (ActivitiesCache.db) parser for the
-# DX_DFIR pipeline.
-#
-# A single static Go binary on modernc.org/sqlite (pure Go, no cgo) reads the
-# Windows Timeline SQLite DB and emits Activity-row CSV/JSONL (Executable from AppId,
-# DisplayText/ContentInfo from Payload, the Start/End/LastModified/Expiration
-# timestamps, ActivityType). Same get-sybers/<tool> tag + CLI as the other
-# GoDFIR tools.
-#
-# SQLite needs a writable working area; the rootfs is read-only and the input is
-# mounted read-only, so gowxt copies the DB into --work-dir. Mount a tmpfs there:
+# get-sybers/gowxt — Windows Timeline (ActivitiesCache.db) parser (static Go on modernc.org/sqlite).
+# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
+# batches over GOWXT_INPUT_DIR into GOWXT_OUT_DIR (one folder per database,
+# the SQLite working copy lives in GOWXT_WORK_DIR)
+# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
+# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
 #
 #   docker build -t get-sybers/gowxt:latest -f gowxt/Dockerfile gowxt
-#   docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
-#     --read-only --tmpfs /work:rw,nosuid,nodev,uid=2000,gid=2000 \
-#     -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-#     get-sybers/gowxt:latest -f /input/ActivitiesCache.db --csv /output --work-dir /work
-#
-# The final image is FROM scratch: one static binary, nothing else — no shell,
-# no python, no package manager, no setuid, no libc; runs as uid 2000.
 
 ARG GO_VERSION=1.24
+ARG TOOL_VERSION=0.2.0
+ARG GODFIR_REVISION=unknown
+ARG GODFIR_RELEASE=dev
 
 FROM golang:${GO_VERSION}-alpine AS build
+ARG TOOL_VERSION
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-COPY main.go .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /gowxt .
-# Sanity-gate the build: the binary must run and exit 1 (its usage code) with no
-# args — a panic/crash/unexpected exit fails the build here.
-RUN /gowxt 2>/dev/null; [ $? -eq 1 ]
+COPY *.go contract.yml ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gowxt .
+# Build-stage sanity gate: the binary runs and prints its version.
+RUN /gowxt --version
 
 FROM scratch
 COPY --from=build /gowxt /gowxt
 COPY <<EOF /etc/dfir-hardened
-user=dfir uid=2000
+schema=1
+tool=gowxt
+user=dfir uid=2000 gid=2000
 static_binary=true
+shell=false python=false pkg_mgr=false
 EOF
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
+ARG TOOL_VERSION
+ARG GODFIR_REVISION
+ARG GODFIR_RELEASE
+ENV HOME=/tmp XDG_CACHE_HOME=/tmp/.cache
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gowxt"]
 LABEL org.opencontainers.image.title="get-sybers/gowxt" \
-      org.opencontainers.image.description="Linux-native Windows Timeline (ActivitiesCache.db) parser (static Go, modernc sqlite): emits one Activity record per row as CSV/JSONL. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Windows Timeline (ActivitiesCache.db) parser (static Go, modernc.org/sqlite, no cgo): finds every SQLite database with an Activity table under the input tree and writes one record per Activity row (executable, display text, content info, start/end/modified/expiration times, duration, type) as JSONL or CSV, one folder per database. Env-driven batch entrypoint; FROM scratch, runs as uid 2000." \
+      org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
       org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${TOOL_VERSION}" \
+      org.opencontainers.image.revision="${GODFIR_REVISION}" \
       com.get-sybers.tool="gowxt" \
-      com.get-sybers.hardened="true"
+      com.get-sybers.hardened="true" \
+      com.get-sybers.contract="1" \
+      com.get-sybers.godfir-release="${GODFIR_RELEASE}" \
+      com.get-sybers.upstream="https://gitlab.com/cznic/sqlite"

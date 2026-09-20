@@ -1,0 +1,74 @@
+# plaso/contract.yml — the single source of truth for how DX_DFIR drives this image.
+tool: plaso
+image: get-sybers/plaso:latest
+entrypoint: multi-tool
+description: >
+  Plaso at a pinned PyPI release (libyal built from source), fronted by a
+  dispatcher entrypoint: `plaso-entry <sub-tool>` self-orchestrates
+  log2timeline, psort or image_export from that sub-tool's own env block, one
+  output folder per input item, one JSON summary line per run.
+subtools: [log2timeline, psort, image_export]
+
+# Every sub-tool reads the reserved variables under its own prefix
+# (PLASO_<SUBTOOL>_INPUT_DIR / _OUT_DIR / _WORK_DIR / _FORCE / _LOG_LEVEL) plus
+# _ARGS, extra argv appended to the tool's command line.
+env:
+  # --- log2timeline: evidence -> .plaso storage file --------------------------
+  PLASO_LOG2TIMELINE_INPUT_DIR:     {required: false, default: /input,  desc: 'evidence tree, read-only; every disk image (E01/Ex01/raw/dd/img/vmdk/vhd/vhdx/qcow2/aff4/001/bin) under it and every immediate subdirectory (a staged tree) is an item'}
+  PLASO_LOG2TIMELINE_OUT_DIR:       {required: false, default: /output, desc: 'output root, one folder per item holding <item>.plaso + log2timeline.log'}
+  PLASO_LOG2TIMELINE_WORK_DIR:      {required: false, default: /work,   desc: 'plaso temporary directory (writable tmpfs)'}
+  PLASO_LOG2TIMELINE_FORCE:         {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have a storage file'}
+  PLASO_LOG2TIMELINE_VSS:           {required: false, default: "1", type: bool, desc: 'process every VSS store of an image (--vss-stores all)'}
+  PLASO_LOG2TIMELINE_WINREG_BINARY: {required: false, default: "1", type: bool, desc: 'keep binary registry values (--extract_winreg_binary)'}
+  PLASO_LOG2TIMELINE_PARSERS:       {required: false, default: "",  desc: "plaso parser preset/list (--parsers); empty = plaso's default"}
+  PLASO_LOG2TIMELINE_ARGS:          {required: false, default: "",  desc: 'extra log2timeline argv, space-separated'}
+  PLASO_LOG2TIMELINE_LOG_LEVEL:     {required: false, default: info, desc: 'error|warn|info|debug (debug echoes the tool log), stderr only'}
+  # --- psort: .plaso -> rendered timeline ---------------------------------------
+  PLASO_PSORT_INPUT_DIR:            {required: false, default: /input,  desc: 'tree of *.plaso storage files, read-only; each is an item'}
+  PLASO_PSORT_OUT_DIR:              {required: false, default: /output, desc: 'output root, one folder per item holding timeline.jsonl + psort.log'}
+  PLASO_PSORT_WORK_DIR:             {required: false, default: /work,   desc: 'plaso temporary directory (writable tmpfs)'}
+  PLASO_PSORT_FORCE:                {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have a rendered timeline'}
+  PLASO_PSORT_OUTPUT_FORMAT:        {required: false, default: json_line, desc: 'psort output module name (-o)'}
+  PLASO_PSORT_OUTPUT_MODULE:        {required: false, default: "",  desc: 'path of a mounted custom output module (.py); when set psort runs through /opt/dxdfir/psort_wrapper.py so the module is discoverable'}
+  PLASO_PSORT_ARGS:                 {required: false, default: "",  desc: 'extra psort argv, space-separated'}
+  PLASO_PSORT_LOG_LEVEL:            {required: false, default: info, desc: 'error|warn|info|debug, stderr only'}
+  # --- image_export: image -> extracted artefacts ------------------------------
+  PLASO_IMAGE_EXPORT_INPUT_DIR:     {required: false, default: /input,  desc: 'evidence tree, read-only; every disk image under it is an item'}
+  PLASO_IMAGE_EXPORT_OUT_DIR:       {required: false, default: /output, desc: 'output root, one folder per item holding export/ + image_export.log'}
+  PLASO_IMAGE_EXPORT_WORK_DIR:      {required: false, default: /work,   desc: 'plaso temporary directory (writable tmpfs)'}
+  PLASO_IMAGE_EXPORT_FORCE:         {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have an export'}
+  PLASO_IMAGE_EXPORT_VSS:           {required: false, default: "1", type: bool, desc: 'export from every VSS store (--vss-stores all)'}
+  PLASO_IMAGE_EXPORT_FILTER_FILE:   {required: false, default: "",  desc: 'path of a mounted plaso filter file (--filter_file); takes precedence over the artifact filters'}
+  PLASO_IMAGE_EXPORT_ARTIFACT_FILTERS: {required: false, default: WindowsEventLogs, desc: 'comma-separated artifact definitions (--artifact_filters) used when no filter file is given'}
+  PLASO_IMAGE_EXPORT_ARGS:          {required: false, default: "",  desc: 'extra image_export argv, space-separated'}
+  PLASO_IMAGE_EXPORT_LOG_LEVEL:     {required: false, default: info, desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: PLASO_<SUBTOOL>_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: PLASO_<SUBTOOL>_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: PLASO_<SUBTOOL>_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, subtool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  log2timeline:
+    layout: "<OUT_DIR>/<item>/<item>.plaso + log2timeline.log + log2timeline.jsonl (the index that marks the item done); records = storage files produced"
+  psort:
+    layout: "<OUT_DIR>/<item>/timeline.jsonl + psort.log + psort.jsonl (the index); records = rendered events"
+  image_export:
+    layout: "<OUT_DIR>/<item>/export/<extracted tree> + image_export.log + image_export.jsonl (the index); records = files exported"
+  item_naming: "<item> is the input path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+hardening:
+  declared: {shell: true, python: true, static_binary: false}
+  justification: "plaso is python; the shell stays for its entry-point wrappers (sh/dash only, bash removed)"
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: `<tool> <args…>` execs one of plaso's own
+  entry tools (log2timeline, psort, image_export, pinfo, psteal, with or
+  without .py) or `python3 /opt/dxdfir/psort_wrapper.py <module> <psort args…>`
+  verbatim, with that tool's exit code.

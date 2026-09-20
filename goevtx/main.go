@@ -18,8 +18,15 @@
 // A best-effort XML sidecar (--xml/--xmlf) reconstructs <Event> per record for
 // manual review (not ingested); it is not the original binary XML byte-for-byte.
 //
-// Exit codes: 0 = every log parsed; 1 = usage or fatal error; 2 = at least one
-// file failed to parse (failures listed on stderr, the rest still emitted).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOEVTX_INPUT_DIR / GOEVTX_OUT_DIR / GOEVTX_FORCE, finds
+// every event log under the input tree, writes one output folder per log and
+// prints one JSON summary line. The argv flags below are the debug
+// pass-through.
+//
+// argv exit codes: 0 = every log parsed; 1 = usage or fatal error; 2 = at
+// least one file failed to parse (failures listed on stderr, the rest still
+// emitted). Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -291,7 +298,34 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 // xmlEscape is the minimal escaping for the reconstructed sidecar.
 var xmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
 
+// goevtxTool binds the shared batch runtime to this tool.
+var goevtxTool = batchTool{
+	name:     "goevtx",
+	formats:  []string{"json"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover walks the input tree and keeps every .evtx (by extension or
+// ElfFile signature) — the same selection -d applies.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	return collectInputs("", cfg.InputDir)
+}
+
+// batchProcess parses one event log into its JSONL record file. Torn chunks
+// and unrenderable records are dropped and reported on stderr; the log still
+// counts as processed.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	enc := json.NewEncoder(w)
+	n, skipped, err := parseFile(item, func(r *record) error { return enc.Encode(r) }, nil)
+	if skipped > 0 {
+		cfg.logf(logWarn, "%s: %d record(s) dropped (torn chunk/unrenderable)", item, skipped)
+	}
+	return n, err
+}
+
 func main() {
+	runFrameworkEntry(goevtxTool)
 	var (
 		file    = flag.String("f", "", "single .evtx file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for .evtx")

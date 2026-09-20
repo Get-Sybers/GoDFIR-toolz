@@ -18,7 +18,14 @@
 // their ShellType and hex value but NO reconstructed name — never an invented
 // path. AbsolutePath is the join of the decoded names from the BagMRU root.
 //
-// Exit codes: 0 = ok; 1 = usage/fatal; 2 = at least one hive failed to parse.
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOSBE_INPUT_DIR / GOSBE_OUT_DIR / GOSBE_FORCE /
+// GOSBE_REPLAY, finds every NTUSER.DAT / UsrClass.dat hive under the input
+// tree, writes one output folder per hive and prints one JSON summary line.
+// The argv flags below are the debug pass-through.
+//
+// argv exit codes: 0 = ok; 1 = usage/fatal; 2 = at least one hive failed to
+// parse. Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -483,7 +490,58 @@ func openHive(p, workDir string, replay bool) (*regparser.Registry, func(), stri
 	return reg, func() { hf.Close() }, "committed", false, nil
 }
 
+// gosbeTool binds the shared batch runtime to this tool.
+var gosbeTool = batchTool{
+	name:     "gosbe",
+	formats:  []string{"json"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchReplay is the GOSBE_REPLAY setting, resolved once by batchDiscover.
+var batchReplay = true
+
+// isUserHive reports whether p is named like a per-user hive (NTUSER.DAT or
+// UsrClass.dat), the two hives that carry BagMRU.
+func isUserHive(p string) bool {
+	switch strings.ToUpper(filepath.Base(p)) {
+	case "NTUSER.DAT", "USRCLASS.DAT":
+		return true
+	}
+	return false
+}
+
+// batchDiscover resolves the replay setting (a bad value is a config error),
+// then walks the input tree and keeps every NTUSER.DAT / UsrClass.dat that
+// carries the regf signature.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	replay, err := parseBool(cfg.env("REPLAY", "1"))
+	if err != nil {
+		return nil, fmt.Errorf("%s_REPLAY: %w", cfg.Prefix, err)
+	}
+	batchReplay = replay
+	files, err := collectInputs("", cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	var items []string
+	for _, p := range files {
+		if isUserHive(p) && !isLogFile(p) && looksLikeHive(p) {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
+// batchProcess walks the BagMRU roots of one hive (replaying sibling
+// .LOG1/.LOG2 into the work dir) into its JSONL record file.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	e := &emitter{enc: json.NewEncoder(w)}
+	return runHive(item, cfg.WorkDir, batchReplay, cfg.quiet(), e)
+}
+
 func main() {
+	runFrameworkEntry(gosbeTool)
 	var (
 		file    = flag.String("f", "", "single hive (NTUSER.DAT / UsrClass.dat) to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for hives (regf)")

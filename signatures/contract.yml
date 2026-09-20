@@ -1,0 +1,93 @@
+# signatures/contract.yml — the single source of truth for how DX_DFIR drives this image.
+tool: signatures
+image: get-sybers/signatures:latest
+entrypoint: multi-tool
+description: >
+  The detection lane in one image — YARA, Suricata, Hayabusa and the
+  gomount→goyara userspace NTFS scan pipe — fronted by signatures-entry, a
+  static Go dispatcher: `signatures-entry <sub-tool>` self-orchestrates that
+  sub-tool from its own env block, one output folder per item, one JSON
+  summary line per run.
+subtools: [yara, suricata, hayabusa, scan]
+components:
+  goyara: built inside this image from ../goyara (libyara via cgo); no image of its own
+  gomount: the static binary built from ../gomount, used by the scan sub-tool
+
+# Every sub-tool reads the reserved variables under its own prefix
+# (SIGNATURES_<SUBTOOL>_INPUT_DIR / _OUT_DIR / _WORK_DIR / _FORCE / _FORMAT /
+# _LOG_LEVEL) plus _ARGS, extra argv appended to the tool's command line.
+env:
+  # --- yara: scan staged trees with the baked (or a mounted) ruleset -------------
+  SIGNATURES_YARA_INPUT_DIR:  {required: false, default: /input,  desc: 'read-only; every immediate child of it (a staged tree or a file) is one scan target'}
+  SIGNATURES_YARA_OUT_DIR:    {required: false, default: /output, desc: 'output root, one folder per target holding yara.jsonl'}
+  SIGNATURES_YARA_WORK_DIR:   {required: false, default: /work,   desc: 'scratch (writable tmpfs)'}
+  SIGNATURES_YARA_FORCE:      {required: false, default: "0", type: bool, desc: '1/true/yes/on rescans targets that already have output'}
+  SIGNATURES_YARA_FORMAT:     {required: false, default: json,    desc: 'record format; json (JSONL) is the only format'}
+  SIGNATURES_YARA_RULES:      {required: false, default: /opt/dxdfir/yara-rules/detectraptor/detectraptor.yar, desc: 'the ruleset (a compiled index or a rules file); a mounted operator ruleset overrides the baked DetectRaptor merge'}
+  SIGNATURES_YARA_ARGS:       {required: false, default: "",      desc: 'extra yara argv, space-separated'}
+  SIGNATURES_YARA_LOG_LEVEL:  {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+  # --- suricata: offline replay of captures ------------------------------------------
+  SIGNATURES_SURICATA_INPUT_DIR: {required: false, default: /input,  desc: 'capture tree, read-only; every *.pcap/*.pcapng/*.cap is an item'}
+  SIGNATURES_SURICATA_OUT_DIR:   {required: false, default: /output, desc: "output root, one folder per capture holding eve.json + suricata's logs + suricata.jsonl"}
+  SIGNATURES_SURICATA_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs) for the pid file'}
+  SIGNATURES_SURICATA_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns captures that already have output'}
+  SIGNATURES_SURICATA_FORMAT:    {required: false, default: json,    desc: 'record format; json (EVE JSON) is the only format'}
+  SIGNATURES_SURICATA_RULES:     {required: false, default: /opt/dxdfir/suricata-rules/suricata.rules, desc: 'the ruleset (-S); a mounted file overrides the baked ET Open merge'}
+  SIGNATURES_SURICATA_SET:       {required: false, default: "",      desc: 'comma- or space-separated `key=value` tuning entries passed as --set (HOME_NET=…, EXTERNAL_NET=…)'}
+  SIGNATURES_SURICATA_ARGS:      {required: false, default: "",      desc: 'extra suricata argv, space-separated'}
+  SIGNATURES_SURICATA_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+  # --- hayabusa: sigma over .evtx trees ------------------------------------------------
+  SIGNATURES_HAYABUSA_INPUT_DIR: {required: false, default: /input,  desc: 'read-only; every immediate subdirectory holding .evtx files is an item (the root itself when it holds .evtx directly)'}
+  SIGNATURES_HAYABUSA_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per item holding timeline.jsonl + hayabusa.jsonl'}
+  SIGNATURES_HAYABUSA_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs)'}
+  SIGNATURES_HAYABUSA_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have output'}
+  SIGNATURES_HAYABUSA_FORMAT:    {required: false, default: json,    desc: 'record format; json (JSONL) is the only format'}
+  SIGNATURES_HAYABUSA_RULES:     {required: false, default: /opt/dxdfir/hayabusa/rules, desc: 'the sigma rules directory (--rules); a mounted directory overrides the baked default set'}
+  SIGNATURES_HAYABUSA_PROFILE:   {required: false, default: verbose, desc: 'hayabusa output profile (--profile); verbose carries the MITRE columns'}
+  SIGNATURES_HAYABUSA_ARGS:      {required: false, default: "",      desc: 'extra hayabusa argv, space-separated'}
+  SIGNATURES_HAYABUSA_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+  # --- scan: gomount stream | goyara over disk images -------------------------------------
+  SIGNATURES_SCAN_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, read-only; every disk image (E01/Ex01/raw/dd/img/vmdk/vhd/vhdx/001/bin) is an item'}
+  SIGNATURES_SCAN_OUT_DIR:   {required: false, default: /output, desc: "output root, one folder per image holding scan.jsonl (goyara's hit records)"}
+  SIGNATURES_SCAN_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs)'}
+  SIGNATURES_SCAN_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on rescans images that already have output'}
+  SIGNATURES_SCAN_FORMAT:    {required: false, default: json,    desc: 'record format; json (JSONL) is the only format'}
+  SIGNATURES_SCAN_RULES:     {required: false, default: /opt/dxdfir/yara-rules/detectraptor/detectraptor.yar, desc: "goyara's ruleset (--rules)"}
+  SIGNATURES_SCAN_FILTER:    {required: false, default: "",      desc: 'gomount --filter glob over the volume paths to stream; empty = every file'}
+  SIGNATURES_SCAN_VOLUME:    {required: false, default: "0",     desc: '1-based NTFS volume to stream; 0 = the largest'}
+  SIGNATURES_SCAN_MAX_BYTES: {required: false, default: "33554432", desc: 'goyara per-file scan cap in bytes'}
+  SIGNATURES_SCAN_ARGS:      {required: false, default: "",      desc: 'extra goyara argv, space-separated'}
+  SIGNATURES_SCAN_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: SIGNATURES_<SUBTOOL>_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: SIGNATURES_<SUBTOOL>_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: SIGNATURES_<SUBTOOL>_WORK_DIR,  required: false}
+  - {name: suricata-run, path: /var/run/suricata, mode: rw, required: false, desc: 'tmpfs the suricata sub-tool needs under a read-only rootfs'}
+  - {name: suricata-log, path: /var/log/suricata, mode: rw, required: false, desc: 'tmpfs the suricata sub-tool needs under a read-only rootfs'}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, subtool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  yara:
+    layout: "<OUT_DIR>/<item>/yara.jsonl — one record per rule hit {tool, rule, tags, target (relative to INPUT_DIR), strings[{offset,name,data}]}; records = hits"
+  suricata:
+    layout: "<OUT_DIR>/<item>/eve.json + suricata's fast/stats logs + suricata.jsonl (the index that marks the item done); records = EVE lines"
+  hayabusa:
+    layout: "<OUT_DIR>/<item>/timeline.jsonl + hayabusa.jsonl (the index); records = detections"
+  scan:
+    layout: "<OUT_DIR>/<item>/scan.jsonl — goyara's hit records {tool, source, rule, namespace, target, tags, strings}; records = hits"
+  item_naming: "<item> is the input path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+hardening:
+  declared: {shell: true, python: false, static_binary: false}
+  justification: "sh/dash stay for the legacy per-file YARA scan loop (/opt/dxdfir/scan-list.sh) and the pass-through; glibc stays for yara, suricata, hayabusa and libyara (goyara)"
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: `<tool> <args…>` execs yara, suricata,
+  hayabusa (/opt/dxdfir/hayabusa/hayabusa), gomount, goyara,
+  /opt/dxdfir/scan-list.sh or sh verbatim, with that tool's exit code.

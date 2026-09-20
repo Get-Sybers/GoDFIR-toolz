@@ -19,7 +19,14 @@
 // Records are live values (Deleted=false). The bundled batch
 // (batch/default.reb) is a curated forensic-key set; supply your own with --bn.
 //
-// Exit codes: 0 = ok; 1 = usage/fatal; 2 = at least one hive failed to parse.
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GORE_INPUT_DIR / GORE_OUT_DIR / GORE_FORCE / GORE_FORMAT /
+// GORE_BATCH / GORE_REPLAY, content-detects every registry hive under the input
+// tree, writes one output folder per hive and prints one JSON summary line.
+// The argv flags below are the debug pass-through.
+//
+// argv exit codes: 0 = ok; 1 = usage/fatal; 2 = at least one hive failed to
+// parse. Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -304,7 +311,94 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 
 const defaultBatch = "/batch/default.reb"
 
+// goreTool binds the shared batch runtime to this tool.
+var goreTool = batchTool{
+	name:     "gore",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// The batch-mode settings resolved once by batchDiscover (GORE_BATCH, the
+// parsed .reb definition, and GORE_REPLAY) and read by every batchProcess call.
+var (
+	batchDef    *batch
+	batchReplay = true
+)
+
+// loadBatch reads and validates a .reb batch definition.
+func loadBatch(path string) (*batch, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var b batch
+	if err := yaml.Unmarshal(data, &b); err != nil {
+		return nil, err
+	}
+	if len(b.Keys) == 0 {
+		return nil, fmt.Errorf("no Keys")
+	}
+	return &b, nil
+}
+
+// batchDiscover resolves the batch definition and replay setting (a bad value
+// is a config error), then walks the input tree and keeps every regf hive
+// that is not a .LOG* transaction log.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	bn := cfg.env("BATCH", defaultBatch)
+	b, err := loadBatch(bn)
+	if err != nil {
+		return nil, fmt.Errorf("%s_BATCH %s: %w", cfg.Prefix, bn, err)
+	}
+	batchDef = b
+	replay, err := parseBool(cfg.env("REPLAY", "1"))
+	if err != nil {
+		return nil, fmt.Errorf("%s_REPLAY: %w", cfg.Prefix, err)
+	}
+	batchReplay = replay
+	files, err := collectInputs("", cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	var items []string
+	for _, p := range files {
+		if !isLogFile(p) && looksLikeHive(p) {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
+// batchEmitter builds the record emitter over w for the configured format:
+// JSONL, or CSV with its header row. The returned flush commits buffered CSV.
+func batchEmitter(w io.Writer, format string) (*emitter, func() error, error) {
+	if format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return nil, nil, err
+		}
+		return &emitter{cw: cw}, func() error { cw.Flush(); return cw.Error() }, nil
+	}
+	return &emitter{enc: json.NewEncoder(w)}, func() error { return nil }, nil
+}
+
+// batchProcess extracts the batch's keys from one hive (replaying sibling
+// .LOG1/.LOG2 into the work dir) into its record file.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	e, flush, err := batchEmitter(w, cfg.Format)
+	if err != nil {
+		return 0, err
+	}
+	n, err := runHive(item, batchDef, cfg.WorkDir, batchReplay, cfg.quiet(), e)
+	if err != nil {
+		return n, err
+	}
+	return n, flush()
+}
+
 func main() {
+	runFrameworkEntry(goreTool)
 	var (
 		file    = flag.String("f", "", "single registry hive to process")
 		dir     = flag.String("d", "", "directory to scan recursively for registry hives (regf)")

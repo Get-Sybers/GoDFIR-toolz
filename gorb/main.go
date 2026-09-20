@@ -30,8 +30,15 @@
 //
 //	gomount stream --filter '$Recycle.Bin/*' <image> | gorb --tar --csv /output
 //
-// Exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at least one
-// file failed to parse (failures listed on stderr, the rest still emitted).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GORB_INPUT_DIR / GORB_OUT_DIR / GORB_FORCE / GORB_FORMAT,
+// picks every $I record out of the input tree by header, writes one output
+// folder per record and prints one JSON summary line. The argv flags below
+// are the debug pass-through.
+//
+// argv exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at
+// least one file failed to parse (failures listed on stderr, the rest still
+// emitted). Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -57,6 +64,58 @@ type record struct {
 	FileName   string `json:"FileName"`
 	FileSize   int64  `json:"FileSize"`
 	DeletedOn  string `json:"DeletedOn"`
+}
+
+var csvHeader = []string{"SourceName", "FileType", "FileName", "FileSize", "DeletedOn"}
+
+func (r *record) csvRow() []string {
+	return []string{r.SourceName, r.FileType, r.FileName, strconv.FormatInt(r.FileSize, 10), r.DeletedOn}
+}
+
+// gorbTool binds the shared batch runtime to this tool.
+var gorbTool = batchTool{
+	name:     "gorb",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover walks the input tree and keeps every file whose header is a $I
+// record — the same content test -d applies, so $R payloads, desktop.ini and
+// unrelated files are left out.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	files, err := collectInputs("", cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	var items []string
+	for _, p := range files {
+		if peekLooksLikeRecord(p) {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
+// batchProcess parses one $I record into its record file: a JSONL object, or
+// a CSV header plus one row.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	rec, err := parseOne(item)
+	if err != nil {
+		return 0, err
+	}
+	if cfg.Format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return 0, err
+		}
+		if err := cw.Write(rec.csvRow()); err != nil {
+			return 0, err
+		}
+		cw.Flush()
+		return 1, cw.Error()
+	}
+	return 1, json.NewEncoder(w).Encode(rec)
 }
 
 // filetimeToTime converts a Windows FILETIME (100-ns ticks since 1601-01-01 UTC)
@@ -267,6 +326,7 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 }
 
 func main() {
+	runFrameworkEntry(gorbTool)
 	var (
 		file    = flag.String("f", "", "single $I file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for $I* files")
@@ -326,7 +386,7 @@ func main() {
 
 	if *csvDir != "" {
 		cw = csv.NewWriter(w)
-		if err := cw.Write([]string{"SourceName", "FileType", "FileName", "FileSize", "DeletedOn"}); err != nil {
+		if err := cw.Write(csvHeader); err != nil {
 			fmt.Fprintf(os.Stderr, "gorb: write: %v\n", err)
 			os.Exit(1)
 		}
@@ -341,8 +401,7 @@ func main() {
 	// Both the -f/-d loop and the --tar stream go through here.
 	emit := func(rec *record) error {
 		if cw != nil {
-			if err := cw.Write([]string{rec.SourceName, rec.FileType, rec.FileName,
-				strconv.FormatInt(rec.FileSize, 10), rec.DeletedOn}); err != nil {
+			if err := cw.Write(rec.csvRow()); err != nil {
 				return err
 			}
 		} else if err := enc.Encode(rec); err != nil {

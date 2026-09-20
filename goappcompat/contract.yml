@@ -1,0 +1,37 @@
+# goappcompat/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: goappcompat
+image: get-sybers/goappcompat:latest
+entrypoint: self-orchestrating
+description: >
+  AppCompatCache (ShimCache) parser (static Go on Velociraptor's regparser).
+  Batches over the mounted evidence tree, content-detects every SYSTEM hive
+  whose current control set carries an AppCompatCache value, replays sibling
+  .LOG1/.LOG2 transaction logs when present, and writes one record per cache
+  entry into one output folder per hive.
+
+env:
+  GOAPPCOMPAT_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every regf hive with an AppCompatCache value under its current ControlSet is an item, whatever its name'}
+  GOAPPCOMPAT_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per hive'}
+  GOAPPCOMPAT_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs) for the recovered copy during .LOG replay; unusable = replay falls back to the committed hive'}
+  GOAPPCOMPAT_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOAPPCOMPAT_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GOAPPCOMPAT_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GOAPPCOMPAT_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GOAPPCOMPAT_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GOAPPCOMPAT_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/goappcompat.jsonl (or goappcompat.csv) — one record per shimcache entry (ControlSet, CacheEntryPosition, Path, LastModifiedTimeUTC, SourceFile); <item> is the hive path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --json DIR --jsonf NAME |
+  --csv DIR --csvf NAME, --work-dir DIR, -q. Exit 0 ok / 1 usage or fatal /
+  2 at least one hive failed.

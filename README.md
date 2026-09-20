@@ -104,22 +104,52 @@ Two things dominate wall-clock time on real evidence:
    parsed the reference `SRUDB.dat` (10 tables, 27k rows, enrichment on) in
    under a second.
 
+## The container framework
+
+Every image conforms to the container framework in
+[`docs/framework/`](docs/framework/README.md): it is self-provisioning
+(hardened at build time by `hardening/harden.yml`, squashed into a distroless
+final stage), env-driven (a no-argument entrypoint batches over
+`<TOOL>_INPUT_DIR` into `<TOOL>_OUT_DIR`, one output folder per item, and
+prints exactly one JSON summary line on stdout with the uniform exit codes
+`0` success / `1` nothing produced / `2` config error / `3` partial), and
+declared (`<tool>/contract.yml` is the single source of truth for its
+variables, mounts, exit codes and output layout; `/etc/dfir-hardened` is its
+`schema=1` self-declaration; the OCI + `com.get-sybers.*` label set carries
+its version, revision, release and contract version). argv is a debug
+pass-through the consumer never uses. Multi-tool images (`plaso`,
+`signatures`, `byakugan`) front a dispatcher that takes the sub-tool name as
+its first argument and self-orchestrates that sub-tool from its own env
+block; `gomount` and the `godfir-tool`-built images are declared argv
+deviations.
+
+Per tool, `conform.sh <tool>` checks the layout, the Dockerfile standards,
+`contract.yml` and the README against the white paper (`--build` also builds
+the image and cross-checks the built artifact), and `<tool>/test/contract_test.sh`
+runs the image over `test/fixtures/` in batch mode and asserts the summary
+line, the exit code, idempotency and the config-error exit. `build-all.sh`
+stamps every image with the checkout revision and the release tag.
+
 ## The hardening contract
 
 `hardening/harden.yml` (Ansible, build-time only — Ansible itself is removed
-afterwards) plus the Dockerfile's strip step leave each .NET image with:
+afterwards) plus the Dockerfile's strip step leave each Shape-B image with:
 
 - `USER 2000:2000` (or the `DFIR_UID`/`DFIR_GID` build args), uid0 renamed and
   locked
 - no `apt`/`dpkg`/`pip`/`sudo`, no setuid binaries
-- **no shell** (`sh`/`bash`/`dash` removed) and **no python**
-- label `com.get-sybers.hardened=true` for downstream verification
+- no shell and no python unless the image declares them (`plaso`: python +
+  sh; `signatures`: sh; `byakugan`: python; `gomount`: sh) and its Dockerfile
+  header justifies them
+- the `/etc/dfir-hardened` self-declaration (`schema=1`, `tool`, `user`,
+  `static_binary`, `shell`, `python`, `pkg_mgr`) and the label
+  `com.get-sybers.hardened=true`
 
 The Go parser images satisfy the same contract by construction (`FROM
-scratch` — there is nothing to remove) and carry the same label. A consuming
-pipeline can verify the contract without a shell in the image by exporting the
-filesystem and asserting the absence of the removed binaries — that is exactly
-what the DX_DFIR pipeline's image role does after every build.
+scratch` — there is nothing to remove) and carry the same declaration and
+label set. A consuming pipeline can verify the contract without a shell in
+the image by exporting the filesystem and asserting the declaration against
+the absence of the removed binaries — `conform.sh --build` does exactly that.
 
 ## License
 

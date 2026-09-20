@@ -19,7 +19,9 @@
 # entrypoint). The upstream tools are MIT-licensed; this fetches the published
 # release at build time — a recipe, not a committed binary.
 #
-# Run (the caller supplies only the flags — the DLL is the entrypoint):
+# Shape B, declared: static_binary=false (the .NET runtime, glibc), no shell,
+# no python. The interface is the tool's own argv (contract.yml: entrypoint
+# argv, one entry per built image) — the caller supplies only the flags:
 #   docker run --rm -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
 #     get-sybers/sqlecmd:latest -f /input/History --csv /output
 
@@ -28,6 +30,9 @@ ARG GODFIR_TOOL=SQLECmd
 ARG GODFIR_TOOL_URL=""
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
+ARG TOOL_VERSION=0.1.0
+ARG GODFIR_REVISION=unknown
+ARG GODFIR_RELEASE=dev
 
 # ---- fetch + unpack the published release -----------------------------------
 FROM debian:trixie-slim AS fetch
@@ -89,13 +94,21 @@ ARG GODFIR_TOOL
 ARG DFIR_UID
 ARG DFIR_GID
 COPY --from=fetch /opt/godfir-tool /opt/godfir-tool
-RUN dotnet /opt/godfir-tool/tool.dll --help > /dev/null || true
+COPY --chmod=0644 godfir-tool/contract.yml /opt/godfir-tool/contract.yml
+# Build-stage sanity gate: the host runs and lists its runtimes (a runtime-only
+# image has no SDK, so `dotnet --version` is not the gate here), and the tool
+# DLL loads (its --help exit code is the tool's own).
+RUN dotnet --list-runtimes && (dotnet /opt/godfir-tool/tool.dll --help > /dev/null || true)  # no SDK: --list-runtimes stands in for --version
 COPY hardening/harden.yml /tmp/hardening/harden.yml
+# harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
+# values below (tool=godfir-tool, the recipe; the built tool's name is a label);
+# the shell and python it declares absent are removed right after.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ansible-core; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
-        -e "harden_uid=${DFIR_UID}" -e "harden_gid=${DFIR_GID}"; \
+        -e "harden_uid=${DFIR_UID}" -e "harden_gid=${DFIR_GID}" \
+        -e harden_tool=godfir-tool -e harden_static_binary=false -e harden_shell=false -e harden_python=false; \
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
            /etc/ansible /root/.ansible /tmp/hardening \
            /usr/bin/python3* /usr/lib/python3* \
@@ -107,16 +120,25 @@ ARG GODFIR_TOOL
 ARG GODFIR_TOOL_URL
 ARG DFIR_UID
 ARG DFIR_GID
+ARG TOOL_VERSION
+ARG GODFIR_REVISION
+ARG GODFIR_RELEASE
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    HOME=/tmp DOTNET_CLI_HOME=/tmp \
+    HOME=/tmp DOTNET_CLI_HOME=/tmp XDG_CACHE_HOME=/tmp/.cache \
     DOTNET_RUNNING_IN_CONTAINER=true DOTNET_EnableDiagnostics=0 \
     DOTNET_NOLOGO=1
 WORKDIR /opt/godfir-tool
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["dotnet", "/opt/godfir-tool/tool.dll"]
 LABEL org.opencontainers.image.title="get-sybers/godfir-tool" \
-      org.opencontainers.image.description="Minimal hardened .NET forensic tool for the DX_DFIR pipeline: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid, no shell, no python, runs as uid 2000. Parameterized over GODFIR_TOOL." \
+      org.opencontainers.image.description="A published .NET forensic tool release baked into a hardened .NET runtime with the tool DLL as ENTRYPOINT (argv-driven; parameterized over GODFIR_TOOL). uid0 renamed+locked, no ansible/apt/pip/sudo/setuid, no shell, no python, runs as uid 2000." \
+      org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
       org.opencontainers.image.licenses="MIT" \
-      com.get-sybers.tool="${GODFIR_TOOL}" \
+      org.opencontainers.image.version="${TOOL_VERSION}" \
+      org.opencontainers.image.revision="${GODFIR_REVISION}" \
+      com.get-sybers.tool="godfir-tool" \
+      com.get-sybers.godfir-tool.name="${GODFIR_TOOL}" \
       com.get-sybers.tool.url="${GODFIR_TOOL_URL}" \
-      com.get-sybers.hardened="true"
+      com.get-sybers.hardened="true" \
+      com.get-sybers.contract="1" \
+      com.get-sybers.godfir-release="${GODFIR_RELEASE}"

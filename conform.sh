@@ -270,9 +270,13 @@ PY
     # schema validation (only if schema + a validator exist)
     if [[ -f "$SCHEMA" ]]; then
         if python3 -c 'import jsonschema,yaml' 2>/dev/null; then
+            # The contract is validated as JSON: the YAML round-trips through json
+            # so integer keys (exit_codes: {0: success, …}) become the string keys
+            # the schema describes.
             if python3 - "$CONTRACT" "$SCHEMA" <<'PY' 2>/dev/null
-import sys, yaml, jsonschema
-c = yaml.safe_load(open(sys.argv[1])); s = yaml.safe_load(open(sys.argv[2]))
+import sys, json, yaml, jsonschema
+c = json.loads(json.dumps(yaml.safe_load(open(sys.argv[1]))))
+s = yaml.safe_load(open(sys.argv[2]))
 jsonschema.validate(c, s)
 PY
             then _p "contract.yml validates against $(basename "$SCHEMA")"
@@ -288,11 +292,56 @@ fi
 # ---- 5. README ↔ contract drift (03/06.5) ------------------------------------
 if [[ -f "$TOOL_DIR/README.md" && -f "$CONTRACT" ]]; then
     section "README ↔ contract (06.5)"
+    # 06.5 asserts README ↔ contract agreement on variables and exit codes; both
+    # are FAILs, since a README that omits or contradicts the contract misleads.
     missing=()
     while read -r v; do [[ -n "$v" ]] && ! grep -q "$v" "$TOOL_DIR/README.md" && missing+=("$v"); done \
         < <(grep -oE "^[[:space:]]+${PREFIX}_[A-Z0-9_]+" "$CONTRACT" | tr -d ' ')
     if (( ${#missing[@]} == 0 )); then _p "README mentions every contract env var"
-    else _w "README omits contract env vars: ${missing[*]}"; fi
+    else _f "README omits contract env vars: ${missing[*]} (06.5)"; fi
+
+    # Exit codes: every code the contract declares must be a row of the README's
+    # "Exit codes" table, and the table must not carry a code the contract does
+    # not declare. The contract's codes come from PyYAML when present, else from
+    # the flow-mapping line; the README rows are `| <code> | …` lines under the
+    # "Exit codes" heading (the whole file when there is no such heading).
+    mapfile -t c_codes < <(python3 - "$CONTRACT" <<'PY'
+import re, sys
+raw = open(sys.argv[1]).read()
+codes = None
+try:
+    import yaml
+    ec = (yaml.safe_load(raw) or {}).get("exit_codes") or {}
+    codes = sorted(str(k) for k in ec)
+except ModuleNotFoundError:
+    m = re.search(r"(?m)^exit_codes:\s*\{(.*)\}", raw)
+    codes = sorted(re.findall(r"(?:^|[{,])\s*\"?(\d+)\"?\s*:", m.group(1))) if m else []
+print("\n".join(codes))
+PY
+    )
+    mapfile -t r_codes < <(awk '
+        /^#+[[:space:]]/ { insec = ($0 ~ /[Ee]xit codes/); next }
+        insec && /^\|[[:space:]]*`?[0-9]+`?[[:space:]]*\|/ { print }
+    ' "$TOOL_DIR/README.md" | sed -E 's/^\|[[:space:]]*`?([0-9]+)`?.*/\1/' | sort -u)
+    if (( ${#r_codes[@]} == 0 )); then
+        mapfile -t r_codes < <(grep -E '^\|[[:space:]]*`?[0-9]+`?[[:space:]]*\|' "$TOOL_DIR/README.md" \
+            | sed -E 's/^\|[[:space:]]*`?([0-9]+)`?.*/\1/' | sort -u)
+    fi
+    if (( ${#c_codes[@]} == 0 )); then
+        _f "contract declares no exit_codes (06.5)"
+    elif (( ${#r_codes[@]} == 0 )); then
+        _f "README has no exit-code table (a '| <code> | …' row per contract code) (06.5)"
+    else
+        undoc=(); undecl=()
+        for c in "${c_codes[@]}"; do [[ " ${r_codes[*]} " == *" $c "* ]] || undoc+=("$c"); done
+        for c in "${r_codes[@]}"; do [[ " ${c_codes[*]} " == *" $c "* ]] || undecl+=("$c"); done
+        if (( ${#undoc[@]} == 0 && ${#undecl[@]} == 0 )); then
+            _p "README exit-code table matches contract exit_codes (${c_codes[*]})"
+        else
+            (( ${#undoc[@]} ))  && _f "README omits contract exit codes: ${undoc[*]} (06.5)"
+            (( ${#undecl[@]} )) && _f "README documents exit codes the contract does not declare: ${undecl[*]} (06.5)"
+        fi
+    fi
 fi
 
 # ---- 6. optional --build deep checks (06.2–06.4) -----------------------------
@@ -324,21 +373,24 @@ if [[ "$DO_BUILD" == true ]]; then
             cid="$(docker create "$IMG" __conform__ 2>/dev/null)"
             if [[ -n "$cid" ]]; then
                 fs="$(docker export "$cid" 2>/dev/null | tar -t 2>/dev/null)"
-                decl="$(printf '%s' "$fs" | grep -q '^etc/dfir-hardened$' && docker export "$cid" 2>/dev/null | tar -xO etc/dfir-hardened 2>/dev/null)"
+                decl=""
+                if grep -q '^etc/dfir-hardened$' <<<"$fs"; then
+                    decl="$(docker export "$cid" 2>/dev/null | tar -xO etc/dfir-hardened 2>/dev/null)"
+                fi
                 docker rm -f "$cid" >/dev/null 2>&1
-                printf '%s' "$fs" | grep -qE '(^|/)(usr/)?bin/(apt-get|dpkg|sudo)$' \
+                grep -qE '(^|/)(usr/)?bin/(apt-get|dpkg|sudo)$' <<<"$fs" \
                     && _f "removed surface present (apt-get/dpkg/sudo) (06.3)" || _p "no apt-get/dpkg/sudo"
-                printf '%s' "$fs" | grep -qE '(^|/)(usr/)?bin/pip[0-9.]*$' \
+                grep -qE '(^|/)(usr/)?bin/pip[0-9.]*$' <<<"$fs" \
                     && _f "pip present (06.3)" || _p "no pip"
-                printf '%s' "$fs" | grep -qE '/ansible([-/]|$)' \
+                grep -qE '/ansible([-/]|$)' <<<"$fs" \
                     && _f "ansible present in runtime image (06.3)" || _p "no ansible in runtime"
                 [[ -n "$decl" ]] && _p "/etc/dfir-hardened present" || _w "/etc/dfir-hardened not found in image"
-                if printf '%s' "$decl" | grep -q 'shell=false'; then
-                    printf '%s' "$fs" | grep -qE '(^|/)bin/(sh|bash|dash)$' \
+                if grep -q 'shell=false' <<<"$decl"; then
+                    grep -qE '(^|/)bin/(sh|bash|dash)$' <<<"$fs" \
                         && _f "declares shell=false but a shell is present (06.4)" || _p "shell=false matches filesystem"
                 fi
-                if printf '%s' "$decl" | grep -q 'python=false'; then
-                    printf '%s' "$fs" | grep -qE '(^|/)bin/python3(\.[0-9]+)?$' \
+                if grep -q 'python=false' <<<"$decl"; then
+                    grep -qE '(^|/)bin/python3(\.[0-9]+)?$' <<<"$fs" \
                         && _f "declares python=false but python is present (06.4)" || _p "python=false matches filesystem"
                 fi
             fi

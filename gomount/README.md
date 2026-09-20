@@ -61,9 +61,13 @@ No `CAP_SYS_ADMIN`, no loop device, no `--privileged`; the mount needs only
 `/dev/fuse` and a kernel that permits unprivileged user namespaces.
 
 The runtime image is `debian:trixie-slim` with `fuse3` and `ntfs-3g`, a
-deviation from the `FROM scratch` sibling tool images because the operator mount
-execs the distro `ntfs-3g` and its `fusermount3` helper. The Go binary itself is
-static (CGO off).
+declared deviation from the `FROM scratch` sibling tool images because the
+operator mount execs the distro `ntfs-3g` and its `fusermount3` helper. The Go
+binary itself is static (CGO off). The image is hardened the same way as the
+rest of the matrix: the package manager, sudo/su and the account tools are
+removed, every setuid/setgid bit is stripped, uid 0 is renamed and locked, and
+it runs as uid 2000; `sh` ships with the base and is declared
+(`/etc/dfir-hardened`: `shell=true python=false pkg_mgr=false`).
 
 ```sh
 docker build -t get-sybers/gomount:latest -f gomount/Dockerfile gomount
@@ -87,3 +91,43 @@ gomount umount [--mount-point PATH] [--work PATH]
 
 `--volume` is 1-based; `0` auto-selects the largest NTFS volume.
 `--no-self-unshare` assumes the caller already established the user namespace.
+
+## Contract
+
+gomount is driven by argv, not by an environment batch loop
+([`contract.yml`](contract.yml): `entrypoint: argv`, a declared deviation —
+its verbs are streaming and interactive). It reads no `GOMOUNT_*` variables.
+
+## Input
+
+The disk image named in argv, mounted read-only (`/evidence` by convention);
+the `mount` verb additionally needs `--device /dev/fuse`.
+
+## Output
+
+- `stream`: a tar archive on stdout, one regular-file entry per volume file (entry name = the file's volume path), or one JSON object per file with `--jsonl`.
+- `materialise`: `<out>/<volume-path>` at mode `0400` per pulled file, plus `<out>/materialise.jsonl` with `--manifest`.
+- `mount`: a read-only NTFS mount at `--mount-point` held in the foreground until `umount`.
+- `ls`/`cat`/`stat`/`tree`/`browse`: the listing or bytes on stdout.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | success |
+| 1 | usage or fatal error (unknown verb, missing image, unreadable volume, mount failure) |
+| 2 | unused — declared because the framework's uniform table requires it; gomount never exits 2 |
+
+## Run
+
+```sh
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -v "$PWD/evidence:/evidence:ro" \
+  get-sybers/gomount:latest stream --filter '*.pf' /evidence/disk.E01 | goprefetch --tar
+```
+
+`test/contract_test.sh` builds the image and asserts the label set, the
+self-declaration against the filesystem, and the argv modes (usage on no
+arguments, a non-zero exit with nothing on stdout for a missing image);
+`test/mount-test.sh` and `test/userspace-test.sh` exercise the verbs on a
+host that provides `/dev/fuse` and `mkntfs`.

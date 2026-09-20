@@ -1,0 +1,37 @@
+# goevtx/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: goevtx
+image: get-sybers/goevtx:latest
+entrypoint: self-orchestrating
+description: >
+  Windows Event Log (.evtx) parser (static Go on Velociraptor's go-evtx).
+  Batches over the mounted evidence tree, finds every event log by its .evtx
+  extension or its ElfFile signature, and writes one JSON record per event —
+  the shape the DX_DFIR evtx lane and byakugan's winevt/evtx maps consume —
+  into one output folder per log.
+
+env:
+  GOEVTX_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every file with the .evtx extension or the ElfFile signature is an item'}
+  GOEVTX_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per log'}
+  GOEVTX_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); goevtx needs none but honours it'}
+  GOEVTX_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOEVTX_FORMAT:    {required: false, default: json,    desc: 'record format; json (JSONL) is the only format'}
+  GOEVTX_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GOEVTX_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GOEVTX_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GOEVTX_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/goevtx.jsonl — one record per event (EventId, Level, Provider, Channel, Computer, EventRecordId, TimeCreated, UserId, MapDescription, SourceFile, Payload); <item> is the log path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --json DIR --jsonf NAME,
+  --xml DIR --xmlf NAME (best-effort XML sidecar), -q. Exit 0 ok / 1 usage or
+  fatal / 2 at least one log failed.

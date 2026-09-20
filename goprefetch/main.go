@@ -16,8 +16,15 @@
 //
 //	gomount stream --filter '*.pf' disk.E01 | goprefetch --tar
 //
-// Exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at least
-// one file failed to parse (failures listed on stderr, the rest still emitted).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOPREFETCH_INPUT_DIR / GOPREFETCH_OUT_DIR /
+// GOPREFETCH_FORCE / GOPREFETCH_FORMAT, finds every *.pf under the input tree,
+// writes one output folder per file and prints one JSON summary line. The
+// argv flags below are the debug pass-through.
+//
+// argv exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at
+// least one file failed to parse (failures listed on stderr, the rest still
+// emitted). Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -51,6 +58,51 @@ type record struct {
 	LastRun        string   `json:"LastRun,omitempty"`
 	PreviousRuns   []string `json:"PreviousRuns,omitempty"`
 	FilesAccessed  []string `json:"FilesAccessed"`
+}
+
+var csvHeader = []string{"SourceFilename", "SourceModified", "Executable", "Path",
+	"Hash", "Version", "FileSize", "RunCount", "LastRun", "PreviousRuns", "FilesAccessed"}
+
+func (r *record) csvRow() []string {
+	return []string{r.SourceFilename, r.SourceModified, r.Executable,
+		r.Path, r.Hash, r.Version, strconv.FormatUint(uint64(r.FileSize), 10),
+		strconv.FormatUint(uint64(r.RunCount), 10), r.LastRun,
+		strings.Join(r.PreviousRuns, "|"), strings.Join(r.FilesAccessed, "|")}
+}
+
+// goprefetchTool binds the shared batch runtime to this tool.
+var goprefetchTool = batchTool{
+	name:     "goprefetch",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover walks the input tree and keeps every *.pf — the same selection
+// -d applies.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	return collectInputs("", cfg.InputDir)
+}
+
+// batchProcess parses one prefetch file into its record file: a JSONL object,
+// or a CSV header plus one row.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	rec, err := parseOne(item)
+	if err != nil {
+		return 0, err
+	}
+	if cfg.Format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return 0, err
+		}
+		if err := cw.Write(rec.csvRow()); err != nil {
+			return 0, err
+		}
+		cw.Flush()
+		return 1, cw.Error()
+	}
+	return 1, json.NewEncoder(w).Encode(rec)
 }
 
 // parseReader parses one prefetch file from r, tagging the record with name as
@@ -196,6 +248,7 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 }
 
 func main() {
+	runFrameworkEntry(goprefetchTool)
 	var (
 		file    = flag.String("f", "", "single prefetch file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for *.pf")
@@ -240,8 +293,7 @@ func main() {
 
 	if *csvDir != "" {
 		cw = csv.NewWriter(w)
-		if err := cw.Write([]string{"SourceFilename", "SourceModified", "Executable", "Path",
-			"Hash", "Version", "FileSize", "RunCount", "LastRun", "PreviousRuns", "FilesAccessed"}); err != nil {
+		if err := cw.Write(csvHeader); err != nil {
 			fmt.Fprintf(os.Stderr, "goprefetch: write: %v\n", err)
 			os.Exit(1)
 		}
@@ -252,10 +304,7 @@ func main() {
 	// object — and is the single record-emitting path both input modes share.
 	emit := func(rec *record) error {
 		if cw != nil {
-			return cw.Write([]string{rec.SourceFilename, rec.SourceModified, rec.Executable,
-				rec.Path, rec.Hash, rec.Version, strconv.FormatUint(uint64(rec.FileSize), 10),
-				strconv.FormatUint(uint64(rec.RunCount), 10), rec.LastRun,
-				strings.Join(rec.PreviousRuns, "|"), strings.Join(rec.FilesAccessed, "|")})
+			return cw.Write(rec.csvRow())
 		}
 		return enc.Encode(rec)
 	}
