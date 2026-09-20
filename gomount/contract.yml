@@ -1,0 +1,48 @@
+# gomount/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: gomount
+image: get-sybers/gomount:latest
+entrypoint: argv
+description: >
+  Standalone NTFS volume reader for disk images (E01/Ex01/raw). A declared
+  argv deviation: its verbs are streaming and interactive (stream a tar of
+  every file to stdout for a consuming tool, materialise artefact sets into a
+  directory, ls/cat/stat/tree/browse, or mount the volume read-only over FUSE
+  + ntfs-3g), so it is driven by argv, not by an env-var batch loop. The same
+  binary is baked into get-sybers/signatures for its scan sub-tool.
+
+env: {}
+
+mounts:
+  - {name: evidence, path: /evidence, mode: ro, required: true,  desc: the disk image(s) named in argv}
+  - {name: output,   path: /output,   mode: rw, required: true,  desc: the --out directory of materialise (unused by the streaming and read verbs)}
+  - {name: fuse,     path: /dev/fuse, mode: rw, required: false, desc: device the mount verb needs (--device /dev/fuse); the userspace verbs need none}
+  - {name: mnt,      path: /mnt/ntfs, mode: rw, required: false, desc: the mount verb's default mount point}
+
+network: none
+exit_codes: {0: success, 1: usage or fatal error, 2: unused}
+
+summary_schema:
+  required: [tool]
+  note: >
+    argv verbs print no summary line: stream writes the tar (or, with --jsonl,
+    one JSON object per file) to stdout; materialise writes <out>/materialise.jsonl
+    with {path,size,mtime,mftid} per pulled file when --manifest is given; the read
+    verbs print their listing. Bringing gomount under the batch summary contract
+    is open: its inventory status (first-class image or a component of
+    signatures) is docs/framework/11 open question 3.
+
+outputs:
+  stream: "stdout: a tar archive, one regular-file entry per volume file (entry name = the file's volume path), or one JSON object per file with --jsonl"
+  materialise: "<out>/<volume-path> at mode 0400 per pulled file (+ named siblings with --siblings), <out>/materialise.jsonl with --manifest"
+  mount: "a read-only NTFS mount at --mount-point (default /mnt/ntfs) held in the foreground until umount"
+
+hardening:
+  declared: {shell: true, python: false, static_binary: false}
+  justification: "the runtime is debian:trixie-slim with ntfs-3g + fuse3 (the mount verb execs the distro ntfs-3g and fusermount3, never links libntfs-3g); sh stays with it, python and the package manager are removed and every setuid bit is stripped; the Go binary itself is static"
+
+argv_passthrough: >
+  gomount stream [--jsonl] [--filter GLOB] [--volume N] <image> |
+  gomount materialise --out DIR [--set NAME]... [--select GLOB]... [--siblings] [--manifest] <image> |
+  gomount ls|cat|stat|tree|browse <image> [path] |
+  gomount mount [--read-only] [--mount-point PATH] [--volume N] [--work PATH] [--no-self-unshare] [--foreground] <image> |
+  gomount umount [--mount-point PATH] [--work PATH]
