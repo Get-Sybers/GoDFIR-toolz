@@ -19,7 +19,7 @@ sub-tool set and the processed-layout discovery are the engine's, so they
 follow the cloned ref:
 
 ```
-byakugan build        processed evidence tree -> one car.db per source
+byakugan build        processed evidence tree -> the materialised CAR JSONL, one set per source
 byakugan timeline     a car tree               -> timeline.jsonl
 byakugan verify       a materialised car tree  -> the CAR correctness gate (verify.txt)
 byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
@@ -32,7 +32,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 - `timeline` reads `BYAKUGAN_TIMELINE_INPUT_DIR` (default `/input`): a source's car directory, or a tree of them to aggregate — one item.
 - `verify` reads `BYAKUGAN_VERIFY_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` under it is one item.
 - `car-vocab` reads nothing.
-- `load` reads `BYAKUGAN_LOAD_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` / `car_inferred.jsonl` under it is one source, bulk-loaded into the `logs-car.*` data streams.
+- `load` reads `BYAKUGAN_LOAD_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` (and, from a `BYAKUGAN_BUILD_DERIVE` build, `car_inferred.jsonl`) under it is one source, bulk-loaded into the `logs-car.*` data streams.
 
 ## Env
 
@@ -56,7 +56,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | `BYAKUGAN_VERIFY_INPUT_DIR` | `/input` | the materialised CAR tree the gate reads |
 | `BYAKUGAN_VERIFY_OUT_DIR` | `/output` | where the report `verify.txt` is written; the default applies only when `/output` is a mounted, writable directory — otherwise the report goes to stderr alone and the gate still runs |
 | `BYAKUGAN_VERIFY_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
-| `BYAKUGAN_LOAD_INPUT_DIR` | `/input` | the materialised CAR tree to load (`car_<object>.jsonl` + `car_relationships.jsonl` + `car_inferred.jsonl` per source) |
+| `BYAKUGAN_LOAD_INPUT_DIR` | `/input` | the materialised CAR tree to load (`car_<object>.jsonl` + `car_relationships.jsonl` per source; `car_inferred.jsonl` when the build ran `BYAKUGAN_BUILD_DERIVE`) |
 | `BYAKUGAN_LOAD_OUT_DIR` | `/output` | where the `elastic/` bulk bundles, `manifest.json` and the load report are written |
 | `BYAKUGAN_LOAD_ES_URL` | *(empty)* | empty = bundle mode, no network; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS — the explicit network opt-in, same shape as `ANAMNESIS_SYMBOLS_ONLINE` |
 | `BYAKUGAN_LOAD_ES_API_KEY` | *(empty)* | Elasticsearch API key for push mode |

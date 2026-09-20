@@ -20,7 +20,7 @@ engine:
   note: the engine is an external repository; DX_DFIR orchestrates and links out, the CAR model and verify gate live in Byakugan
 
 env:
-  # --- build: processed evidence -> car.db per source (byakugan.pipeline --batch) ---
+  # --- build: processed evidence -> the materialised CAR tree per source (byakugan.pipeline --batch) ---
   BYAKUGAN_BUILD_INPUT_DIR: {required: false, default: /input,  desc: 'the processed-evidence tree the engine batches over (its --batch root), read-only'}
   BYAKUGAN_BUILD_OUT_DIR:   {required: false, default: /output, desc: 'the car/ root the engine writes one store per source into (--out)'}
   BYAKUGAN_BUILD_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on rebuilds sources whose car.db already exists (--force)'}
@@ -43,7 +43,7 @@ env:
   BYAKUGAN_VERIFY_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- car-vocab: no variables; stdout is the vocabulary JSON ---------------------------------
   # --- load: a materialised car tree -> the DX_DFIR Elastic stack (byakugan.load) -------------
-  BYAKUGAN_LOAD_INPUT_DIR:        {required: false, default: /input,  desc: 'the materialised CAR tree to load (car_<object>.jsonl + car_relationships.jsonl + car_inferred.jsonl per source, any depth), read-only'}
+  BYAKUGAN_LOAD_INPUT_DIR:        {required: false, default: /input,  desc: 'the materialised CAR tree to load (car_<object>.jsonl + car_relationships.jsonl per source, any depth; car_inferred.jsonl only when the build ran BYAKUGAN_BUILD_DERIVE), read-only'}
   BYAKUGAN_LOAD_OUT_DIR:          {required: false, default: /output, desc: 'where the elastic/ bulk bundles, manifest.json and the load report are written'}
   BYAKUGAN_LOAD_ES_URL:           {required: false, default: "", desc: 'empty (default) selects bundle mode: no network, bundles are only rendered; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS. The explicit network opt-in, same shape as ANAMNESIS_SYMBOLS_ONLINE'}
   BYAKUGAN_LOAD_ES_API_KEY:       {required: false, default: "", desc: 'Elasticsearch API key for push mode (Authorization: ApiKey ...)'}
