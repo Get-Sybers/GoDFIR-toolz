@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # test/contract_test.sh — the framework conformance smoke test for the
 # signatures multi-tool image (docs/framework 06.5). It builds the image
-# (unless IMAGE is given), runs `yara` over test/fixtures/staged/ and
-# `suricata` over test/fixtures/pcaps/, and asserts for each run:
+# (unless IMAGE is given), runs `yara` over test/fixtures/staged/, `suricata`
+# over test/fixtures/pcaps/ and `hayabusa` over test/fixtures/evtx/, and
+# asserts for each run:
 #   1. the exit code (0);
 #   2. stdout is exactly one JSON line carrying every summary_schema key;
 #   3. a rerun is idempotent: same exit, every item skipped, no new files;
-# then runs with a bad environment (missing input mount) and with no sub-tool
-# named, asserting exit 2 / status config_error for both. hayabusa and scan
-# need real evidence (an .evtx tree, an NTFS image) and are covered by the Go
-# unit tests with stub tools.
+# and for hayabusa that the item's timeline.jsonl holds exactly the detections
+# the summary counts (at least one; one JSON record per line) beside its
+# hayabusa.jsonl index. Then it runs with a bad environment (missing input
+# mount) and with no sub-tool named, asserting exit 2 / status config_error
+# for both. scan needs an NTFS image and is covered by the Go unit tests with
+# a stub pipe.
 #
 #   test/contract_test.sh                                   # docker build + run
 #   IMAGE=get-sybers/signatures:latest test/contract_test.sh    # reuse a built image
@@ -23,10 +26,12 @@ command -v python3 >/dev/null 2>&1 || { echo "contract_test: python3 is required
 
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
-mkdir -p "$scratch/staged" "$scratch/pcaps" "$scratch/out-yara" "$scratch/out-suricata" "$scratch/work"
+mkdir -p "$scratch/staged" "$scratch/pcaps" "$scratch/evtx" "$scratch/out-yara" "$scratch/out-suricata" "$scratch/out-hayabusa" "$scratch/work"
 cp -R "$here/fixtures/staged/." "$scratch/staged/"
 cp -R "$here/fixtures/pcaps/." "$scratch/pcaps/"
-chmod -R a+rX "$scratch/staged" "$scratch/pcaps"; chmod 777 "$scratch/out-yara" "$scratch/out-suricata" "$scratch/work"
+cp -R "$here/fixtures/evtx/." "$scratch/evtx/"
+chmod -R a+rX "$scratch/staged" "$scratch/pcaps" "$scratch/evtx"
+chmod 777 "$scratch/out-yara" "$scratch/out-suricata" "$scratch/out-hayabusa" "$scratch/work"
 
 IMAGE="${IMAGE:-contract-test/signatures:latest}"
 if [[ -z "${IMAGE_PREBUILT:-}" && "$IMAGE" == contract-test/* ]]; then
@@ -74,17 +79,43 @@ if s["skipped"] != s["inputs"] or s["processed"] != 0:
 PY
 }
 
-for sub in yara suricata; do
+# timeline <summary> <item dir>: the one fixture item was processed with
+# detections, its timeline.jsonl holds exactly the records the summary counts
+# (one JSON detection record per line) and its hayabusa.jsonl index is beside it
+timeline() {
+    python3 - "$1" "$2" <<'PY' || exit 1
+import json, os, sys
+s = json.load(open(sys.argv[1])); item = sys.argv[2]
+if s["inputs"] != 1 or s["processed"] != 1 or s["records"] < 1:
+    sys.exit(f"FAIL hayabusa must process the one fixture item with detections: {s}")
+timeline = os.path.join(item, "timeline.jsonl")
+lines = [l for l in open(timeline).read().splitlines() if l.strip()]
+if len(lines) != s["records"]:
+    sys.exit(f"FAIL {timeline} has {len(lines)} lines, the summary counts {s['records']} records")
+for l in lines:
+    d = json.loads(l)
+    if not isinstance(d, dict) or not d.get("RuleTitle") or not d.get("Timestamp"):
+        sys.exit(f"FAIL not a detection record: {l[:200]}")
+idx = json.loads(open(os.path.join(item, "hayabusa.jsonl")).readline())
+if idx.get("timeline") != "timeline.jsonl" or idx.get("records") != s["records"]:
+    sys.exit(f"FAIL hayabusa.jsonl index {idx} does not match the summary {s}")
+print(f"hayabusa: {len(lines)} detections in {timeline}")
+PY
+}
+
+for sub in yara suricata hayabusa; do
     P="SIGNATURES_$(printf '%s' "$sub" | tr '[:lower:]' '[:upper:]')"
     envfile="$scratch/env-$sub"
     printf '%s_INPUT_DIR=/input\n%s_OUT_DIR=/output\n%s_WORK_DIR=/work\n%s_FORCE=0\n%s_LOG_LEVEL=info\n' "$P" "$P" "$P" "$P" "$P" >"$envfile"
     case "$sub" in
         yara)     in="$scratch/staged"; out="$scratch/out-yara" ;;
         suricata) in="$scratch/pcaps";  out="$scratch/out-suricata" ;;
+        hayabusa) in="$scratch/evtx";   out="$scratch/out-hayabusa" ;;
     esac
     echo "== $sub: batch run, expect exit 0"
     rc=0; run "$sub" "$in" "$out" "$envfile" "$scratch/$sub.out1" "$scratch/$sub.err1" || rc=$?
     check "$scratch/$sub.out1" 0 "$rc" ok || { cat "$scratch/$sub.err1" >&2; exit 1; }
+    [[ "$sub" != hayabusa ]] || timeline "$scratch/$sub.out1" "$out/hostA"
     before="$(cd "$out" && find . -type f | sort)"
     echo "== $sub: rerun, idempotent"
     rc=0; run "$sub" "$in" "$out" "$envfile" "$scratch/$sub.out2" "$scratch/$sub.err2" || rc=$?

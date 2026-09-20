@@ -19,6 +19,10 @@ func stub(t *testing.T, name, body string) string {
 	return p
 }
 
+// shQuote single-quotes s for a POSIX shell, so a path with spaces or other
+// metacharacters survives inside a stub script.
+func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
 func cfgFor(t *testing.T, prefix string, env map[string]string) *batchConfig {
 	t.Helper()
 	return &batchConfig{Tool: "signatures", Prefix: prefix, InputDir: env[prefix+"_INPUT_DIR"],
@@ -109,11 +113,37 @@ func TestHayabusaDiscoverAndProcess(t *testing.T) {
 		t.Fatalf("discover = %v, %v", items, err)
 	}
 	hayabusaHome = t.TempDir()
-	hayabusaBinary = stub(t, "hayabusa", `o=""; while [ $# -gt 0 ]; do case "$1" in --output) o="$2";; esac; shift; done; printf '{"RuleTitle":"x"}\n' > "$o"`)
+	// the stub records its argv into a directory whose name carries a space,
+	// so the quoted path must survive the shell
+	argvDir := filepath.Join(t.TempDir(), "argv dir")
+	if err := os.MkdirAll(argvDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	argvFile := filepath.Join(argvDir, "argv")
+	hayabusaBinary = stub(t, "hayabusa", `printf '%s\n' "$@" > `+shQuote(argvFile)+`; o=""; while [ $# -gt 0 ]; do case "$1" in --output) o="$2";; esac; shift; done; printf '{"RuleTitle":"x"}\n' > "$o"`)
 	var idx bytes.Buffer
 	n, err := processHayabusa(cfg, items[0], t.TempDir(), &idx)
 	if err != nil || n != 1 {
 		t.Fatalf("process = %d, %v", n, err)
+	}
+	// the argv is hayabusa 4's dfir-timeline form; the pre-4.0 json-timeline
+	// command and its --JSONL-output / --UTC spellings no longer exist
+	raw, _ := os.ReadFile(argvFile)
+	argv := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(argv) == 0 || argv[0] != "dfir-timeline" {
+		t.Fatalf("argv[0] = %q, want dfir-timeline (%v)", argv, argv)
+	}
+	line := " " + strings.Join(argv, " ") + " "
+	for _, want := range []string{" --directory " + items[0] + " ", " --output-type jsonl ", " --profile verbose ",
+		" --no-wizard ", " --utc ", " --quiet ", " --quiet-errors ", " --rules " + defaultHayabusaRules + " "} {
+		if !strings.Contains(line, want) {
+			t.Errorf("argv lacks %q: %s", strings.TrimSpace(want), line)
+		}
+	}
+	for _, gone := range []string{"json-timeline", "--JSONL-output", " --UTC "} {
+		if strings.Contains(line, gone) {
+			t.Errorf("argv carries the removed %q: %s", strings.TrimSpace(gone), line)
+		}
 	}
 	// no detections -> no output file from hayabusa -> an empty timeline, not a failure
 	hayabusaBinary = stub(t, "hayabusa", "exit 0")
@@ -150,6 +180,19 @@ func TestScanPipe(t *testing.T) {
 	goyaraBinary = stub(t, "goyara", `cat >/dev/null; exit 1`)
 	if _, err := processScan(cfg, items[0], t.TempDir(), &bytes.Buffer{}); err == nil {
 		t.Error("goyara exit 1 must fail the item")
+	}
+}
+
+func TestPassthroughPath(t *testing.T) {
+	hayabusaBinary = stub(t, "hayabusa", "exit 0")
+	if p, err := passthroughPath("hayabusa"); err != nil || p != hayabusaBinary {
+		t.Errorf("hayabusa resolves to %q, %v; want the baked binary %q", p, err, hayabusaBinary)
+	}
+	if p, err := passthroughPath("sh"); err != nil || p == "" {
+		t.Errorf("sh = %q, %v", p, err)
+	}
+	if _, err := passthroughPath("no-such-tool-for-this-test"); err == nil {
+		t.Error("an absent tool must not resolve")
 	}
 }
 

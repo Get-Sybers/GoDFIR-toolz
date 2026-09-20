@@ -23,8 +23,8 @@
 //	suricata  one item per capture (pcap/pcapng); `suricata -r <capture> -l
 //	          <item dir> -k none -S <rules> [--set …]`; records = eve.json lines
 //	hayabusa  one item per directory under INPUT_DIR that holds .evtx files;
-//	          `hayabusa json-timeline --directory <item> --output …`; records =
-//	          detections
+//	          `hayabusa dfir-timeline --directory <item> --output … --output-type
+//	          jsonl`; records = detections
 //	scan      one item per disk image; `gomount stream <image> | goyara --rules
 //	          <rules>`; records = rule hits across the image's files
 package main
@@ -345,14 +345,19 @@ type hayabusaIndex struct {
 	Records  int    `json:"records"`
 }
 
-// processHayabusa runs the baked hayabusa over one directory, JSONL with the
-// verbose profile so every detection carries its MITRE columns. hayabusa
-// refuses to overwrite its output, so a previous timeline is removed first.
+// processHayabusa runs the baked hayabusa over one directory: `dfir-timeline`
+// (hayabusa 4's one timeline command; csv-timeline and json-timeline are gone)
+// as JSONL with the verbose profile so every detection carries its MITRE
+// columns, timestamps in UTC. hayabusa refuses to overwrite its output, so a
+// previous timeline is removed first. --quiet-errors: hayabusa saves an error
+// log under its home's logs/, which is read-only in the image; without the
+// flag an unreadable .evtx aborts the whole scan (exit 101) instead of being
+// skipped.
 func processHayabusa(cfg *batchConfig, item, itemDir string, w io.Writer) (int, error) {
 	out := filepath.Join(itemDir, "timeline.jsonl")
 	os.Remove(out)
-	args := []string{"json-timeline", "--directory", item, "--output", out, "--JSONL-output",
-		"--profile", cfg.env("PROFILE", "verbose"), "--no-wizard", "--UTC", "--quiet",
+	args := []string{"dfir-timeline", "--directory", item, "--output", out, "--output-type", "jsonl",
+		"--profile", cfg.env("PROFILE", "verbose"), "--no-wizard", "--utc", "--quiet", "--quiet-errors",
 		"--rules", cfg.env("RULES", defaultHayabusaRules)}
 	args = append(args, strings.Fields(cfg.env("ARGS", ""))...)
 	code, err := runTool(cfg, hayabusaHome, hayabusaBinary, args...)
@@ -457,6 +462,15 @@ func (c *lineCounter) Write(p []byte) (int, error) {
 
 // ---- entry -----------------------------------------------------------------------
 
+// passthroughPath resolves argv[0] of a pass-through call to the executable to
+// exec. The bare name `hayabusa` is the baked binary, which is not on PATH.
+func passthroughPath(name string) (string, error) {
+	if name == "hayabusa" {
+		name = hayabusaBinary
+	}
+	return exec.LookPath(name)
+}
+
 func usage() {
 	fmt.Fprint(os.Stderr, "usage: signatures-entry yara|suricata|hayabusa|scan        (env-driven batch)\n"+
 		"       signatures-entry <yara|suricata|hayabusa|gomount|goyara|/opt/dxdfir/scan-list.sh|sh> <args...>   (pass-through)\n"+
@@ -479,7 +493,7 @@ func main() {
 		}
 	}
 	if len(args) > 0 && passthrough[args[0]] {
-		path, err := exec.LookPath(args[0])
+		path, err := passthroughPath(args[0])
 		if err == nil {
 			err = syscall.Exec(path, args, os.Environ())
 		}
