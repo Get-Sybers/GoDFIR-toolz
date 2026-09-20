@@ -19,8 +19,15 @@
 // --tar mode SourceModified comes from the tar header's mtime; a tar header
 // carries no atime, so SourceAccessed is empty there.
 //
-// Exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at least one
-// file failed (failures listed on stderr, the rest still emitted).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOLE_INPUT_DIR / GOLE_OUT_DIR / GOLE_FORCE / GOLE_FORMAT,
+// finds every .lnk under the input tree, writes one output folder per shortcut
+// and prints one JSON summary line. The argv flags below are the debug
+// pass-through.
+//
+// argv exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at
+// least one file failed (failures listed on stderr, the rest still emitted).
+// Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -274,7 +281,43 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 	return os.Create(filepath.Join(dir, name))
 }
 
+// goleTool binds the shared batch runtime to this tool.
+var goleTool = batchTool{
+	name:     "gole",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover walks the input tree and keeps every .lnk (by extension or the
+// 0x4C header) — the same selection -d applies.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	return collectInputs("", cfg.InputDir)
+}
+
+// batchProcess parses one shortcut into its record file: a JSONL object, or a
+// CSV header plus one row.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	rec, err := parseOne(item)
+	if err != nil {
+		return 0, err
+	}
+	if cfg.Format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return 0, err
+		}
+		if err := cw.Write(rec.csvRow()); err != nil {
+			return 0, err
+		}
+		cw.Flush()
+		return 1, cw.Error()
+	}
+	return 1, json.NewEncoder(w).Encode(rec)
+}
+
 func main() {
+	runFrameworkEntry(goleTool)
 	var (
 		file    = flag.String("f", "", "single .lnk file to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for .lnk")

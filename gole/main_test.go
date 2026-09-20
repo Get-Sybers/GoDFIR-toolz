@@ -79,10 +79,10 @@ func TestParseTarStream(t *testing.T) {
 
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
-	tarEntry(t, tw, "Users/Parsia/Recent/sample.lnk", sample, mtime) // parsed, fields asserted
-	tarEntry(t, tw, "Users/Parsia/renamed_4C", sample, mtime)        // no .lnk ext -> magic-detected
-	tarEntry(t, tw, "Users/Parsia/notes.txt", []byte("plain text"), mtime)  // skipped: no ext, no magic
-	tarEntry(t, tw, "Users/Parsia/broken.lnk", []byte("not a lnk"), mtime)   // .lnk name, garbage -> failure
+	tarEntry(t, tw, "Users/Parsia/Recent/sample.lnk", sample, mtime)       // parsed, fields asserted
+	tarEntry(t, tw, "Users/Parsia/renamed_4C", sample, mtime)              // no .lnk ext -> magic-detected
+	tarEntry(t, tw, "Users/Parsia/notes.txt", []byte("plain text"), mtime) // skipped: no ext, no magic
+	tarEntry(t, tw, "Users/Parsia/broken.lnk", []byte("not a lnk"), mtime) // .lnk name, garbage -> failure
 	if err := tw.Close(); err != nil {
 		t.Fatal(err)
 	}
