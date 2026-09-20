@@ -4,12 +4,14 @@
 # sources.yml pins, so the only thing the DX_DFIR checkout holds is how it
 # INVOKES this image.
 #
-# The engine's `byakugan` console binary IS the ENTRYPOINT (byakugan-entry.py):
-# a multi-tool dispatcher (docs/framework 04 §4.3) — `byakugan build|timeline`
-# with no further arguments self-orchestrates that operation from its
-# BYAKUGAN_<SUBTOOL>_* env block and prints one JSON summary line;
-# `byakugan car-vocab` prints the car_action vocabulary; a sub-tool followed by
-# arguments is the pass-through to the engine's own CLI.
+# The ENTRYPOINT is the engine's own multi-tool dispatcher, byakugan.cli
+# (docs/framework 04 §4.3), reached through the byakugan-entry.py shim —
+# `byakugan build|timeline|verify` with no further arguments self-orchestrates
+# that operation from its BYAKUGAN_<SUBTOOL>_* env block and prints one JSON
+# summary line; `byakugan car-vocab` prints the car_action vocabulary; a
+# sub-tool followed by arguments is the pass-through to the engine's own CLI.
+# The sub-tool set and the processed-layout discovery are the engine's: the
+# cloned ref must ship byakugan/cli.py.
 # Shape B, declared deviation: python=true (the engine is python: python3 +
 # python3-yaml stay). No shell: bash, dash and sh are removed after the
 # build-time hardener runs. static_binary=false (CPython).
@@ -81,7 +83,7 @@ RUN set -eux; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=byakugan -e harden_static_binary=false -e harden_shell=false -e harden_python=true; \
-    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.pipeline, byakugan.timeline, byakugan.carmodel'; \
+    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel'; \
     # remove the build-time hardener + every shell; KEEP python3 + python3-yaml +
     # the baked engine tree (python is the tool, like plaso).
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
@@ -112,7 +114,7 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["byakugan"]
 LABEL org.opencontainers.image.title="get-sybers/byakugan" \
-      org.opencontainers.image.description="The Byakugan MITRE CAR engine (python + a static Go parse binary) cloned and built at the pinned ref, behind a multi-tool dispatcher: byakugan build|timeline self-orchestrates from its env block with one JSON summary line, byakugan car-vocab prints the car_action vocabulary. Hardened: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid/shell, runs as uid 2000; python kept (declared)." \
+      org.opencontainers.image.description="The Byakugan MITRE CAR engine (python + a static Go parse binary) cloned and built at the pinned ref, behind the engine's own multi-tool dispatcher: byakugan build|timeline|verify self-orchestrates from its env block with one JSON summary line, byakugan car-vocab prints the car_action vocabulary. Hardened: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid/shell, runs as uid 2000; python kept (declared)." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/byakugan" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${TOOL_VERSION}" \

@@ -4,12 +4,13 @@ image: get-sybers/byakugan:latest
 entrypoint: multi-tool
 description: >
   The external Byakugan MITRE CAR engine (python + a static Go parse binary),
-  cloned recursively and baked at the pinned ref, behind a dispatcher
-  entrypoint: `byakugan build` materialises CAR stores from a processed
-  evidence tree, `byakugan timeline` unions a car tree into one time-ordered
-  timeline, `byakugan car-vocab` prints the car_action vocabulary. Each batch
-  run prints one JSON summary line.
-subtools: [build, timeline, car-vocab]
+  cloned recursively and baked at the pinned ref, behind the engine's own
+  dispatcher (byakugan.cli): `byakugan build` materialises CAR stores from a
+  processed evidence tree, `byakugan timeline` unions a car tree into one
+  time-ordered timeline, `byakugan verify` runs the CAR correctness gate over
+  a materialised tree, `byakugan car-vocab` prints the car_action vocabulary.
+  Each batch run prints one JSON summary line.
+subtools: [build, timeline, verify, car-vocab]
 engine:
   repository: https://github.com/Get-Sybers/byakugan
   ref_label: com.get-sybers.engine-ref
@@ -33,6 +34,10 @@ env:
   BYAKUGAN_TIMELINE_BEFORE:    {required: false, default: "",      desc: 'only events at/before this ISO-8601 timestamp (--before)'}
   BYAKUGAN_TIMELINE_ARGS:      {required: false, default: "",      desc: 'extra byakugan.timeline argv, space-separated (e.g. --objects-only)'}
   BYAKUGAN_TIMELINE_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+  # --- verify: a materialised car tree -> the CAR correctness gate (byakugan.verify) ---------
+  BYAKUGAN_VERIFY_INPUT_DIR: {required: false, default: /input,  desc: 'the materialised CAR tree the gate reads (car_<object>.jsonl + car_relationships.jsonl per source, any depth), read-only'}
+  BYAKUGAN_VERIFY_OUT_DIR:   {required: false, default: /output, desc: 'where the report verify.txt is written; the default applies only when /output is a mounted, writable directory, otherwise the report goes to stderr alone and the gate still runs'}
+  BYAKUGAN_VERIFY_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- car-vocab: no variables; stdout is the vocabulary JSON ---------------------------------
 
 mounts:
@@ -41,17 +46,23 @@ mounts:
   - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: 'HOME under a read-only rootfs (tmpfs)'}
 
 network: none
-exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+# Exit 1 is the general non-success of a run that produced no output: nothing
+# to do (status `nothing`) or, for verify, the gate failed (status `failed`).
+# A consumer reads the summary `status` to tell them apart, never the code
+# alone; 0 is the only pass for every sub-tool.
+exit_codes: {0: success, 1: nothing_or_failed, 2: config_error, 3: partial}
 
 summary_schema:
   required: [tool, subtool, version, engine_ref, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
-  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline); car-vocab's stdout is the vocabulary JSON itself, one line"
+  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline, the passed/failed/not_exercised/os_families_covered/os_families_total tally for verify); car-vocab's stdout is the vocabulary JSON itself, one line. verify's `status` is the verdict and the only way to tell its two exit-1 outcomes apart: `ok` (exit 0, the gate passed), `failed` (exit 1, `failed` = the checks that failed, named in `failures`), `nothing` (exit 1, no materialised CAR under the input dir)"
 
 outputs:
   build:
     layout: "<OUT_DIR>/<source>/car.db (+ superset.db with DERIVE, stix_bundle.json with STIX), one store per processed source; records = CAR events; a source whose car.db exists is skipped unless FORCE"
   timeline:
     layout: "<OUT_DIR>/timeline.jsonl — the property-rich, time-ordered CAR timeline of the input tree; records = entries; skipped when it exists unless FORCE"
+  verify:
+    layout: "<OUT_DIR>/verify.txt — the gate report (every check, the tally, the verdict), also written to stderr; written (replacing any earlier report) only when at least one materialised CAR source is found (status ok or failed) — an empty tree (status nothing) writes no report; inputs = source directories holding materialised CAR, records = the CAR rows read; the verdict is `status` (ok|failed|nothing), exit 0 only when the gate passed"
   car-vocab:
     layout: "stdout: {object: [car_actions]} as one JSON line"
 
@@ -61,7 +72,7 @@ hardening:
 
 argv_passthrough: >
   Debug only, never used by DX_DFIR: `byakugan timeline <car_dir> [--out …]
-  [--host …] [--after …] [--before …] [--objects-only|--edges-only]` and
-  `byakugan [build] --in FILE --out DIR [--host …] [--artefacts …] | --batch DIR
-  [--out DIR] [--force] [--derive] [--stix]` run the engine's own CLI with its
-  own stdout and exit code.
+  [--host …] [--after …] [--before …] [--objects-only|--edges-only]`,
+  `byakugan verify [car_dir]` and `byakugan [build] --in FILE --out DIR
+  [--host …] [--artefacts …] | --batch DIR [--out DIR] [--force] [--derive]
+  [--stix]` run the engine's own CLI with its own stdout and exit code.
