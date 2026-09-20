@@ -1,50 +1,52 @@
 # syntax=docker/dockerfile:1
-#
-# gorb — Linux-native Windows Recycle Bin ($I) parser for the DX_DFIR
-# pipeline.
-#
-# A single static Go binary parses the modern $I metadata records (v1
-# Vista–8.0 and v2 Win8.1/10/11) and emits SourceName, FileType, FileName,
-# FileSize and DeletedOn as CSV or JSONL — the CLI contract the godfir-toolz
-# lane calls (`-d /in --csv /out --csvf rbcmd.csv`). See gorb/main.go for the
-# $I layout notes and the field notes.
-#
-# The final image is FROM scratch: one static binary, nothing else. The
-# hardening contract is met by construction — no shell, no python, no package
-# manager, no setuid, no libc; runs as uid 2000.
+# get-sybers/gorb — Windows Recycle Bin $I record parser (static Go).
+# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
+# batches over GORB_INPUT_DIR into GORB_OUT_DIR (one folder per $I record)
+# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
+# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
 #
 #   docker build -t get-sybers/gorb:latest -f gorb/Dockerfile gorb
-#   docker run --rm --cap-drop ALL --security-opt no-new-privileges \
-#     --network none --read-only -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-#     get-sybers/gorb:latest -d /input --csv /output --csvf rbcmd.csv
 
 ARG GO_VERSION=1.24
+ARG TOOL_VERSION=0.2.0
+ARG GODFIR_REVISION=unknown
+ARG GODFIR_RELEASE=dev
 
 FROM golang:${GO_VERSION}-alpine AS build
+ARG TOOL_VERSION
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
-COPY main.go .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /gorb .
-# Sanity-gate the build: the binary must run and exit 1 (its usage code) with no
-# args. Any other outcome — a panic, a crash, or an unexpected 0/2 — fails the
-# build here rather than shipping a broken binary.
-RUN /gorb 2>/dev/null; [ $? -eq 1 ]
+COPY *.go contract.yml ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gorb .
+# Build-stage sanity gate: the binary runs and prints its version.
+RUN /gorb --version
 
 FROM scratch
 COPY --from=build /gorb /gorb
 COPY <<EOF /etc/dfir-hardened
-user=dfir uid=2000
+schema=1
+tool=gorb
+user=dfir uid=2000 gid=2000
 static_binary=true
+shell=false python=false pkg_mgr=false
 EOF
-# Single run-as uid/gid, passed by the DX_DFIR image role (dxdfir_runtime_uid/gid)
-# so this scratch image honours the same fixed non-root USER as the .NET images.
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
+ARG TOOL_VERSION
+ARG GODFIR_REVISION
+ARG GODFIR_RELEASE
+ENV HOME=/tmp XDG_CACHE_HOME=/tmp/.cache
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gorb"]
 LABEL org.opencontainers.image.title="get-sybers/gorb" \
-      org.opencontainers.image.description="Linux-native Windows Recycle Bin (\$I) parser (static Go): parses v1 (Vista–8.0) and v2 (Win8.1/10/11) \$I metadata records to CSV/JSONL. FROM scratch: no shell, no python, no libc, runs as uid 2000." \
+      org.opencontainers.image.description="Windows Recycle Bin \$I parser (static Go): picks every v1 (Vista-8.0) and v2 (Win8.1/10/11) \$I record out of the input tree by header and writes SourceName, FileType, FileName, FileSize and DeletedOn as JSONL or CSV, one folder per record. Env-driven batch entrypoint; FROM scratch, runs as uid 2000." \
+      org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
       org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${TOOL_VERSION}" \
+      org.opencontainers.image.revision="${GODFIR_REVISION}" \
       com.get-sybers.tool="gorb" \
-      com.get-sybers.hardened="true"
+      com.get-sybers.hardened="true" \
+      com.get-sybers.contract="1" \
+      com.get-sybers.godfir-release="${GODFIR_RELEASE}" \
+      com.get-sybers.upstream="https://github.com/Get-Sybers/GoDFIR-toolz/tree/main/gorb"

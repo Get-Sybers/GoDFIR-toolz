@@ -1,0 +1,37 @@
+# gorb/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: gorb
+image: get-sybers/gorb:latest
+entrypoint: self-orchestrating
+description: >
+  Windows Recycle Bin $I record parser (static Go). Batches over the mounted
+  evidence tree, picks the $I metadata records out by their header (a
+  raw-mount $IXXXX and Plaso's renamed _IXXXX both match; $R payloads and
+  desktop.ini are skipped), and writes one record per $I file into one output
+  folder per file.
+
+env:
+  GORB_INPUT_DIR: {required: false, default: /input,  desc: evidence tree, recursed read-only; every file whose 24-byte header is a v1 or v2 $I record is an item, whatever its name}
+  GORB_OUT_DIR:   {required: false, default: /output, desc: output root, one folder per $I record}
+  GORB_WORK_DIR:  {required: false, default: /work,   desc: scratch (writable tmpfs); gorb needs none but honours it}
+  GORB_FORCE:     {required: false, default: "0", type: bool, desc: 1/true/yes/on reruns items that already have valid output}
+  GORB_FORMAT:    {required: false, default: json,    desc: record format, json (JSONL) or csv}
+  GORB_LOG_LEVEL: {required: false, default: info,    desc: error|warn|info|debug, stderr only}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GORB_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GORB_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GORB_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/gorb.jsonl (or gorb.csv) — one record per $I file (SourceName, FileType, FileName, FileSize, DeletedOn); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR | --tar (tar on stdin),
+  --json DIR --jsonf NAME | --csv DIR --csvf NAME, -q. Exit 0 ok / 1 usage,
+  fatal or no records / 2 at least one record failed.
