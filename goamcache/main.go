@@ -19,8 +19,15 @@
 // back to the committed hive with a one-line stderr note (never a hard fail).
 // Timestamps are RFC3339 (UTC), empty when absent.
 //
-// Exit codes: 0 = every hive parsed; 1 = usage or fatal error; 2 = at least one
-// file failed to parse (failures listed on stderr, the rest still emitted).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOAMCACHE_INPUT_DIR / GOAMCACHE_OUT_DIR / GOAMCACHE_FORCE /
+// GOAMCACHE_FORMAT, content-detects every Amcache hive under the input tree,
+// writes one output folder per hive and prints one JSON summary line. The argv
+// flags below are the debug pass-through.
+//
+// argv exit codes: 0 = every hive parsed; 1 = usage or fatal error; 2 = at
+// least one file failed to parse (failures listed on stderr, the rest still
+// emitted). Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -284,7 +291,82 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 	return os.Create(filepath.Join(dir, name))
 }
 
+// goamcacheTool binds the shared batch runtime to this tool.
+var goamcacheTool = batchTool{
+	name:     "goamcache",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// isAmcacheHive opens the committed hive and reports whether it carries the
+// Root\InventoryApplicationFile key, so batch discovery picks the Amcache hive
+// out of a tree by content rather than by name.
+func isAmcacheHive(p string) bool {
+	f, err := os.Open(p)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	reg, err := regparser.NewRegistry(f)
+	if err != nil {
+		return false
+	}
+	return reg.OpenKey(amcacheKey) != nil
+}
+
+// batchDiscover walks the input tree and keeps every regf hive that holds the
+// Amcache inventory key.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	files, err := collectInputs("", cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	var items []string
+	for _, p := range files {
+		if looksLikeHive(p) && isAmcacheHive(p) {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
+// batchEmitter builds the record emitter over w for the configured format:
+// JSONL, or CSV with its header row. The returned flush commits buffered CSV.
+func batchEmitter(w io.Writer, format string) (*emitter, func() error, error) {
+	if format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return nil, nil, err
+		}
+		return &emitter{cw: cw}, func() error { cw.Flush(); return cw.Error() }, nil
+	}
+	return &emitter{enc: json.NewEncoder(w)}, func() error { return nil }, nil
+}
+
+// batchProcess parses one Amcache hive (replaying sibling .LOG1/.LOG2 into the
+// work dir) into its record file.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	// regparser.RecoverHive writes its recovered copy under os.TempDir(), which
+	// honours $TMPDIR — point it at the work dir for the .LOG replay.
+	os.Setenv("TMPDIR", cfg.WorkDir)
+	e, flush, err := batchEmitter(w, cfg.Format)
+	if err != nil {
+		return 0, err
+	}
+	n, found, note, err := parseHive(item, e)
+	if err != nil {
+		return n, err
+	}
+	if !found {
+		return 0, fmt.Errorf("no %s key (not an Amcache hive)", amcacheKey)
+	}
+	cfg.logf(logDebug, "%s: %s", item, note)
+	return n, flush()
+}
+
 func main() {
+	runFrameworkEntry(goamcacheTool)
 	var (
 		file    = flag.String("f", "", "single Amcache.hve to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for a hive (by regf signature)")
