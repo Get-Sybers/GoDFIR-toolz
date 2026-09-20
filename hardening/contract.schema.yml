@@ -1,0 +1,93 @@
+# hardening/contract.schema.yml — the JSON Schema (as YAML) every <tool>/contract.yml
+# validates against (docs/framework/03 §3.7, 06 §6.5). conform.sh applies it when
+# python3 has jsonschema + PyYAML; verify-all.sh / CI apply it unconditionally.
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://github.com/Get-Sybers/GoDFIR-toolz/hardening/contract.schema.yml"
+title: GoDFIR-toolz tool contract (contract schema version 1)
+type: object
+additionalProperties: true
+required: [tool, image, entrypoint, description, env, mounts, exit_codes, summary_schema, outputs]
+properties:
+  tool:
+    type: string
+    pattern: "^[a-z][a-z0-9-]*$"
+    description: the tool name; equals com.get-sybers.tool, the directory name and the images.yml entry
+  image:
+    type: string
+    pattern: "^get-sybers/[a-z][a-z0-9-]*:[A-Za-z0-9._-]+$"
+  entrypoint:
+    enum: [self-orchestrating, multi-tool, argv]
+  description:
+    type: string
+    minLength: 1
+  subtools:
+    type: array
+    items: {type: string, pattern: "^[a-z][a-z0-9_-]*$"}
+    description: the sub-tool names of a multi-tool image, in dispatch order
+  env:
+    type: object
+    description: every variable the tool reads, keyed by its SCREAMING_SNAKE_CASE name (multi-tool images group them per sub-tool prefix)
+    propertyNames:
+      pattern: "^[A-Z][A-Z0-9_]*$"
+    additionalProperties:
+      type: object
+      required: [required, default, desc]
+      additionalProperties: false
+      properties:
+        required: {type: boolean}
+        default: {type: [string, number, boolean, "null"]}
+        type: {enum: [string, bool, int, path, list]}
+        desc: {type: string, minLength: 1}
+  mounts:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [name, path, mode, required]
+      additionalProperties: true
+      properties:
+        name: {type: string}
+        path: {type: string, pattern: "^/"}
+        mode: {enum: [ro, rw]}
+        env: {type: string, description: the variable that overrides the path inside the container}
+        required: {type: boolean}
+        desc: {type: string}
+  network:
+    enum: [none, optional]
+    default: none
+  exit_codes:
+    type: object
+    required: ["0", "1", "2"]
+    propertyNames: {pattern: "^[0-9]+$"}
+    additionalProperties: {type: string}
+  summary_schema:
+    type: object
+    required: [required]
+    properties:
+      required:
+        type: array
+        minItems: 1
+        items: {type: string}
+        description: the keys every stdout summary line carries
+      note: {type: string}
+  outputs:
+    type: object
+    description: the on-disk layout under the output root (per sub-tool for a multi-tool image)
+    minProperties: 1
+  hardening:
+    type: object
+    description: the declared /etc/dfir-hardened deviations of a Shape-B image and their justification
+    properties:
+      declared:
+        type: object
+        properties:
+          shell: {type: boolean}
+          python: {type: boolean}
+          static_binary: {type: boolean}
+      justification: {type: string}
+  argv_passthrough:
+    type: string
+    description: the debug-only argv mode, never used by the consumer
+  components:
+    type: object
+    description: tools built into this image that have no image of their own

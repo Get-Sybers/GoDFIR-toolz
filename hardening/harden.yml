@@ -25,6 +25,18 @@
 #   harden_gid             fixed gid                 (default: harden_uid)
 #   harden_remove_pkg_mgr  remove apt/dpkg + pip     (default true)
 #   harden_extra_remove    image-specific paths to delete (default [])
+#   harden_tool            the tool name recorded in /etc/dfir-hardened
+#                          (equals the com.get-sybers.tool label)
+#   harden_static_binary   the entrypoint is a static binary with no libc
+#                          (default false — Shape B keeps glibc)
+#   harden_shell           the image intentionally keeps a shell (default false;
+#                          a declared deviation the Dockerfile header justifies)
+#   harden_python          the image intentionally keeps python (default false)
+#
+# The /etc/dfir-hardened record it writes is the framework's schema=1
+# self-declaration (docs/framework/05 §5.6); the gate asserts the shell/python
+# booleans against the built filesystem, so a Dockerfile that removes the
+# shell after this playbook declares shell=false here.
 - name: Harden the image filesystem
   hosts: localhost
   connection: local
@@ -35,6 +47,10 @@
     harden_gid: "{{ harden_uid }}"
     harden_remove_pkg_mgr: true
     harden_extra_remove: []
+    harden_tool: unknown
+    harden_static_binary: false
+    harden_shell: false
+    harden_python: false
   tasks:
     - name: "harden | runtime group exists with a fixed gid"
       ansible.builtin.group:
@@ -158,11 +174,13 @@
         state: absent
       loop: "{{ harden_extra_remove }}"
 
-    - name: "harden | record the hardening contract"
+    - name: "harden | record the hardening self-declaration (schema=1)"
       ansible.builtin.copy:
         dest: /etc/dfir-hardened
         mode: "0444"
         content: |
+          schema=1
+          tool={{ harden_tool }}
           user={{ harden_user }} uid={{ harden_uid }} gid={{ harden_gid }}
-          root_renamed=ansible
-          pkg_mgr_removed={{ harden_remove_pkg_mgr | bool }}
+          static_binary={{ harden_static_binary | bool | lower }}
+          shell={{ harden_shell | bool | lower }} python={{ harden_python | bool | lower }} pkg_mgr={{ (not (harden_remove_pkg_mgr | bool)) | lower }}
