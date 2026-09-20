@@ -11,20 +11,24 @@ carries it as `com.get-sybers.engine-ref`. Python (`python3` + `python3-yaml`)
 stays as a declared deviation; every shell, ansible, apt, pip, sudo and setuid
 binaries are gone and the image runs as uid 2000.
 
-The ENTRYPOINT is the engine's `byakugan` console binary
-(`byakugan-entry.py`), a dispatcher on its first argument
-([`contract.yml`](contract.yml)):
+The ENTRYPOINT is the engine's own dispatcher, `byakugan.cli`
+(`byakugan-entry.py` is a shim that delegates to it), which selects the
+operation on its first argument ([`contract.yml`](contract.yml)). The
+sub-tool set and the processed-layout discovery are the engine's, so they
+follow the cloned ref:
 
 ```
 byakugan build        processed evidence tree -> one car.db per source
 byakugan timeline     a car tree               -> timeline.jsonl
+byakugan verify       a materialised car tree  -> the CAR correctness gate (verify.txt)
 byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
 ```
 
 ## Input
 
-- `build` walks `BYAKUGAN_BUILD_INPUT_DIR` (default `/input`, mounted read-only) as the engine's `--batch` root: every processed source under it is one item.
+- `build` walks `BYAKUGAN_BUILD_INPUT_DIR` (default `/input`, mounted read-only) as the engine's `--batch` root: every processed source under it is one item. The engine discovers the framework layouts (`windows_logs/<item>/goevtx.jsonl`, `jsonl/<source>/timeline.jsonl`, `godfir-toolz/<tool>/<item>/`, …).
 - `timeline` reads `BYAKUGAN_TIMELINE_INPUT_DIR` (default `/input`): a source's car directory, or a tree of them to aggregate — one item.
+- `verify` reads `BYAKUGAN_VERIFY_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` under it is one item.
 - `car-vocab` reads nothing.
 
 ## Env
@@ -46,6 +50,9 @@ byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
 | `BYAKUGAN_TIMELINE_BEFORE` | *(empty)* | only events at/before this ISO-8601 timestamp (`--before`) |
 | `BYAKUGAN_TIMELINE_ARGS` | *(empty)* | extra `byakugan.timeline` argv (`--objects-only`, `--edges-only`) |
 | `BYAKUGAN_TIMELINE_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
+| `BYAKUGAN_VERIFY_INPUT_DIR` | `/input` | the materialised CAR tree the gate reads |
+| `BYAKUGAN_VERIFY_OUT_DIR` | `/output` | where the report `verify.txt` is written; the default applies only when `/output` is a mounted, writable directory — otherwise the report goes to stderr alone and the gate still runs |
+| `BYAKUGAN_VERIFY_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
 
 ## Output
 
@@ -53,24 +60,30 @@ byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
 |---|---|---|
 | `build` | `<OUT_DIR>/<source>/car.db` (+ `superset.db` with `DERIVE`, `stix_bundle.json` with `STIX`); a source whose `car.db` exists is skipped unless `FORCE` | CAR events |
 | `timeline` | `<OUT_DIR>/timeline.jsonl`; skipped when it exists unless `FORCE` | timeline entries |
+| `verify` | `<OUT_DIR>/verify.txt` — the gate report (every check, the tally, the verdict), also on stderr; rewritten on every run | CAR rows read |
 | `car-vocab` | stdout: `{object: [car_actions]}` as one JSON line | — |
 
-For `build` and `timeline` stdout is exactly one JSON object: `tool`,
-`subtool`, `version`, `engine_ref`, `status`, `inputs`, `processed`,
+For `build`, `timeline` and `verify` stdout is exactly one JSON object:
+`tool`, `subtool`, `version`, `engine_ref`, `status`, `inputs`, `processed`,
 `skipped`, `failed`, `records`, `outputs`, `exit`, `started`, `duration_s`,
-`engine` (the engine's own summary: the per-source result list, or the
-entries/objects/relationships counts), plus `failures` when a source failed
-and `error` on a config error. The engine's own stdout is captured into
-`engine`; progress and errors go to stderr.
+`engine` (the engine's own summary: the per-source result list, the
+entries/objects/relationships counts, or verify's
+`passed`/`failed`/`not_exercised`/`os_families_covered`/`os_families_total`
+tally), plus `failures` when a source or a check failed and `error` on a
+config error. The engine's own stdout is captured into `engine`; progress,
+errors and the verify report go to stderr.
 
 ## Exit codes
 
 | Code | Status | Meaning |
 |---|---|---|
-| 0 | `ok` | every source processed, or already up to date |
-| 1 | `nothing` | no source produced events, no `car.db` found, or every source failed |
+| 0 | `ok` | every source processed, or already up to date; `verify`: the gate passed |
+| 1 | `nothing` | no source produced events, no `car.db` found, every source failed, or (`verify`) no materialised CAR under the input dir |
+| 1 | `failed` | `verify` only: the gate failed — `failed` counts the failed checks, `failures` names them |
 | 2 | `config_error` | no sub-tool named, bad variable, missing or unreadable input, unwritable output, an engine argument error |
 | 3 | `partial` | at least one source processed and at least one failed |
+
+`verify`'s verdict is its `status`: `ok` is the only pass.
 
 ## Run
 
@@ -84,19 +97,22 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   get-sybers/byakugan:latest build
 docker run --rm … -v "$PWD/car:/input:ro" -v "$PWD/timeline:/output" \
   get-sybers/byakugan:latest timeline
+docker run --rm … -v "$PWD/car:/input:ro" -v "$PWD/car:/output" \
+  get-sybers/byakugan:latest verify
 docker run --rm get-sybers/byakugan:latest car-vocab
 ```
 
 Builds with the repo root as context so `COPY hardening/harden.yml` consumes
 the canonical hardener directly. `test/contract_test.sh` builds the image,
-runs `build` over an empty processed tree and `car-vocab`, and asserts the
+runs `build` and `verify` over an empty tree and `car-vocab`, and asserts the
 summary line, the exit codes, idempotency and the config-error exit.
 
 ## argv pass-through (debug only)
 
 `byakugan timeline <car_dir> [--out …] [--host …] [--after …] [--before …]
-[--objects-only|--edges-only]` and `byakugan [build] --in FILE --out DIR
-[--host …] [--artefacts …] | --batch DIR [--out DIR] [--force] [--derive]
-[--stix]` run the engine's own CLI with its own stdout and exit code;
+[--objects-only|--edges-only]`, `byakugan verify [car_dir]` and `byakugan
+[build] --in FILE --out DIR [--host …] [--artefacts …] | --batch DIR [--out DIR]
+[--force] [--derive] [--stix]` run the engine's own CLI with its own stdout and
+exit code;
 `--version` prints the image version and the pinned engine ref, and
 `--print-contract` prints `contract.yml`.

@@ -83,9 +83,10 @@ the new labels and `contract.yml`, which every tool adds.
   and their siblings exist). Until ported, they conform through the shim and
   contract.
 - **byakugan** — Python CAR engine, dispatched on its first argument (build /
-  timeline / car-vocab), keeps Python. byakugan is a separate repository
-  cloned in at a pin; DX_DFIR only orchestrates and links out. *Work:* it is
-  already a dispatcher; add `contract.yml` (`entrypoint: multi-tool`,
+  timeline / verify / car-vocab) by the engine's own `byakugan.cli`, keeps
+  Python. byakugan is a separate repository cloned in at a pin; DX_DFIR only
+  orchestrates and links out. *Work:* it is already a dispatcher; add
+  `contract.yml` (`entrypoint: multi-tool`,
   `python=true`), single JSON summary, version labels, and the
   `com.get-sybers.engine-ref` label carrying the pinned ref. It is exempt from
   the Go self-orchestration expectation (it is an external engine).

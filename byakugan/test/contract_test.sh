@@ -6,7 +6,8 @@
 # nothing-to-do exit 1 with one JSON summary line carrying every summary_schema
 # key, reruns it (same result, no files), runs with a bad environment
 # (missing input mount) asserting exit 2, runs with no sub-tool named asserting
-# exit 2, and runs `car-vocab` asserting exit 0 and one JSON line.
+# exit 2, runs `car-vocab` asserting exit 0 and one JSON line, and runs `verify`
+# over an empty car tree asserting the nothing-to-do exit 1 with no report.
 #
 #   test/contract_test.sh                                   # docker build + run
 #   IMAGE=get-sybers/byakugan:latest test/contract_test.sh      # reuse a built image
@@ -85,5 +86,11 @@ check "$scratch/out4" 2 "$rc" config_error || { cat "$scratch/err4" >&2; exit 1;
 echo "== car-vocab: one JSON line, exit 0"
 rc=0; run car-vocab "$envfile" "$scratch/out5" "$scratch/err5" || rc=$?
 check "$scratch/out5" 0 "$rc" vocab || { cat "$scratch/err5" >&2; exit 1; }
+
+echo "== verify: empty car tree, expect exit 1 (nothing), no report written"
+printf 'BYAKUGAN_VERIFY_INPUT_DIR=/input\nBYAKUGAN_VERIFY_OUT_DIR=/output\nBYAKUGAN_VERIFY_LOG_LEVEL=info\n' >"$scratch/env-verify"
+rc=0; run verify "$scratch/env-verify" "$scratch/out6" "$scratch/err6" || rc=$?
+check "$scratch/out6" 1 "$rc" nothing || { cat "$scratch/err6" >&2; exit 1; }
+[[ ! -e "$output/verify.txt" ]] || { echo "FAIL verify wrote a report over an empty tree" >&2; exit 1; }
 
 echo "PASS byakugan contract test"
