@@ -39,9 +39,9 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | Variable | Default | Meaning |
 |---|---|---|
 | `BYAKUGAN_BUILD_INPUT_DIR` | `/input` | the processed-evidence tree (`--batch`) |
-| `BYAKUGAN_BUILD_OUT_DIR` | `/output` | the car/ root, one materialised source each (`--out`): the `car_*.jsonl` set plus its working store |
-| `BYAKUGAN_BUILD_FORCE` | `0` | `1/true/yes/on`: rebuild sources whose `car.db` exists (`--force`) |
-| `BYAKUGAN_BUILD_DERIVE` | `0` | also run the derived relationship pass into `superset.db` (`--derive`) |
+| `BYAKUGAN_BUILD_OUT_DIR` | `/output` | the car/ root, one materialised source each (`--out`): the `car_*.jsonl` set |
+| `BYAKUGAN_BUILD_FORCE` | `0` | `1/true/yes/on`: rebuild sources whose `car_relationships.jsonl` already exists (`--force`) |
+| `BYAKUGAN_BUILD_DERIVE` | `0` | also run the derived relationship pass into `car_inferred.jsonl` (`--derive`) |
 | `BYAKUGAN_BUILD_STIX` | `0` | also derive the STIX 2.1 bundle (`--stix`) |
 | `BYAKUGAN_BUILD_ARGS` | *(empty)* | extra `byakugan.pipeline` argv |
 | `BYAKUGAN_BUILD_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
@@ -68,14 +68,14 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | `BYAKUGAN_LOAD_NAMESPACE` | `default` | the Elastic data-stream namespace: `logs-car.<object>-<namespace>`, `logs-car.rel-<namespace>`, `logs-car.inferred-<namespace>` |
 | `BYAKUGAN_LOAD_SETUP` | `0` | `1/true/yes/on`: apply the rendered index/component templates before loading (and, with `_KIBANA_URL` set, import the Kibana saved objects), push mode only |
 | `BYAKUGAN_LOAD_FORCE` | `0` | `1/true/yes/on`: re-render bundles and, in push mode, re-push even when the manifest/load report already show the run complete |
-| `BYAKUGAN_LOAD_ARGS` | *(empty)* | extra `byakugan.load` argv |
+| `BYAKUGAN_LOAD_ARGS` | *(empty)* | extra `byakugan.elastic.load` argv |
 | `BYAKUGAN_LOAD_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
 
 ## Output
 
 | Sub-tool | Output | `records` |
 |---|---|---|
-| `build` | `<OUT_DIR>/<source>/car_<object>.jsonl` (13 CAR objects) + `car_relationships.jsonl` — the materialised CAR tree that `timeline`/`verify`/`load` and downstream ingest read; `car.db` (+ `superset.db` with `DERIVE`, `stix_bundle.json` with `STIX`) is the per-source working store the engine also keeps alongside it, for its own internal use; a source whose `car.db` exists is skipped unless `FORCE` | CAR events |
+| `build` | `<OUT_DIR>/<source>/car_<object>.jsonl` (13 CAR objects, populated ones only) + `car_relationships.jsonl` (always written, even empty — the done/skip marker) + `sources.yaml` — the materialised JSONL tree is the build's ONLY on-disk product, no `car.db` or `superset.db` anywhere; also `car_inferred.jsonl` with `DERIVE`, `stix_bundle.json` with `STIX`; this is what `timeline`/`verify`/`load` and downstream ingest read; a source whose `car_relationships.jsonl` already exists is skipped unless `FORCE` | CAR events |
 | `timeline` | `<OUT_DIR>/timeline.jsonl`; skipped when it exists unless `FORCE` | timeline entries |
 | `verify` | `<OUT_DIR>/verify.txt` — the gate report (every check, the tally, the verdict), also on stderr; written (replacing any earlier report) only when at least one materialised CAR source is found (status `ok` or `failed`) — an empty tree (status `nothing`) writes no report | CAR rows read |
 | `car-vocab` | stdout: `{object: [car_actions]}` as one JSON line | — |
@@ -97,7 +97,7 @@ and the verify/load reports go to stderr.
 | Code | Status | Meaning |
 |---|---|---|
 | 0 | `ok` | every source processed, or already up to date; `verify`: the gate passed |
-| 1 | `nothing` or `failed` | no output produced: no source produced events, no `car.db` found, every source failed, or no materialised CAR under the input dir (`nothing`) — or, `verify` only, the gate failed (`failed`: `failed` counts the failed checks, `failures` names them) |
+| 1 | `nothing` or `failed` | no output produced: no source produced events, no `car_relationships.jsonl` written, every source failed, or no materialised CAR under the input dir (`nothing`) — or, `verify` only, the gate failed (`failed`: `failed` counts the failed checks, `failures` names them) |
 | 2 | `config_error` | no sub-tool named, bad variable, missing or unreadable input, unwritable output, an engine argument error |
 | 3 | `partial` | at least one source processed and at least one failed |
 
