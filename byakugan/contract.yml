@@ -46,11 +46,15 @@ mounts:
   - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: 'HOME under a read-only rootfs (tmpfs)'}
 
 network: none
-exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+# Exit 1 is the general non-success of a run that produced no output: nothing
+# to do (status `nothing`) or, for verify, the gate failed (status `failed`).
+# A consumer reads the summary `status` to tell them apart, never the code
+# alone; 0 is the only pass for every sub-tool.
+exit_codes: {0: success, 1: nothing_or_failed, 2: config_error, 3: partial}
 
 summary_schema:
   required: [tool, subtool, version, engine_ref, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
-  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline, the passed/failed/not_exercised/os_families_covered/os_families_total tally for verify); car-vocab's stdout is the vocabulary JSON itself, one line. verify's `status` is the verdict: `ok` (exit 0, the gate passed), `failed` (exit 1, `failed` = the checks that failed, named in `failures`), `nothing` (exit 1, no materialised CAR under the input dir)"
+  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline, the passed/failed/not_exercised/os_families_covered/os_families_total tally for verify); car-vocab's stdout is the vocabulary JSON itself, one line. verify's `status` is the verdict and the only way to tell its two exit-1 outcomes apart: `ok` (exit 0, the gate passed), `failed` (exit 1, `failed` = the checks that failed, named in `failures`), `nothing` (exit 1, no materialised CAR under the input dir)"
 
 outputs:
   build:
@@ -58,7 +62,7 @@ outputs:
   timeline:
     layout: "<OUT_DIR>/timeline.jsonl — the property-rich, time-ordered CAR timeline of the input tree; records = entries; skipped when it exists unless FORCE"
   verify:
-    layout: "<OUT_DIR>/verify.txt — the gate report (every check, the tally, the verdict), also written to stderr; inputs = source directories holding materialised CAR, records = the CAR rows read; rewritten on every run; the verdict is `status` (ok|failed|nothing), exit 0 only when the gate passed"
+    layout: "<OUT_DIR>/verify.txt — the gate report (every check, the tally, the verdict), also written to stderr; written (replacing any earlier report) only when at least one materialised CAR source is found (status ok or failed) — an empty tree (status nothing) writes no report; inputs = source directories holding materialised CAR, records = the CAR rows read; the verdict is `status` (ok|failed|nothing), exit 0 only when the gate passed"
   car-vocab:
     layout: "stdout: {object: [car_actions]} as one JSON line"
 

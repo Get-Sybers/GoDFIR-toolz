@@ -60,7 +60,7 @@ byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
 |---|---|---|
 | `build` | `<OUT_DIR>/<source>/car.db` (+ `superset.db` with `DERIVE`, `stix_bundle.json` with `STIX`); a source whose `car.db` exists is skipped unless `FORCE` | CAR events |
 | `timeline` | `<OUT_DIR>/timeline.jsonl`; skipped when it exists unless `FORCE` | timeline entries |
-| `verify` | `<OUT_DIR>/verify.txt` — the gate report (every check, the tally, the verdict), also on stderr; rewritten on every run | CAR rows read |
+| `verify` | `<OUT_DIR>/verify.txt` — the gate report (every check, the tally, the verdict), also on stderr; written (replacing any earlier report) only when at least one materialised CAR source is found (status `ok` or `failed`) — an empty tree (status `nothing`) writes no report | CAR rows read |
 | `car-vocab` | stdout: `{object: [car_actions]}` as one JSON line | — |
 
 For `build`, `timeline` and `verify` stdout is exactly one JSON object:
@@ -78,12 +78,14 @@ errors and the verify report go to stderr.
 | Code | Status | Meaning |
 |---|---|---|
 | 0 | `ok` | every source processed, or already up to date; `verify`: the gate passed |
-| 1 | `nothing` | no source produced events, no `car.db` found, every source failed, or (`verify`) no materialised CAR under the input dir |
-| 1 | `failed` | `verify` only: the gate failed — `failed` counts the failed checks, `failures` names them |
+| 1 | `nothing` or `failed` | no output produced: no source produced events, no `car.db` found, every source failed, or no materialised CAR under the input dir (`nothing`) — or, `verify` only, the gate failed (`failed`: `failed` counts the failed checks, `failures` names them) |
 | 2 | `config_error` | no sub-tool named, bad variable, missing or unreadable input, unwritable output, an engine argument error |
 | 3 | `partial` | at least one source processed and at least one failed |
 
-`verify`'s verdict is its `status`: `ok` is the only pass.
+Exit 1 is the general non-success of a run that produced no output; `verify`
+uses it for both an empty tree and a failed gate, so a consumer reads the
+summary `status` — never the code alone — to tell `nothing` from `failed`.
+`ok` is the only pass.
 
 ## Run
 

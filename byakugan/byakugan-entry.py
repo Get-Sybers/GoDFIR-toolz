@@ -7,4 +7,5 @@ from its baked source tree (PYTHONPATH=/opt/byakugan); this file only
 delegates."""
 from byakugan.cli import main
 
-raise SystemExit(main())
+if __name__ == "__main__":
+    raise SystemExit(main())

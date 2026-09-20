@@ -85,11 +85,12 @@ the new labels and `contract.yml`, which every tool adds.
 - **byakugan** — Python CAR engine, dispatched on its first argument (build /
   timeline / verify / car-vocab) by the engine's own `byakugan.cli`, keeps
   Python. byakugan is a separate repository cloned in at a pin; DX_DFIR only
-  orchestrates and links out. *Work:* it is already a dispatcher; add
-  `contract.yml` (`entrypoint: multi-tool`,
-  `python=true`), single JSON summary, version labels, and the
-  `com.get-sybers.engine-ref` label carrying the pinned ref. It is exempt from
-  the Go self-orchestration expectation (it is an external engine).
+  orchestrates and links out. Conformant: the ENTRYPOINT delegates to the
+  engine dispatcher, `contract.yml` (`entrypoint: multi-tool`, `python=true`)
+  carries one env block per sub-tool, each run prints a single JSON summary,
+  and the image carries the version labels plus `com.get-sybers.engine-ref`
+  with the pinned ref. It is exempt from the Go self-orchestration expectation
+  (it is an external engine).
 
 ### Tier 3 — inventory reconciliation (not in `images.yml`)
 
