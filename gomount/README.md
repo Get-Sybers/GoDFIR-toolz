@@ -116,6 +116,7 @@ the `mount` verb additionally needs `--device /dev/fuse`.
 |---|---|
 | 0 | success |
 | 1 | usage or fatal error (unknown verb, missing image, unreadable volume, mount failure) |
+| 2 | unused — declared because the framework's uniform table requires it; gomount never exits 2 |
 
 ## Run
 

@@ -44,6 +44,7 @@ convention); `bstrings` prints to stdout. There is no JSON summary line.
 |---|---|
 | 0 | success |
 | 1 | the tool's own error |
+| 2 | unused — declared because the framework's uniform table requires it; the built tools never exit 2 |
 
 ## Run
 
