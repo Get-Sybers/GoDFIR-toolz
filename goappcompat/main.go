@@ -26,8 +26,16 @@
 // layout (the format on any modern image); a pre-Win8.1 hive whose cache uses
 // an older layout yields no entries rather than a mis-parse.
 //
-// Exit codes: 0 = parsed; 1 = usage or fatal error; 2 = at least one hive failed
-// (failures listed on stderr, the rest still emitted).
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOAPPCOMPAT_INPUT_DIR / GOAPPCOMPAT_OUT_DIR /
+// GOAPPCOMPAT_FORCE / GOAPPCOMPAT_FORMAT, content-detects every SYSTEM hive
+// with an AppCompatCache under the input tree, writes one output folder per
+// hive and prints one JSON summary line. The argv flags below are the debug
+// pass-through.
+//
+// argv exit codes: 0 = parsed; 1 = usage or fatal error; 2 = at least one hive
+// failed (failures listed on stderr, the rest still emitted). Batch mode uses
+// the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -272,7 +280,80 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 	return os.Create(filepath.Join(dir, name))
 }
 
+// goappcompatTool binds the shared batch runtime to this tool.
+var goappcompatTool = batchTool{
+	name:     "goappcompat",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// hasAppCompatCache opens the committed hive and reports whether its current
+// control set carries an AppCompatCache value, so batch discovery picks the
+// SYSTEM hive out of a tree by content rather than by name.
+func hasAppCompatCache(p string) bool {
+	f, err := os.Open(p)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	reg, err := regparser.NewRegistry(f)
+	if err != nil {
+		return false
+	}
+	return appCompatCacheData(reg, currentControlSet(reg)) != nil
+}
+
+// batchDiscover walks the input tree and keeps every regf hive that holds an
+// AppCompatCache value.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	files, err := collectInputs("", cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	var items []string
+	for _, p := range files {
+		if looksLikeHive(p) && hasAppCompatCache(p) {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
+// batchEmitter builds the record emitter over w for the configured format:
+// JSONL, or CSV with its header row. The returned flush commits buffered CSV.
+func batchEmitter(w io.Writer, format string) (*emitter, func() error, error) {
+	if format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return nil, nil, err
+		}
+		return &emitter{cw: cw}, func() error { cw.Flush(); return cw.Error() }, nil
+	}
+	return &emitter{enc: json.NewEncoder(w)}, func() error { return nil }, nil
+}
+
+// batchProcess parses one SYSTEM hive (replaying sibling .LOG1/.LOG2 into the
+// work dir) into its record file.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	e, flush, err := batchEmitter(w, cfg.Format)
+	if err != nil {
+		return 0, err
+	}
+	recs, err := parseHive(item, cfg.WorkDir, cfg.quiet())
+	if err != nil {
+		return 0, err
+	}
+	for _, r := range recs {
+		if err := e.emit(r); err != nil {
+			return 0, err
+		}
+	}
+	return len(recs), flush()
+}
+
 func main() {
+	runFrameworkEntry(goappcompatTool)
 	var (
 		file    = flag.String("f", "", "single SYSTEM hive to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for SYSTEM hives (by regf signature)")
