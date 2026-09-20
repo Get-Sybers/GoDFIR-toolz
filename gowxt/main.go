@@ -18,7 +18,14 @@
 // omitted rather than faked. Timestamps in ActivitiesCache.db are Unix epoch
 // seconds; they are rendered RFC3339 UTC (empty when zero).
 //
-// Exit codes: 0 = parsed; 1 = usage or fatal error; 2 = at least one DB failed.
+// With no arguments the binary runs the container-framework batch mode (see
+// batch.go): it reads GOWXT_INPUT_DIR / GOWXT_OUT_DIR / GOWXT_FORCE /
+// GOWXT_FORMAT, finds every ActivitiesCache database under the input tree,
+// writes one output folder per database and prints one JSON summary line. The
+// argv flags below are the debug pass-through.
+//
+// argv exit codes: 0 = parsed; 1 = usage or fatal error; 2 = at least one DB
+// failed. Batch mode uses the uniform 0/1/2/3 table.
 package main
 
 import (
@@ -397,7 +404,55 @@ func openOut(dir, name, defName string) (io.WriteCloser, error) {
 	return os.Create(filepath.Join(dir, name))
 }
 
+// gowxtTool binds the shared batch runtime to this tool.
+var gowxtTool = batchTool{
+	name:     "gowxt",
+	formats:  []string{"json", "csv"},
+	discover: batchDiscover,
+	process:  batchProcess,
+}
+
+// batchDiscover walks the input tree and keeps every SQLite database that
+// carries an Activity table — the same selection -d applies.
+func batchDiscover(cfg *batchConfig) ([]string, error) {
+	files, err := collectInputs("", cfg.InputDir)
+	if err != nil {
+		return nil, err
+	}
+	var items []string
+	for _, p := range files {
+		if looksLikeSQLite(p) && hasActivityTable(p) {
+			items = append(items, p)
+		}
+	}
+	return items, nil
+}
+
+// batchProcess dumps one database's Activity table into its record file,
+// working from a copy in the work dir.
+func batchProcess(cfg *batchConfig, item, _ string, w io.Writer) (int, error) {
+	var emit func(*record) error
+	flush := func() error { return nil }
+	if cfg.Format == "csv" {
+		cw := csv.NewWriter(w)
+		if err := cw.Write(csvHeader); err != nil {
+			return 0, err
+		}
+		emit = func(r *record) error { return cw.Write(r.csvRow()) }
+		flush = func() error { cw.Flush(); return cw.Error() }
+	} else {
+		enc := json.NewEncoder(w)
+		emit = func(r *record) error { return enc.Encode(r) }
+	}
+	n, err := parseDB(item, cfg.WorkDir, emit)
+	if err != nil {
+		return n, err
+	}
+	return n, flush()
+}
+
 func main() {
+	runFrameworkEntry(gowxtTool)
 	var (
 		file    = flag.String("f", "", "single ActivitiesCache.db to parse")
 		dir     = flag.String("d", "", "directory to scan recursively for ActivitiesCache.db")
