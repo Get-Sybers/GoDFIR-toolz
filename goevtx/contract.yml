@@ -10,12 +10,12 @@ description: >
   into one output folder per log.
 
 env:
-  GOEVTX_INPUT_DIR: {required: false, default: /input,  desc: evidence tree, recursed read-only; every file with the .evtx extension or the ElfFile signature is an item}
-  GOEVTX_OUT_DIR:   {required: false, default: /output, desc: output root, one folder per log}
-  GOEVTX_WORK_DIR:  {required: false, default: /work,   desc: scratch (writable tmpfs); goevtx needs none but honours it}
-  GOEVTX_FORCE:     {required: false, default: "0", type: bool, desc: 1/true/yes/on reruns items that already have valid output}
-  GOEVTX_FORMAT:    {required: false, default: json,    desc: record format; json (JSONL) is the only format}
-  GOEVTX_LOG_LEVEL: {required: false, default: info,    desc: error|warn|info|debug, stderr only}
+  GOEVTX_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every file with the .evtx extension or the ElfFile signature is an item'}
+  GOEVTX_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per log'}
+  GOEVTX_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); goevtx needs none but honours it'}
+  GOEVTX_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOEVTX_FORMAT:    {required: false, default: json,    desc: 'record format; json (JSONL) is the only format'}
+  GOEVTX_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOEVTX_INPUT_DIR, required: true}

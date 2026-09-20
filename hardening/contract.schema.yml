@@ -1,6 +1,10 @@
 # hardening/contract.schema.yml — the JSON Schema (as YAML) every <tool>/contract.yml
 # validates against (docs/framework/03 §3.7, 06 §6.5). conform.sh applies it when
 # python3 has jsonschema + PyYAML; verify-all.sh / CI apply it unconditionally.
+#
+# A contract is validated as JSON: the loaded YAML is round-tripped through JSON
+# first, so the paper's `exit_codes: {0: success, …}` form (integer keys in YAML)
+# arrives as the string-keyed object this schema describes.
 $schema: "https://json-schema.org/draft/2020-12/schema"
 $id: "https://github.com/Get-Sybers/GoDFIR-toolz/hardening/contract.schema.yml"
 title: GoDFIR-toolz tool contract (contract schema version 1)
@@ -72,8 +76,21 @@ properties:
       note: {type: string}
   outputs:
     type: object
-    description: the on-disk layout under the output root (per sub-tool for a multi-tool image)
+    description: >
+      the on-disk layout under the output root: a single `layout` for a
+      self-orchestrating tool; one entry per sub-tool for a multi-tool image; one
+      entry per built image for an argv recipe that builds several (godfir-tool)
     minProperties: 1
+  images:
+    type: object
+    description: for a recipe that builds several images (godfir-tool), the built images and their argv shapes, keyed by image name; each has a matching entry under outputs
+    propertyNames: {pattern: "^[a-z][a-z0-9-]*$"}
+    additionalProperties:
+      type: object
+      required: [image, argv]
+      properties:
+        image: {type: string, pattern: "^get-sybers/[a-z][a-z0-9-]*:[A-Za-z0-9._-]+$"}
+        argv: {type: string}
   hardening:
     type: object
     description: the declared /etc/dfir-hardened deviations of a Shape-B image and their justification

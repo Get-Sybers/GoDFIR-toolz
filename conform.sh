@@ -270,9 +270,13 @@ PY
     # schema validation (only if schema + a validator exist)
     if [[ -f "$SCHEMA" ]]; then
         if python3 -c 'import jsonschema,yaml' 2>/dev/null; then
+            # The contract is validated as JSON: the YAML round-trips through json
+            # so integer keys (exit_codes: {0: success, …}) become the string keys
+            # the schema describes.
             if python3 - "$CONTRACT" "$SCHEMA" <<'PY' 2>/dev/null
-import sys, yaml, jsonschema
-c = yaml.safe_load(open(sys.argv[1])); s = yaml.safe_load(open(sys.argv[2]))
+import sys, json, yaml, jsonschema
+c = json.loads(json.dumps(yaml.safe_load(open(sys.argv[1]))))
+s = yaml.safe_load(open(sys.argv[2]))
 jsonschema.validate(c, s)
 PY
             then _p "contract.yml validates against $(basename "$SCHEMA")"

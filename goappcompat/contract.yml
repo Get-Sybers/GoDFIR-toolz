@@ -10,12 +10,12 @@ description: >
   entry into one output folder per hive.
 
 env:
-  GOAPPCOMPAT_INPUT_DIR: {required: false, default: /input,  desc: evidence tree, recursed read-only; every regf hive with an AppCompatCache value under its current ControlSet is an item, whatever its name}
-  GOAPPCOMPAT_OUT_DIR:   {required: false, default: /output, desc: output root, one folder per hive}
-  GOAPPCOMPAT_WORK_DIR:  {required: false, default: /work,   desc: scratch (writable tmpfs) for the recovered copy during .LOG replay; unusable = replay falls back to the committed hive}
-  GOAPPCOMPAT_FORCE:     {required: false, default: "0", type: bool, desc: 1/true/yes/on reruns items that already have valid output}
-  GOAPPCOMPAT_FORMAT:    {required: false, default: json,    desc: record format, json (JSONL) or csv}
-  GOAPPCOMPAT_LOG_LEVEL: {required: false, default: info,    desc: error|warn|info|debug, stderr only}
+  GOAPPCOMPAT_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every regf hive with an AppCompatCache value under its current ControlSet is an item, whatever its name'}
+  GOAPPCOMPAT_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per hive'}
+  GOAPPCOMPAT_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs) for the recovered copy during .LOG replay; unusable = replay falls back to the committed hive'}
+  GOAPPCOMPAT_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOAPPCOMPAT_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GOAPPCOMPAT_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOAPPCOMPAT_INPUT_DIR, required: true}

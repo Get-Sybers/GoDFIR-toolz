@@ -17,28 +17,28 @@ engine:
 
 env:
   # --- build: processed evidence -> car.db per source (byakugan.pipeline --batch) ---
-  BYAKUGAN_BUILD_INPUT_DIR: {required: false, default: /input,  desc: the processed-evidence tree the engine batches over (its --batch root), read-only}
-  BYAKUGAN_BUILD_OUT_DIR:   {required: false, default: /output, desc: the car/ root the engine writes one store per source into (--out)}
-  BYAKUGAN_BUILD_FORCE:     {required: false, default: "0", type: bool, desc: 1/true/yes/on rebuilds sources whose car.db already exists (--force)}
-  BYAKUGAN_BUILD_DERIVE:    {required: false, default: "0", type: bool, desc: also run the derived relationship pass into superset.db (--derive)}
-  BYAKUGAN_BUILD_STIX:      {required: false, default: "0", type: bool, desc: also derive the STIX 2.1 bundle from the finished stores (--stix)}
-  BYAKUGAN_BUILD_ARGS:      {required: false, default: "",      desc: extra byakugan.pipeline argv, space-separated}
-  BYAKUGAN_BUILD_LOG_LEVEL: {required: false, default: info,    desc: error|warn|info|debug, stderr only}
+  BYAKUGAN_BUILD_INPUT_DIR: {required: false, default: /input,  desc: 'the processed-evidence tree the engine batches over (its --batch root), read-only'}
+  BYAKUGAN_BUILD_OUT_DIR:   {required: false, default: /output, desc: 'the car/ root the engine writes one store per source into (--out)'}
+  BYAKUGAN_BUILD_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on rebuilds sources whose car.db already exists (--force)'}
+  BYAKUGAN_BUILD_DERIVE:    {required: false, default: "0", type: bool, desc: 'also run the derived relationship pass into superset.db (--derive)'}
+  BYAKUGAN_BUILD_STIX:      {required: false, default: "0", type: bool, desc: 'also derive the STIX 2.1 bundle from the finished stores (--stix)'}
+  BYAKUGAN_BUILD_ARGS:      {required: false, default: "",      desc: 'extra byakugan.pipeline argv, space-separated'}
+  BYAKUGAN_BUILD_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- timeline: a car tree -> timeline.jsonl (byakugan.timeline) --------------------------
-  BYAKUGAN_TIMELINE_INPUT_DIR: {required: false, default: /input,  desc: a source's car directory, or a tree of them to aggregate, read-only}
-  BYAKUGAN_TIMELINE_OUT_DIR:   {required: false, default: /output, desc: where timeline.jsonl is written}
-  BYAKUGAN_TIMELINE_FORCE:     {required: false, default: "0", type: bool, desc: 1/true/yes/on rewrites an existing timeline.jsonl}
-  BYAKUGAN_TIMELINE_HOST:      {required: false, default: "",      desc: only events whose source_host matches (--host)}
-  BYAKUGAN_TIMELINE_AFTER:     {required: false, default: "",      desc: only events at/after this ISO-8601 timestamp (--after)}
-  BYAKUGAN_TIMELINE_BEFORE:    {required: false, default: "",      desc: only events at/before this ISO-8601 timestamp (--before)}
-  BYAKUGAN_TIMELINE_ARGS:      {required: false, default: "",      desc: extra byakugan.timeline argv, space-separated (e.g. --objects-only)}
-  BYAKUGAN_TIMELINE_LOG_LEVEL: {required: false, default: info,    desc: error|warn|info|debug, stderr only}
+  BYAKUGAN_TIMELINE_INPUT_DIR: {required: false, default: /input,  desc: "a source's car directory, or a tree of them to aggregate, read-only"}
+  BYAKUGAN_TIMELINE_OUT_DIR:   {required: false, default: /output, desc: 'where timeline.jsonl is written'}
+  BYAKUGAN_TIMELINE_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on rewrites an existing timeline.jsonl'}
+  BYAKUGAN_TIMELINE_HOST:      {required: false, default: "",      desc: 'only events whose source_host matches (--host)'}
+  BYAKUGAN_TIMELINE_AFTER:     {required: false, default: "",      desc: 'only events at/after this ISO-8601 timestamp (--after)'}
+  BYAKUGAN_TIMELINE_BEFORE:    {required: false, default: "",      desc: 'only events at/before this ISO-8601 timestamp (--before)'}
+  BYAKUGAN_TIMELINE_ARGS:      {required: false, default: "",      desc: 'extra byakugan.timeline argv, space-separated (e.g. --objects-only)'}
+  BYAKUGAN_TIMELINE_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- car-vocab: no variables; stdout is the vocabulary JSON ---------------------------------
 
 mounts:
   - {name: input,  path: /input,  mode: ro, env: BYAKUGAN_<SUBTOOL>_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: BYAKUGAN_<SUBTOOL>_OUT_DIR,   required: true}
-  - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: HOME under a read-only rootfs (tmpfs)}
+  - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: 'HOME under a read-only rootfs (tmpfs)'}
 
 network: none
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}

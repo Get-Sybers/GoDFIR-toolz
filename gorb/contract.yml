@@ -10,12 +10,12 @@ description: >
   folder per file.
 
 env:
-  GORB_INPUT_DIR: {required: false, default: /input,  desc: evidence tree, recursed read-only; every file whose 24-byte header is a v1 or v2 $I record is an item, whatever its name}
-  GORB_OUT_DIR:   {required: false, default: /output, desc: output root, one folder per $I record}
-  GORB_WORK_DIR:  {required: false, default: /work,   desc: scratch (writable tmpfs); gorb needs none but honours it}
-  GORB_FORCE:     {required: false, default: "0", type: bool, desc: 1/true/yes/on reruns items that already have valid output}
-  GORB_FORMAT:    {required: false, default: json,    desc: record format, json (JSONL) or csv}
-  GORB_LOG_LEVEL: {required: false, default: info,    desc: error|warn|info|debug, stderr only}
+  GORB_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every file whose 24-byte header is a v1 or v2 $I record is an item, whatever its name'}
+  GORB_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per $I record'}
+  GORB_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gorb needs none but honours it'}
+  GORB_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GORB_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GORB_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GORB_INPUT_DIR, required: true}

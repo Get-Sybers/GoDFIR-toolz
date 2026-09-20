@@ -11,17 +11,17 @@ description: >
 
 env:
   ANAMNESIS_MEMORY_DIR:     {required: false, default: /mem,     desc: "memory image tree, recursed read-only (symlinks ignored); images match by extension .raw .mem .dmp .lime .vmem .bin .dump .vmsn .crash or *dramimage — this is the input mount"}
-  ANAMNESIS_OUT_DIR:        {required: false, default: /out,     desc: output root, one folder per image (/ and spaces in the image name folded to _)}
-  ANAMNESIS_SYMBOLS_DIR:    {required: false, default: /symbols, desc: PDB/symbol cache, read-write}
-  ANAMNESIS_PLUGINS:        {required: false, default: "",       desc: comma-separated collector names; empty = the default CAR set}
-  ANAMNESIS_FORCE:          {required: false, default: "0", type: bool, desc: 1/true/yes/on reruns collectors that already have valid output}
-  ANAMNESIS_SYMBOLS_ONLINE: {required: false, default: "0", type: bool, desc: 1/true/yes/on allows network for the PDB fetch (the run needs --network then)}
+  ANAMNESIS_OUT_DIR:        {required: false, default: /out,     desc: 'output root, one folder per image (/ and spaces in the image name folded to _)'}
+  ANAMNESIS_SYMBOLS_DIR:    {required: false, default: /symbols, desc: 'PDB/symbol cache, read-write'}
+  ANAMNESIS_PLUGINS:        {required: false, default: "",       desc: 'comma-separated collector names; empty = the default CAR set'}
+  ANAMNESIS_FORCE:          {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns collectors that already have valid output'}
+  ANAMNESIS_SYMBOLS_ONLINE: {required: false, default: "0", type: bool, desc: '1/true/yes/on allows network for the PDB fetch (the run needs --network then)'}
 
 mounts:
   - {name: memory,  path: /mem,     mode: ro, env: ANAMNESIS_MEMORY_DIR,  required: true}
   - {name: output,  path: /out,     mode: rw, env: ANAMNESIS_OUT_DIR,     required: true}
   - {name: symbols, path: /symbols, mode: rw, env: ANAMNESIS_SYMBOLS_DIR, required: false}
-  - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: HOME and the cache under a read-only rootfs (tmpfs)}
+  - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: 'HOME and the cache under a read-only rootfs (tmpfs)'}
 
 network: optional        # none by default; needed only with ANAMNESIS_SYMBOLS_ONLINE=1
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}

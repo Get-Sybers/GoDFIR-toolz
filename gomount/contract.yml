@@ -13,10 +13,10 @@ description: >
 env: {}
 
 mounts:
-  - {name: evidence, path: /evidence, mode: ro, required: true,  desc: the disk image(s) named in argv}
-  - {name: output,   path: /output,   mode: rw, required: true,  desc: the --out directory of materialise (unused by the streaming and read verbs)}
-  - {name: fuse,     path: /dev/fuse, mode: rw, required: false, desc: device the mount verb needs (--device /dev/fuse); the userspace verbs need none}
-  - {name: mnt,      path: /mnt/ntfs, mode: rw, required: false, desc: the mount verb's default mount point}
+  - {name: evidence, path: /evidence, mode: ro, required: true,  desc: 'the disk image(s) named in argv'}
+  - {name: output,   path: /output,   mode: rw, required: true,  desc: 'the --out directory of materialise (unused by the streaming and read verbs)'}
+  - {name: fuse,     path: /dev/fuse, mode: rw, required: false, desc: 'device the mount verb needs (--device /dev/fuse); the userspace verbs need none'}
+  - {name: mnt,      path: /mnt/ntfs, mode: rw, required: false, desc: "the mount verb's default mount point"}
 
 network: none
 exit_codes: {0: success, 1: usage or fatal error, 2: unused}
