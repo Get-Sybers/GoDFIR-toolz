@@ -1,29 +1,29 @@
 # syntax=docker/dockerfile:1
-#
 # get-sybers/signatures — ONE hardened image for the whole detection lane:
-# YARA + Suricata + Hayabusa, plus the gomount→goyara userspace NTFS scan pipe.
-# It consolidates the former get-sybers/yara and get-sybers/suricata images AND
-# pulls Hayabusa off the host — Hayabusa used to run as an operator-supplied
-# native binary directly on the analyst host (a host-execution gap a
-# container-safety audit flagged); it now runs confined here.
-#
-# There is NO ENTRYPOINT: this is a multi-tool image (like get-sybers/plaso),
-# invoked as `container.run(IMAGE, [<tool>, <args>...])` — the caller names the
-# tool (the YARA scan loop, `suricata`, the baked `hayabusa`, or the
-# `gomount stream <image> | goyara --rules <ruleset>` pipe). A shell REMAINS
-# only for the YARA per-file scan loop (/opt/dxdfir/scan-list.sh), exactly as in
-# the former get-sybers/yara image.
+# YARA + Suricata + Hayabusa, plus the gomount→goyara userspace NTFS scan pipe,
+# fronted by signatures-entry, a static Go dispatcher (docs/framework 04 §4.3).
+# Multi-tool image: `signatures-entry <yara|suricata|hayabusa|scan>` with no
+# further arguments self-orchestrates that sub-tool from its
+# SIGNATURES_<SUBTOOL>_* env block (one output folder per item, one JSON
+# summary line); any other argv is passed through to the image's own tools
+# verbatim (yara, suricata, hayabusa, gomount, goyara, scan-list.sh, sh).
+# Shape B, declared deviations: shell=true (sh/dash stay for the legacy
+# per-file YARA loop /opt/dxdfir/scan-list.sh and the pass-through; bash is
+# removed) and static_binary=false (glibc for yara, suricata, hayabusa and
+# libyara). No python: the ruleset provisioners run at build time only.
 #
 #   docker build -t get-sybers/signatures:latest -f signatures/Dockerfile .
 ARG BASE=debian:trixie-slim
 ARG HAYABUSA_VERSION=4.1.0
 ARG GO_IMAGE=golang:trixie
+ARG TOOL_VERSION=0.2.0
+ARG GODFIR_REVISION=unknown
+ARG GODFIR_RELEASE=dev
 
 # gomount + goyara — the userspace NTFS→YARA pipe baked into this image. gomount
 # walks an NTFS disk image in-process and streams a tar of every file; goyara
 # reads that tar on stdin and scans each file with libyara. Both build from their
-# own top-level modules (the build context is the repo root); golang:trixie is
-# the latest Go toolchain.
+# own top-level modules (the build context is the repo root).
 
 # gomount is CGO-free (it only EXECs ntfs-3g for the mount backend; the stream
 # verb links nothing external), so it is a static binary.
@@ -49,6 +49,17 @@ COPY goyara/go.mod goyara/go.sum ./
 RUN go mod download
 COPY goyara/ ./
 RUN CGO_ENABLED=1 go build -trimpath -ldflags='-s -w' -o /out/goyara .
+
+# signatures-entry — the static dispatcher entrypoint (this directory's module).
+FROM ${GO_IMAGE} AS entry-build
+ARG TOOL_VERSION
+WORKDIR /src/signatures
+COPY signatures/go.mod signatures/go.sum ./
+RUN go mod download
+COPY signatures/*.go signatures/contract.yml ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /out/signatures-entry .
+# Build-stage sanity gate: the entrypoint runs and prints its version.
+RUN /out/signatures-entry --version
 
 FROM ${BASE} AS hardened
 ARG DFIR_UID=2000
@@ -79,6 +90,7 @@ RUN set -eux; \
     chmod 0755 /opt/dxdfir/hayabusa/hayabusa; \
     rm -rf /opt/dxdfir/hayabusa/rules/.git /tmp/hb.zip
 COPY signatures/scan-list.sh /opt/dxdfir/scan-list.sh
+COPY signatures/contract.yml /opt/dxdfir/contract.yml
 # Bake the pinned DetectRaptor YARA ruleset into the image: the vendored provisioner
 # downloads the pinned assets, verifies each sha256, and dedup-merges them into
 # /opt/dxdfir/yara-rules/detectraptor.yar at BUILD time (exactly what the pipeline's
@@ -99,10 +111,15 @@ RUN set -eux; \
     test -s /opt/dxdfir/suricata-rules/suricata.rules; \
     rm -f /tmp/suricata_rules.py
 COPY hardening/harden.yml /tmp/hardening/harden.yml
+# harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
+# values below: the shell stays (declared), python, bash and ansible go.
 RUN set -eux; \
     chmod 0755 /opt/dxdfir/scan-list.sh; \
+    chmod 0644 /opt/dxdfir/contract.yml; \
+    chmod -R a+rX /opt/dxdfir/yara-rules /opt/dxdfir/suricata-rules /opt/dxdfir/hayabusa; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
+      -e harden_tool=signatures -e harden_static_binary=false -e harden_shell=true -e harden_python=false \
       -e '{"harden_extra_remove": ["/usr/bin/suricata-update", "/usr/bin/suricatasc", "/usr/bin/suricatactl", "/var/lib/suricata/update"]}'; \
     # remove the build-time hardener + everything the tools do not need at runtime,
     # keeping sh/dash for the YARA scan loop (glibc/libgcc stay — Hayabusa's gnu
@@ -121,10 +138,24 @@ COPY --from=hardened / /
 # tool carries a setuid bit; both run as the fixed non-root uid below.
 COPY --from=gomount-build /out/gomount /usr/local/bin/gomount
 COPY --from=goyara-build  /out/goyara  /usr/local/bin/goyara
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp
+COPY --from=entry-build   /out/signatures-entry /usr/local/bin/signatures-entry
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    HOME=/tmp XDG_CACHE_HOME=/tmp/.cache
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
+ARG TOOL_VERSION
+ARG GODFIR_REVISION
+ARG GODFIR_RELEASE
 USER ${DFIR_UID}:${DFIR_GID}
+ENTRYPOINT ["/usr/local/bin/signatures-entry"]
 LABEL org.opencontainers.image.title="get-sybers/signatures" \
-      org.opencontainers.image.description="Minimal hardened detection lane (YARA + Suricata + Hayabusa, plus the gomount->goyara userspace NTFS scan pipe) for DX_DFIR: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid, no python, runs as a fixed non-root uid (default 2000); sh kept only for the YARA per-file scan loop. Multi-tool image (no ENTRYPOINT)." \
-      com.get-sybers.hardened="true"
+      org.opencontainers.image.description="The detection lane in one hardened image (YARA + Suricata + Hayabusa + the gomount->goyara userspace NTFS scan pipe) behind a static Go dispatcher: signatures-entry yara|suricata|hayabusa|scan self-orchestrates that sub-tool from its env block, one output folder per item, one JSON summary line. uid0 renamed+locked, no ansible/apt/pip/sudo/setuid, no python, runs as uid 2000; sh kept (declared) for the legacy per-file YARA loop." \
+      org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
+      org.opencontainers.image.licenses="MIT AND GPL-2.0-only AND GPL-3.0-only AND BSD-3-Clause" \
+      org.opencontainers.image.version="${TOOL_VERSION}" \
+      org.opencontainers.image.revision="${GODFIR_REVISION}" \
+      com.get-sybers.tool="signatures" \
+      com.get-sybers.hardened="true" \
+      com.get-sybers.contract="1" \
+      com.get-sybers.godfir-release="${GODFIR_RELEASE}" \
+      com.get-sybers.hayabusa.version="${HAYABUSA_VERSION}"
