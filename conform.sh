@@ -292,11 +292,56 @@ fi
 # ---- 5. README ↔ contract drift (03/06.5) ------------------------------------
 if [[ -f "$TOOL_DIR/README.md" && -f "$CONTRACT" ]]; then
     section "README ↔ contract (06.5)"
+    # 06.5 asserts README ↔ contract agreement on variables and exit codes; both
+    # are FAILs, since a README that omits or contradicts the contract misleads.
     missing=()
     while read -r v; do [[ -n "$v" ]] && ! grep -q "$v" "$TOOL_DIR/README.md" && missing+=("$v"); done \
         < <(grep -oE "^[[:space:]]+${PREFIX}_[A-Z0-9_]+" "$CONTRACT" | tr -d ' ')
     if (( ${#missing[@]} == 0 )); then _p "README mentions every contract env var"
-    else _w "README omits contract env vars: ${missing[*]}"; fi
+    else _f "README omits contract env vars: ${missing[*]} (06.5)"; fi
+
+    # Exit codes: every code the contract declares must be a row of the README's
+    # "Exit codes" table, and the table must not carry a code the contract does
+    # not declare. The contract's codes come from PyYAML when present, else from
+    # the flow-mapping line; the README rows are `| <code> | …` lines under the
+    # "Exit codes" heading (the whole file when there is no such heading).
+    mapfile -t c_codes < <(python3 - "$CONTRACT" <<'PY'
+import re, sys
+raw = open(sys.argv[1]).read()
+codes = None
+try:
+    import yaml
+    ec = (yaml.safe_load(raw) or {}).get("exit_codes") or {}
+    codes = sorted(str(k) for k in ec)
+except ModuleNotFoundError:
+    m = re.search(r"(?m)^exit_codes:\s*\{(.*)\}", raw)
+    codes = sorted(re.findall(r"(?:^|[{,])\s*\"?(\d+)\"?\s*:", m.group(1))) if m else []
+print("\n".join(codes))
+PY
+    )
+    mapfile -t r_codes < <(awk '
+        /^#+[[:space:]]/ { insec = ($0 ~ /[Ee]xit codes/); next }
+        insec && /^\|[[:space:]]*`?[0-9]+`?[[:space:]]*\|/ { print }
+    ' "$TOOL_DIR/README.md" | sed -E 's/^\|[[:space:]]*`?([0-9]+)`?.*/\1/' | sort -u)
+    if (( ${#r_codes[@]} == 0 )); then
+        mapfile -t r_codes < <(grep -E '^\|[[:space:]]*`?[0-9]+`?[[:space:]]*\|' "$TOOL_DIR/README.md" \
+            | sed -E 's/^\|[[:space:]]*`?([0-9]+)`?.*/\1/' | sort -u)
+    fi
+    if (( ${#c_codes[@]} == 0 )); then
+        _f "contract declares no exit_codes (06.5)"
+    elif (( ${#r_codes[@]} == 0 )); then
+        _f "README has no exit-code table (a '| <code> | …' row per contract code) (06.5)"
+    else
+        undoc=(); undecl=()
+        for c in "${c_codes[@]}"; do [[ " ${r_codes[*]} " == *" $c "* ]] || undoc+=("$c"); done
+        for c in "${r_codes[@]}"; do [[ " ${c_codes[*]} " == *" $c "* ]] || undecl+=("$c"); done
+        if (( ${#undoc[@]} == 0 && ${#undecl[@]} == 0 )); then
+            _p "README exit-code table matches contract exit_codes (${c_codes[*]})"
+        else
+            (( ${#undoc[@]} ))  && _f "README omits contract exit codes: ${undoc[*]} (06.5)"
+            (( ${#undecl[@]} )) && _f "README documents exit codes the contract does not declare: ${undecl[*]} (06.5)"
+        fi
+    fi
 fi
 
 # ---- 6. optional --build deep checks (06.2–06.4) -----------------------------
