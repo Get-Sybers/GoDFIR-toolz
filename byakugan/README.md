@@ -39,7 +39,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | Variable | Default | Meaning |
 |---|---|---|
 | `BYAKUGAN_BUILD_INPUT_DIR` | `/input` | the processed-evidence tree (`--batch`) |
-| `BYAKUGAN_BUILD_OUT_DIR` | `/output` | the car/ root, one store per source (`--out`) |
+| `BYAKUGAN_BUILD_OUT_DIR` | `/output` | the car/ root, one materialised source each (`--out`): the `car_*.jsonl` set plus its working store |
 | `BYAKUGAN_BUILD_FORCE` | `0` | `1/true/yes/on`: rebuild sources whose `car.db` exists (`--force`) |
 | `BYAKUGAN_BUILD_DERIVE` | `0` | also run the derived relationship pass into `superset.db` (`--derive`) |
 | `BYAKUGAN_BUILD_STIX` | `0` | also derive the STIX 2.1 bundle (`--stix`) |

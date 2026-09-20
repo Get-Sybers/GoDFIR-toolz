@@ -5,7 +5,8 @@ entrypoint: multi-tool
 description: >
   The external Byakugan MITRE CAR engine (python + a static Go parse binary),
   cloned recursively and baked at the pinned ref, behind the engine's own
-  dispatcher (byakugan.cli): `byakugan build` materialises CAR stores from a
+  dispatcher (byakugan.cli): `byakugan build` materialises the CAR tree (the
+  per-source JSONL sets, plus the engine's own working stores) from a
   processed evidence tree, `byakugan timeline` unions a car tree into one
   time-ordered timeline, `byakugan verify` runs the CAR correctness gate over
   a materialised tree, `byakugan car-vocab` prints the car_action vocabulary,
@@ -22,7 +23,7 @@ engine:
 env:
   # --- build: processed evidence -> the materialised CAR tree per source (byakugan.pipeline --batch) ---
   BYAKUGAN_BUILD_INPUT_DIR: {required: false, default: /input,  desc: 'the processed-evidence tree the engine batches over (its --batch root), read-only'}
-  BYAKUGAN_BUILD_OUT_DIR:   {required: false, default: /output, desc: 'the car/ root the engine writes one store per source into (--out)'}
+  BYAKUGAN_BUILD_OUT_DIR:   {required: false, default: /output, desc: 'the car/ root the engine writes one materialised source into (--out): the car_*.jsonl set plus its working store'}
   BYAKUGAN_BUILD_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on rebuilds sources whose car.db already exists (--force)'}
   BYAKUGAN_BUILD_DERIVE:    {required: false, default: "0", type: bool, desc: 'also run the derived relationship pass into superset.db (--derive)'}
   BYAKUGAN_BUILD_STIX:      {required: false, default: "0", type: bool, desc: 'also derive the STIX 2.1 bundle from the finished stores (--stix)'}
