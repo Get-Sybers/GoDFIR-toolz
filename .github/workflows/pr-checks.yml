@@ -1,0 +1,54 @@
+name: pr-checks
+
+# The framework gate on every PR, for every tool directory the PR touches:
+# conform.sh --build (white-paper layout/contract/hardening + the built
+# artifact) and cve-scan.sh (the zero-CVE gate) on the built image. This is
+# what validates an engine pin bump before it reaches any consumer's gitlink.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the tool directories this PR touches
+        id: tools
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          [ -n "$base" ] || base="$(git rev-parse HEAD~1)"
+          tools=""
+          for d in $(git diff --name-only "$base"...HEAD | cut -d/ -f1 | sort -u); do
+            [ -f "$d/Dockerfile" ] && tools="$tools $d"
+          done
+          echo "tools=${tools# }" >> "$GITHUB_OUTPUT"
+          echo "changed tool dirs:${tools:- none}"
+
+      - name: Install the CVE gate (syft + grype)
+        if: steps.tools.outputs.tools != ''
+        run: |
+          set -euo pipefail
+          curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+          curl -sSfL https://get.anchore.io/grype | sudo sh -s -- -b /usr/local/bin
+
+      - name: conform --build + cve-scan each touched tool
+        if: steps.tools.outputs.tools != ''
+        run: |
+          set -euo pipefail
+          for t in ${{ steps.tools.outputs.tools }}; do
+            echo "::group::conform --build $t"
+            ./conform.sh --build "$t"
+            echo "::endgroup::"
+            echo "::group::cve-scan get-sybers/$t"
+            ./cve-scan.sh "get-sybers/$t:latest"
+            echo "::endgroup::"
+          done
