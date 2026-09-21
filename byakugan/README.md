@@ -3,11 +3,12 @@
 The external [Byakugan](https://github.com/Get-Sybers/byakugan) MITRE CAR
 engine in one hardened python image (plus its static Go parse binary,
 `byakugan-parse`). The engine is cloned recursively at build time at
-`--build-arg BYAKUGAN_REF` — its nested `third_party/car` +
-`attack-datasources` submodules rebuild the object model — so the consuming
-DX_DFIR checkout holds nothing but how it invokes this image. DX_DFIR passes
-its `sources.yml` pin (the default here is `main`), and the built image
-carries it as `com.get-sybers.engine-ref`. Python (`python3` + `python3-yaml`)
+the `BYAKUGAN_REF` pin baked into the Dockerfile — its nested
+`third_party/car` + `attack-datasources` submodules rebuild the object model —
+so the consuming DX_DFIR checkout holds nothing but how it invokes this image.
+The Dockerfile's `ARG BYAKUGAN_REF` default is the ONE place the engine
+version is set (`--build-arg` overrides it), and the built image carries it as
+`com.get-sybers.engine-ref`. Python (`python3` + `python3-yaml`)
 stays as a declared deviation, and `ca-certificates` stays too (TLS trust for
 `load`'s push mode); every shell, ansible, apt, pip, sudo and setuid binaries
 are gone and the image runs as uid 2000.

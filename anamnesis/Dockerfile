@@ -20,9 +20,8 @@
 # variables, mounts, exit codes and output layout are declared in contract.yml.
 # Any argument switches to the single-image pass-through (`-f /input/<image> -o /out`).
 #
-#   docker build -t get-sybers/anamnesis:latest \
-#     --build-arg ANAMNESIS_REF=<40-hex sha> \
-#     -f anamnesis/Dockerfile .
+#   docker build -t get-sybers/anamnesis:latest -f anamnesis/Dockerfile .
+#   (--build-arg ANAMNESIS_REF=<40-hex sha> overrides the baked pin)
 #
 # The MemProcFS release (tag, asset filename and sha256) is pinned by the
 # MEMPROCFS_* ARG defaults below; override them only to move to a new release.
@@ -31,7 +30,9 @@
 ARG GO_VERSION=1.25
 ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
-ARG ANAMNESIS_REF=main
+# The anamnesis engine pin — the ONE place the engine version is set; consumers
+# (DX_DFIR included) build without a REF build-arg and inherit it.
+ARG ANAMNESIS_REF=acf6d22257d29ea6195dd40f88c59cf132a678a0
 # MemProcFS upstream release pin. The release TAG is major.minor (v5.18) but the
 # published asset filename carries the full patch version and a date stamp, so
 # the tag and the asset name are pinned as separate values. Bump all three (and
