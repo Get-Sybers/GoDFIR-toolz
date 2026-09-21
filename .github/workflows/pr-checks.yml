@@ -48,7 +48,9 @@ jobs:
             echo "::group::conform --build $t"
             ./conform.sh --build "$t"
             echo "::endgroup::"
-            echo "::group::cve-scan get-sybers/$t"
-            ./cve-scan.sh "get-sybers/$t:latest"
+            # conform --build tags its built artifact conform-check/<tool>:latest —
+            # the CVE gate scans exactly that build.
+            echo "::group::cve-scan conform-check/$t"
+            ./cve-scan.sh "conform-check/$t:latest"
             echo "::endgroup::"
           done

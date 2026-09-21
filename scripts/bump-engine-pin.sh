@@ -36,11 +36,14 @@ if [ -n "$ver" ]; then
   echo "TOOL_VERSION -> ${newver}"
 fi
 
-# The source merge's own PR message is the bump's message.
-title="$(gh api "repos/${SRC_REPO}/commits/${SRC_SHA}/pulls" --jq '.[0].title // empty')"
-body="$(gh api "repos/${SRC_REPO}/commits/${SRC_SHA}/pulls" --jq '.[0].body // empty')"
+# The source merge's own PR message is the bump's message. Reads of the engine
+# repo use SRC_GH_TOKEN when set (a public engine needs none beyond GH_TOKEN;
+# a private engine's workflow passes a token that can read it).
+src_api() { GH_TOKEN="${SRC_GH_TOKEN:-$GH_TOKEN}" gh api "$@"; }
+title="$(src_api "repos/${SRC_REPO}/commits/${SRC_SHA}/pulls" --jq '.[0].title // empty')"
+body="$(src_api "repos/${SRC_REPO}/commits/${SRC_SHA}/pulls" --jq '.[0].body // empty')"
 if [ -z "$title" ]; then
-  msg="$(gh api "repos/${SRC_REPO}/commits/${SRC_SHA}" --jq '.commit.message')"
+  msg="$(src_api "repos/${SRC_REPO}/commits/${SRC_SHA}" --jq '.commit.message')"
   title="${msg%%$'\n'*}"
   body="${msg#*$'\n'}"
   [ "$body" = "$msg" ] && body=""
