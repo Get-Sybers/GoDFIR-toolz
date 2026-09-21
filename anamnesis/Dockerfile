@@ -8,16 +8,17 @@
 # `-tags memprocfs` (still CGO_ENABLED=0 — purego). The MemProcFS vmm/leechcore
 # shared libraries are fetched from a pinned upstream release, sha256-verified,
 # and bundled at /opt/anamnesis/lib; the binary dlopen's them at runtime.
-# Shape B: glibc is kept because the .so need it (the one justified deviation);
-# no shell, no python, no package manager ship — the build-time hardener
+# Shape B: glibc + libusb-1.0 are kept because the MemProcFS .so need them
+# (the justified native deviations); no shell, no python, no package manager
+# ship — the build-time hardener
 # (ansible-core) runs in a throwaway install and is removed with python.
 #
 # Self-orchestrating, env-driven, run-once-exit (docs/framework 03/04): the
 # ENTRYPOINT is the anamnesis binary; with NO arguments it discovers every memory
-# image under ANAMNESIS_MEMORY_DIR, processes each into ANAMNESIS_OUT_DIR
+# image under ANAMNESIS_INPUT_DIR, processes each into ANAMNESIS_OUT_DIR
 # (idempotent per collector) and prints ONE JSON summary line on stdout. The
 # variables, mounts, exit codes and output layout are declared in contract.yml.
-# Any argument switches to the single-image pass-through (`-f /mem/<image> -o /out`).
+# Any argument switches to the single-image pass-through (`-f /input/<image> -o /out`).
 #
 #   docker build -t get-sybers/anamnesis:latest \
 #     --build-arg ANAMNESIS_REF=<40-hex sha> \
@@ -90,10 +91,10 @@ RUN set -eux; \
     fi
 
 # --- stage 4: hardened runtime -----------------------------------------------
-# glibc kept (the .so need it); the build-time hardener (ansible-core) is
+# glibc + libusb-1.0 kept (the .so need them); the build-time hardener (ansible-core) is
 # installed into a THROWAWAY dir and removed with python afterwards, so the
 # runtime holds no python, no pip, no apt, no shell — only the anamnesis binary,
-# the MemProcFS libraries and libc.
+# the MemProcFS libraries and the required native shared libraries.
 FROM ${BASE} AS hardened
 ARG DFIR_UID
 ARG DFIR_GID
@@ -105,7 +106,10 @@ COPY hardening/harden.yml /tmp/hardening/harden.yml
 # values below; the shell and python it declares absent are removed right after.
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends python3 python3-pip; \
+    apt-get install -y --no-install-recommends python3 python3-pip libusb-1.0-0; \
+    # keep libusb next to bundled MemProcFS libs so it survives scratch copy and resolves via LD_LIBRARY_PATH
+    cp -a /usr/lib/*/libusb-1.0.so.0* /opt/anamnesis/lib/ 2>/dev/null || \
+      cp -a "$(find / -name 'libusb-1.0.so.0*' 2>/dev/null | head -1)" /opt/anamnesis/lib/; \
     pip3 install --no-cache-dir --break-system-packages --target /tmp/ansible ansible-core; \
     chmod -R a+rX /opt/anamnesis; \
     PYTHONPATH=/tmp/ansible /tmp/ansible/bin/ansible-playbook -c local -i localhost, \
@@ -139,7 +143,7 @@ ENV PATH=/opt/anamnesis:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/opt/anamnesis/anamnesis"]
 LABEL org.opencontainers.image.title="get-sybers/anamnesis" \
-      org.opencontainers.image.description="Anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR memory lane: the engine cloned + built at the pinned ref (-tags memprocfs, CGO_ENABLED=0), the MemProcFS vmm/leechcore libraries bundled at a pinned, sha256-verified release. Self-orchestrating, env-driven batch over a mounted memory-image tree, one JSON summary line. Hardened: uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as uid 2000; glibc kept for the native libraries." \
+      org.opencontainers.image.description="Anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR memory lane: the engine cloned + built at the pinned ref (-tags memprocfs, CGO_ENABLED=0), the MemProcFS vmm/leechcore libraries bundled at a pinned, sha256-verified release. Self-orchestrating, env-driven batch over a mounted memory-image tree, one JSON summary line. Hardened: uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as uid 2000; glibc + libusb-1.0 kept for the native libraries." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/Anamnesis" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${TOOL_VERSION}" \
