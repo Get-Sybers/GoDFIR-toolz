@@ -44,7 +44,7 @@ ARG MEMPROCFS_SHA256=55648725838cae111c428131b619845b88fee45be61ea2d962e869ec0e8
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
 # The per-image version label: the engine release the pinned ref corresponds to.
-ARG TOOL_VERSION=2.0.0
+ARG TOOL_VERSION=2.0.1
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
