@@ -18,14 +18,15 @@
 # also stays in the runtime stage: TLS trust for the load sub-tool's push
 # mode (precedent: signatures/Dockerfile runtime stage).
 #
-#   docker build -t get-sybers/byakugan:latest \
-#     --build-arg BYAKUGAN_REF=<40-hex sha> -f byakugan/Dockerfile .
+#   docker build -t get-sybers/byakugan:latest -f byakugan/Dockerfile .
+#   (--build-arg BYAKUGAN_REF=<40-hex sha> overrides the baked pin)
 #
-# (DX_DFIR passes the pin from its sources.yml; default main here.)
+# The byakugan engine pin — the ONE place the engine version is set; consumers
+# (DX_DFIR included) build without a REF build-arg and inherit it.
 ARG BASE=debian:trixie-slim
 ARG GO_BASE=golang:1.24-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/byakugan
-ARG BYAKUGAN_REF=main
+ARG BYAKUGAN_REF=73e0575fc236c0162053eb3b88cd4310a3a1c0ff
 ARG TOOL_VERSION=0.1.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev

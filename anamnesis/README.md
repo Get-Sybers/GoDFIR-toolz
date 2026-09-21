@@ -3,8 +3,8 @@
 [Anamnesis](https://github.com/Get-Sybers/Anamnesis) (pure-Go memory
 forensics on [MemProcFS](https://github.com/ufrisk/MemProcFS)) in one
 hardened image — no Volatility, no Python. The engine source is cloned at
-build time at `--build-arg ANAMNESIS_REF` (DX_DFIR passes its `sources.yml`
-pin); the Go binary is built `-tags memprocfs` (CGO_ENABLED=0, purego) and the
+build time at the `ANAMNESIS_REF` pin baked into the Dockerfile — the ONE
+place the engine version is set (`--build-arg` overrides it); the Go binary is built `-tags memprocfs` (CGO_ENABLED=0, purego) and the
 MemProcFS `vmm`/`leechcore` shared libraries are fetched from a pinned,
 sha256-verified upstream release and bundled at `/opt/anamnesis/lib` alongside
 `libusb-1.0` so `leechcore.so` can load in the hardened runtime. glibc and
