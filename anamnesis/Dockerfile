@@ -108,8 +108,12 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends python3 python3-pip libusb-1.0-0; \
     # keep libusb next to bundled MemProcFS libs so it survives scratch copy and resolves via LD_LIBRARY_PATH
-    cp -a /usr/lib/*/libusb-1.0.so.0* /opt/anamnesis/lib/ 2>/dev/null || \
-      cp -a "$(find / -name 'libusb-1.0.so.0*' 2>/dev/null | head -1)" /opt/anamnesis/lib/; \
+    cp -a /usr/lib/*/libusb-1.0.so.0* /opt/anamnesis/lib/ 2>/dev/null || true; \
+    if ! find /opt/anamnesis/lib -maxdepth 1 -name 'libusb-1.0.so.0*' -print -quit | grep -q .; then \
+      libusb_path="$(find / -name 'libusb-1.0.so.0*' 2>/dev/null | head -1)"; \
+      test -n "$libusb_path"; \
+      cp -a "$libusb_path" /opt/anamnesis/lib/; \
+    fi; \
     pip3 install --no-cache-dir --break-system-packages --target /tmp/ansible ansible-core; \
     chmod -R a+rX /opt/anamnesis; \
     PYTHONPATH=/tmp/ansible /tmp/ansible/bin/ansible-playbook -c local -i localhost, \
