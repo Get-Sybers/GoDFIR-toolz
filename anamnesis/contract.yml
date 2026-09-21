@@ -16,7 +16,7 @@ env:
   ANAMNESIS_PLUGINS:        {required: false, default: "",       desc: 'comma-separated collector names; empty = the default CAR set'}
   ANAMNESIS_FORCE:          {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns collectors that already have valid output'}
   ANAMNESIS_SYMBOLS_ONLINE: {required: false, default: "0", type: bool, desc: '1/true/yes/on allows network for the PDB fetch (the run needs --network then)'}
-  ANAMNESIS_STALL_TIMEOUT:  {required: false, default: "5m", desc: 'per-collector stall watchdog, a Go duration (0 disables); a collector blocked in the native engine past it is recorded in plugins/<plugin>.stalled and the batch re-execs itself to resume — after two stalls the collector is skipped as failed'}
+  ANAMNESIS_STALL_TIMEOUT:  {required: false, default: "5m", desc: 'per-collector stall watchdog, a Go duration (0 disables); a collector blocked in the native engine past it is recorded in <OUT_DIR>/<clean image name>/plugins/<plugin>.stalled and the batch re-execs itself to resume — after two stalls the collector is skipped as failed'}
 
 mounts:
   - {name: input,   path: /input,   mode: ro, env: ANAMNESIS_INPUT_DIR,   required: true}
@@ -36,7 +36,7 @@ summary_schema:
     in the Anamnesis repository.
 
 outputs:
-  layout: "<OUT_DIR>/<clean image name>/plugins/<plugin>.jsonl (raw per-collector JSON Lines) + car.db (the CAR store byakugan consumes) + anamnesis.log; a collector whose .jsonl exists and whose first line parses as JSON is skipped unless ANAMNESIS_FORCE; plugins/<plugin>.stalled counts that collector's native-engine stalls (see ANAMNESIS_STALL_TIMEOUT)"
+  layout: "<OUT_DIR>/<clean image name>/plugins/<plugin>.jsonl (raw per-collector JSON Lines) + car.db (the CAR store byakugan consumes) + anamnesis.log; a collector whose .jsonl exists and whose first line parses as JSON is skipped unless ANAMNESIS_FORCE; <OUT_DIR>/<clean image name>/plugins/<plugin>.stalled counts that collector's native-engine stalls (see ANAMNESIS_STALL_TIMEOUT)"
 
 hardening:
   declared: {shell: false, python: false, static_binary: false}
