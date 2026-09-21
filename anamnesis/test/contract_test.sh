@@ -2,10 +2,10 @@
 # test/contract_test.sh — the framework conformance smoke test for the
 # anamnesis image (docs/framework 06.5). A memory image cannot be committed, so
 # the fixture set is empty: the test builds the image (unless IMAGE is given),
-# runs it in batch mode over an empty memory dir and asserts the exit code and
+# runs it in batch mode over an empty input dir and asserts the exit code and
 # that stdout is exactly one JSON line carrying every summary_schema key,
 # reruns to assert idempotency (no files appear), then runs with a bad
-# environment (missing memory mount) and asserts exit 2.
+# environment (missing input mount) and asserts exit 2.
 #
 #   test/contract_test.sh                                  # docker build + run
 #   IMAGE=get-sybers/anamnesis:latest test/contract_test.sh    # reuse a built image
@@ -19,12 +19,12 @@ command -v python3 >/dev/null 2>&1 || { echo "contract_test: python3 is required
 
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
-mem="$scratch/mem"; out="$scratch/out"; symbols="$scratch/symbols"
-mkdir -p "$mem" "$out" "$symbols"
-if [[ -d "$here/fixtures" ]]; then cp -R "$here/fixtures/." "$mem/"; fi
-rm -f "$mem/.keep"
-chmod -R a+rX "$mem"; chmod 777 "$out" "$symbols"
-expect=0   # the engine reports an empty memory dir as nothing-to-do with exit 0
+input="$scratch/input"; out="$scratch/out"; symbols="$scratch/symbols"
+mkdir -p "$input" "$out" "$symbols"
+if [[ -d "$here/fixtures" ]]; then cp -R "$here/fixtures/." "$input/"; fi
+rm -f "$input/.keep"
+chmod -R a+rX "$input"; chmod 777 "$out" "$symbols"
+expect=0   # the engine reports an empty input dir as nothing-to-do with exit 0
 
 IMAGE="${IMAGE:-contract-test/anamnesis:latest}"
 if [[ -z "${IMAGE_PREBUILT:-}" && "$IMAGE" == contract-test/* ]]; then
@@ -36,7 +36,7 @@ run() {
     local envfile="$1" so="$2" se="$3" rc=0
     docker run --rm --network none --read-only --tmpfs /tmp:rw,uid=2000,gid=2000 \
         --cap-drop ALL --security-opt no-new-privileges \
-        -v "$mem:/mem:ro" -v "$out:/out" -v "$symbols:/symbols" \
+        -v "$input:/input:ro" -v "$out:/out" -v "$symbols:/symbols" \
         --env-file "$envfile" "$IMAGE" >"$so" 2>"$se" || rc=$?
     return "$rc"
 }
@@ -59,9 +59,9 @@ PY
 }
 
 envfile="$scratch/env"
-printf 'ANAMNESIS_MEMORY_DIR=/mem\nANAMNESIS_OUT_DIR=/out\nANAMNESIS_SYMBOLS_DIR=/symbols\nANAMNESIS_FORCE=0\nANAMNESIS_SYMBOLS_ONLINE=0\n' >"$envfile"
+printf 'ANAMNESIS_INPUT_DIR=/input\nANAMNESIS_OUT_DIR=/out\nANAMNESIS_SYMBOLS_DIR=/symbols\nANAMNESIS_FORCE=0\nANAMNESIS_SYMBOLS_ONLINE=0\n' >"$envfile"
 
-echo "== 1. batch run over the memory dir, expect exit $expect"
+echo "== 1. batch run over the input dir, expect exit $expect"
 rc=0; run "$envfile" "$scratch/out1" "$scratch/err1" || rc=$?
 check "$scratch/out1" "$expect" "$rc" || { cat "$scratch/err1" >&2; exit 1; }
 before="$(cd "$out" && find . -type f | sort)"
@@ -72,8 +72,9 @@ check "$scratch/out2" "$expect" "$rc" || { cat "$scratch/err2" >&2; exit 1; }
 after="$(cd "$out" && find . -type f | sort)"
 [[ "$before" == "$after" ]] || { echo "FAIL rerun changed the output tree" >&2; exit 1; }
 
-echo "== 3. bad environment: missing memory mount, expect exit 2"
-sed 's|^ANAMNESIS_MEMORY_DIR=.*|ANAMNESIS_MEMORY_DIR=/does-not-exist|' "$envfile" >"$scratch/env-bad"
+echo "== 3. bad environment: missing input mount, expect exit 2"
+sed -e 's|^ANAMNESIS_INPUT_DIR=.*|ANAMNESIS_INPUT_DIR=/does-not-exist|' \
+    "$envfile" >"$scratch/env-bad"
 rc=0; run "$scratch/env-bad" "$scratch/out3" "$scratch/err3" || rc=$?
 check "$scratch/out3" 2 "$rc" || { cat "$scratch/err3" >&2; exit 1; }
 grep -q '"error"' "$scratch/out3" || { echo "FAIL config error summary lacks an error key" >&2; exit 1; }

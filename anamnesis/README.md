@@ -6,8 +6,9 @@ hardened image — no Volatility, no Python. The engine source is cloned at
 build time at `--build-arg ANAMNESIS_REF` (DX_DFIR passes its `sources.yml`
 pin); the Go binary is built `-tags memprocfs` (CGO_ENABLED=0, purego) and the
 MemProcFS `vmm`/`leechcore` shared libraries are fetched from a pinned,
-sha256-verified upstream release and bundled at `/opt/anamnesis/lib`. glibc is
-kept for the native libraries (the one declared deviation); python, apt, pip
+sha256-verified upstream release and bundled at `/opt/anamnesis/lib` alongside
+`libusb-1.0` so `leechcore.so` can load in the hardened runtime. glibc and
+libusb are kept for the native libraries (the declared deviations); python, apt, pip
 and every shell are stripped by the shared build-time hardener. Build it with
 `./build-all.sh anamnesis`.
 
@@ -20,7 +21,7 @@ summary line.
 
 ## Input
 
-`ANAMNESIS_MEMORY_DIR` (default `/mem`, mounted read-only) is walked
+`ANAMNESIS_INPUT_DIR` (default `/input`, mounted read-only) is walked
 recursively (symlinks ignored); every file matched by extension `.raw .mem
 .dmp .lime .vmem .bin .dump .vmsn .crash` or named `*dramimage` is one image.
 
@@ -28,7 +29,7 @@ recursively (symlinks ignored); every file matched by extension `.raw .mem
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ANAMNESIS_MEMORY_DIR` | `/mem` | memory image tree (recursed; symlinks ignored) — the input mount |
+| `ANAMNESIS_INPUT_DIR` | `/input` | memory image tree (recursed; symlinks ignored) — the input mount |
 | `ANAMNESIS_OUT_DIR` | `/out` | output root — one folder per image, `/` and spaces folded to `_` |
 | `ANAMNESIS_SYMBOLS_DIR` | `/symbols` | PDB/symbol cache (read-write) |
 | `ANAMNESIS_PLUGINS` | *(empty)* | comma-separated collector names; empty = the default CAR set |
@@ -43,7 +44,7 @@ byakugan consumes 1:1), and `<OUT_DIR>/<clean name>/anamnesis.log`.
 Idempotent per collector: a collector whose `.jsonl` exists and whose first
 line parses as JSON is skipped unless `ANAMNESIS_FORCE` is set.
 
-stdout is exactly one JSON object with `tool`, `memory_dir`, `out_dir`,
+stdout is exactly one JSON object with `tool`, `input_dir`, `out_dir`,
 `symbols_dir`, `symbols_online`, `force`, `images`, `plugins`, `processed`,
 `skipped`, `failed` and `results` (one entry per image), plus `error` on a
 config error. Progress goes to stderr.
@@ -62,7 +63,7 @@ config error. Progress goes to stderr.
 ```sh
 docker run --rm --network none --read-only --tmpfs /tmp \
   -e ANAMNESIS_PLUGINS= -e ANAMNESIS_FORCE=0 -e ANAMNESIS_SYMBOLS_ONLINE=0 \
-  -v "$mem_dir:/mem:ro" -v "$out:/out" -v "$symbols:/symbols" \
+  -v "$input_dir:/input:ro" -v "$out:/out" -v "$symbols:/symbols" \
   get-sybers/anamnesis:latest
 ```
 
@@ -79,5 +80,5 @@ exit.
 ## argv pass-through (debug only)
 
 Any argument switches to the engine's single-image mode:
-`… get-sybers/anamnesis -f /mem/<image> -o /out`; `--version` prints the
+`… get-sybers/anamnesis -f /input/<image> -o /out`; `--version` prints the
 engine version.

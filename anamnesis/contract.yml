@@ -10,7 +10,7 @@ description: >
   collector.
 
 env:
-  ANAMNESIS_MEMORY_DIR:     {required: false, default: /mem,     desc: "memory image tree, recursed read-only (symlinks ignored); images match by extension .raw .mem .dmp .lime .vmem .bin .dump .vmsn .crash or *dramimage — this is the input mount"}
+  ANAMNESIS_INPUT_DIR:      {required: false, default: /input,   desc: "memory image tree, recursed read-only (symlinks ignored); images match by extension .raw .mem .dmp .lime .vmem .bin .dump .vmsn .crash or *dramimage — this is the input mount"}
   ANAMNESIS_OUT_DIR:        {required: false, default: /out,     desc: 'output root, one folder per image (/ and spaces in the image name folded to _)'}
   ANAMNESIS_SYMBOLS_DIR:    {required: false, default: /symbols, desc: 'PDB/symbol cache, read-write'}
   ANAMNESIS_PLUGINS:        {required: false, default: "",       desc: 'comma-separated collector names; empty = the default CAR set'}
@@ -18,7 +18,7 @@ env:
   ANAMNESIS_SYMBOLS_ONLINE: {required: false, default: "0", type: bool, desc: '1/true/yes/on allows network for the PDB fetch (the run needs --network then)'}
 
 mounts:
-  - {name: memory,  path: /mem,     mode: ro, env: ANAMNESIS_MEMORY_DIR,  required: true}
+  - {name: input,   path: /input,   mode: ro, env: ANAMNESIS_INPUT_DIR,   required: true}
   - {name: output,  path: /out,     mode: rw, env: ANAMNESIS_OUT_DIR,     required: true}
   - {name: symbols, path: /symbols, mode: rw, env: ANAMNESIS_SYMBOLS_DIR, required: false}
   - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: 'HOME and the cache under a read-only rootfs (tmpfs)'}
@@ -27,7 +27,7 @@ network: optional        # none by default; needed only with ANAMNESIS_SYMBOLS_O
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
 
 summary_schema:
-  required: [tool, memory_dir, out_dir, symbols_dir, symbols_online, force, images, plugins, processed, skipped, failed, results]
+  required: [tool, input_dir, out_dir, symbols_dir, symbols_online, force, images, plugins, processed, skipped, failed, results]
   note: >
     The engine's summary line; `error` is added on a config error. The
     framework keys version, status and exit are not yet emitted and exit 3
@@ -39,9 +39,9 @@ outputs:
 
 hardening:
   declared: {shell: false, python: false, static_binary: false}
-  justification: "glibc is kept for the MemProcFS vmm.so / leechcore.so shared libraries the engine dlopen's; no shell, no python"
+  justification: "glibc + libusb-1.0 are kept for the MemProcFS vmm.so / leechcore.so shared libraries the engine dlopen's; no shell, no python"
 
 argv_passthrough: >
   Debug only, never used by DX_DFIR: any argument switches to the engine's
-  single-image mode, e.g. `-f /mem/<image> -o /out`; `--version` prints the
+  single-image mode, e.g. `-f /input/<image> -o /out`; `--version` prints the
   engine version.
