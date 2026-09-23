@@ -44,7 +44,7 @@ ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 # The anamnesis engine pin — the ONE place the engine version is set; consumers
 # (DX_DFIR included) build without a REF build-arg and inherit it.
-ARG ANAMNESIS_REF=0b0bfda424bba1c02acaf2845cf8c20fef561f35
+ARG ANAMNESIS_REF=d8663e612cbb469dd6da472154b997b06054b94a
 # The memory images the symbol bake seeds from: whitespace-separated
 # `url|sha256` entries (URLs percent-encoded, so entries never carry spaces).
 # An archive URL (.zip/.tar/.tgz/.tar.gz/.gz/.7z) is extracted and every
