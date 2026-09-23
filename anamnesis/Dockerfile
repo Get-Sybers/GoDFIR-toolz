@@ -17,13 +17,16 @@
 # point; the operator bind-mounts a persistent host directory there
 # read-write (contract mount `symbols`). MemProcFS uses <dir(vmm.so)>/Symbols
 # as its local symbol cache exactly when that directory is writable (pdb.c
-# PDB_Initialize_InitialValues), so the engine reads — and, as the offline
-# symbol-recovery tiers land (Anamnesis docs/design/symbol-recovery.md),
-# writes back — the cache directly in the mount, and it persists across runs.
-# Unmounted, the path is not writable by the runtime uid (root-owned 0755,
-# the container runs as uid 2000 — and the framework adds a read-only rootfs)
-# and MemProcFS falls back to /tmp; PDB-derived fields (command_line/sid/user)
-# then stay empty and the info.db subset carries the rest.
+# PDB_Initialize_InitialValues), and the engine keeps its self-taught
+# (GUID,age) offset store in anamnesis-offsets/ inside the same cache
+# (Anamnesis docs/design/symbol-recovery.md): recovered kernel offsets
+# persist and converge across runs. The engine also recovers command_line
+# and create_time from the image itself with no PDB at all (PEB-anchored
+# walk; in-memory ntoskrnl accessor disassembly). Unmounted, the path is not
+# writable by the runtime uid (root-owned 0755, the container runs as uid
+# 2000 — and the framework adds a read-only rootfs), so the cache and store
+# fall back to /tmp and evaporate with the container; sid/user stay empty
+# either way pending the engine's token scan.
 # Shape B: glibc + libusb-1.0 are kept because the MemProcFS .so need them
 # (the justified native deviations); no shell, no python, no package manager
 # ship — the build-time hardener
@@ -48,7 +51,7 @@ ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 # The anamnesis engine pin — the ONE place the engine version is set; consumers
 # (DX_DFIR included) build without a REF build-arg and inherit it.
-ARG ANAMNESIS_REF=d8663e612cbb469dd6da472154b997b06054b94a
+ARG ANAMNESIS_REF=e36cb419442620c5f71add27320bfaeee3fb7914
 # MemProcFS upstream release pin. The release TAG is major.minor (v5.18) but the
 # published asset filename carries the full patch version and a date stamp, so
 # the tag and the asset name are pinned as separate values. Bump all three (and

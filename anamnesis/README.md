@@ -62,17 +62,21 @@ is **writable** — otherwise it silently falls back to `/tmp` and the cache
 evaporates with the container. The image therefore ships
 `/opt/anamnesis/lib/Symbols` as an **empty mount point**: bind-mount a
 persistent host directory there read-write (the contract's `symbols` mount,
-writable by uid 2000) and MemProcFS reads — and, as the engine's offline
-symbol-recovery tiers land
-([symbol-recovery.md](https://github.com/Get-Sybers/Anamnesis/blob/main/docs/design/symbol-recovery.md)),
-writes back — the cache in place, so it accumulates across runs. The engine
+writable by uid 2000) and the cache accumulates across runs. The engine
 never downloads a PDB.
 
-The cache uses the symsrv layout (`<name>/<GUID+age>/<name>`), so PDBs
-obtained by any external means can be dropped straight in. Processing a build
-with no cached symbols still yields the whole kernel-`_EPROCESS` surface
-(via MemProcFS's bundled `info.db` subset), just with empty PDB-derived
-fields (`command_line`/`sid`/`user`).
+The cache holds two things: symsrv-layout PDBs (`<name>/<GUID+age>/<name>`,
+so PDBs obtained by any external means drop straight in) and
+`anamnesis-offsets/` — the engine's self-taught offset store
+([symbol-recovery.md](https://github.com/Get-Sybers/Anamnesis/blob/main/docs/design/symbol-recovery.md)):
+one JSON file per kernel build (keyed by CodeView GUID+age) of `_EPROCESS`
+offsets the engine disassembles out of the in-memory ntoskrnl, converging
+across runs until every readable accessor is covered.
+
+Processing a build with no cached symbols still recovers `command_line`
+(PEB-anchored walk of ProcessParameters) and `create_time` (the recovered
+kernel offset, gated on a System-process plausibility check) from the image
+itself; `sid`/`user` stay empty pending the engine's token scan.
 
 ## Exit codes
 
