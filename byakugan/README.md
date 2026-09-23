@@ -59,7 +59,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | `BYAKUGAN_VERIFY_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
 | `BYAKUGAN_LOAD_INPUT_DIR` | `/input` | the materialised CAR tree to load (`car_<object>.jsonl` + `car_relationships.jsonl` per source; `car_inferred.jsonl` and `car_content.jsonl` when the build ran `BYAKUGAN_BUILD_DERIVE`) |
 | `BYAKUGAN_LOAD_OUT_DIR` | `/output` | where the `elastic/` bulk bundles, `manifest.json` and the load report are written |
-| `BYAKUGAN_LOAD_ES_URL` | *(empty)* | empty = bundle mode, no network; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS — the explicit network opt-in, same shape as `ANAMNESIS_SYMBOLS_ONLINE` |
+| `BYAKUGAN_LOAD_ES_URL` | *(empty)* | empty = bundle mode, no network; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS — the explicit network opt-in behind this contract's `network: optional` |
 | `BYAKUGAN_LOAD_ES_API_KEY` | *(empty)* | Elasticsearch API key for push mode |
 | `BYAKUGAN_LOAD_ES_USER` | *(empty)* | Elasticsearch basic-auth username for push mode, paired with `_ES_PASSWORD`/`_ES_PASSWORD_FILE` |
 | `BYAKUGAN_LOAD_ES_PASSWORD` | *(empty)* | Elasticsearch basic-auth password for push mode; ignored when `_ES_PASSWORD_FILE` is set |

@@ -102,12 +102,20 @@ build_anamnesis() {
   # cloned at build time at ANAMNESIS_REF (default main here — DX_DFIR passes its
   # sources.yml pin). The MemProcFS libraries are fetched at MEMPROCFS_VERSION and
   # verified against MEMPROCFS_SHA256 when set. The batch ENTRYPOINT is built into
-  # the binary (no host wrapper).
+  # the binary (no host wrapper). The PDB symbol bake seeds from the Dockerfile's
+  # pinned ANAMNESIS_SEED_SOURCES; override it (whitespace-separated url|sha256
+  # entries — an array-safe extra arg, the values may carry spaces) to widen the
+  # baked Windows-build coverage. The seed stage needs network and ~6.5 GB of
+  # transient build disk on the first (uncached) build.
+  local seed_args=()
+  [[ -n "${ANAMNESIS_SEED_SOURCES:-}" ]] && \
+    seed_args=(--build-arg "ANAMNESIS_SEED_SOURCES=${ANAMNESIS_SEED_SOURCES}")
   echo "==> get-sybers/anamnesis (Go, MemProcFS memory forensics, env-driven batch)"
   docker build "${STAMP[@]}" -t get-sybers/anamnesis:latest \
     ${ANAMNESIS_REF:+--build-arg ANAMNESIS_REF="${ANAMNESIS_REF}"} \
     ${MEMPROCFS_VERSION:+--build-arg MEMPROCFS_VERSION="${MEMPROCFS_VERSION}"} \
     ${MEMPROCFS_SHA256:+--build-arg MEMPROCFS_SHA256="${MEMPROCFS_SHA256}"} \
+    ${seed_args[@]+"${seed_args[@]}"} \
     -f anamnesis/Dockerfile .
 }
 
