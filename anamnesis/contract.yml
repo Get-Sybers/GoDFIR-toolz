@@ -19,13 +19,14 @@ env:
 mounts:
   - {name: input,   path: /input,   mode: ro, env: ANAMNESIS_INPUT_DIR,   required: true}
   - {name: output,  path: /out,     mode: rw, env: ANAMNESIS_OUT_DIR,     required: true}
-  - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false, desc: 'persistent MemProcFS PDB/symbol cache (symsrv layout); MemProcFS reads and writes this directory exactly when it is writable — unmounted, it falls back to /tmp and PDB-derived fields (command_line/sid/user) stay empty'}
+  - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false, desc: 'persistent symbol cache: symsrv-layout PDBs (drop-in) plus the engine''s self-taught (GUID,age) offset store under anamnesis-offsets/; used exactly when writable — unmounted, both fall back to /tmp and evaporate with the container (command_line/create_time still recover from the image itself; sid/user stay empty pending the token scan)'}
   - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: 'HOME and the MemProcFS fallback symbol cache under a read-only rootfs (tmpfs)'}
 
 # Always offline: the engine never downloads PDBs (at build time or at
 # runtime) — there is no symbol variable and no legitimate network need.
-# Symbols live in the bind-mounted `symbols` cache, which the offline
-# symbol-recovery tiers populate (Anamnesis docs/design/symbol-recovery.md).
+# The bind-mounted `symbols` cache holds drop-in symsrv PDBs and the offset
+# store the engine's offline symbol-recovery tiers teach themselves
+# (Anamnesis docs/design/symbol-recovery.md).
 network: none
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
 
