@@ -47,7 +47,7 @@ env:
   # --- load: a materialised car tree -> the DX_DFIR Elastic stack (byakugan.elastic.load) ------
   BYAKUGAN_LOAD_INPUT_DIR:        {required: false, default: /input,  desc: 'the materialised CAR tree to load (car_<object>.jsonl + car_relationships.jsonl per source, any depth; car_inferred.jsonl and car_content.jsonl only when the build ran BYAKUGAN_BUILD_DERIVE), read-only'}
   BYAKUGAN_LOAD_OUT_DIR:          {required: false, default: /output, desc: 'where the elastic/ bulk bundles, manifest.json and the load report are written'}
-  BYAKUGAN_LOAD_ES_URL:           {required: false, default: "", desc: 'empty (default) selects bundle mode: no network, bundles are only rendered; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS. The explicit network opt-in, same shape as ANAMNESIS_SYMBOLS_ONLINE'}
+  BYAKUGAN_LOAD_ES_URL:           {required: false, default: "", desc: 'empty (default) selects bundle mode: no network, bundles are only rendered; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS. The explicit network opt-in — the one variable that makes this contract''s `network: optional` bridge a run'}
   BYAKUGAN_LOAD_ES_API_KEY:       {required: false, default: "", desc: 'Elasticsearch API key for push mode (Authorization: ApiKey ...)'}
   BYAKUGAN_LOAD_ES_USER:          {required: false, default: "", desc: 'Elasticsearch basic-auth username for push mode, paired with _ES_PASSWORD or _ES_PASSWORD_FILE'}
   BYAKUGAN_LOAD_ES_PASSWORD:      {required: false, default: "", desc: 'Elasticsearch basic-auth password for push mode; ignored when _ES_PASSWORD_FILE is set'}

@@ -43,7 +43,6 @@ These carry the same meaning in every tool:
 | input | **ro** | `/input` (or tool-specific, e.g. `/mem`) | evidence; never written |
 | output | rw | `/output` (or `/out`) | one subfolder per input item |
 | work | rw (tmpfs) | `/work` or `/tmp` | scratch; survives a `--read-only` rootfs |
-| symbols / aux | rw | tool-specific (`/symbols`) | optional caches (anamnesis PDB cache) |
 
 The runtime posture DX_DFIR applies, and which the contract assumes:
 
@@ -52,9 +51,12 @@ The runtime posture DX_DFIR applies, and which the contract assumes:
 --cap-drop ALL --security-opt no-new-privileges
 ```
 
-A tool that needs network access (anamnesis `SYMBOLS_ONLINE` for PDB fetch)
-gates it behind an explicit variable that defaults to off, and declares
-`network: optional` in its contract.
+A tool that needs network access (byakugan's `LOAD_ES_URL` push mode, which
+POSTs bundles to an Elastic stack) gates it behind an explicit variable that
+defaults to off, and declares `network: optional` in its contract. A cache a
+tool needs at runtime is a **baked image dependency**, never a network fetch:
+the anamnesis image seeds its MemProcFS PDB symbol cache at build time and
+runs fully offline.
 
 ## 3.5 Exit-code table
 
@@ -111,17 +113,14 @@ description: >
 env:
   ANAMNESIS_MEMORY_DIR: {required: false, default: /mem,      desc: memory image tree (recursed)}
   ANAMNESIS_OUT_DIR:    {required: false, default: /out,      desc: output root, one folder per image}
-  ANAMNESIS_SYMBOLS_DIR:{required: false, default: /symbols,  desc: PDB/symbol cache (rw)}
   ANAMNESIS_PLUGINS:    {required: false, default: "",        desc: comma-list of collectors; empty = default CAR set}
   ANAMNESIS_FORCE:      {required: false, default: "0",       type: bool, desc: rerun collectors with valid output}
-  ANAMNESIS_SYMBOLS_ONLINE:{required: false, default: "0",    type: bool, desc: allow network for PDB fetch}
 
 mounts:
   - {name: memory,  path: /mem,     mode: ro,  env: ANAMNESIS_MEMORY_DIR, required: true}
   - {name: output,  path: /out,     mode: rw,  env: ANAMNESIS_OUT_DIR,    required: true}
-  - {name: symbols, path: /symbols, mode: rw,  env: ANAMNESIS_SYMBOLS_DIR, required: false}
 
-network: optional        # none by default; enabled only when SYMBOLS_ONLINE=1
+network: none            # PDB symbols are baked into the image at build time
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
 
 summary_schema:          # keys on the single stdout JSON line
