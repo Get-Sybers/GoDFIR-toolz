@@ -45,7 +45,7 @@ env:
   BYAKUGAN_VERIFY_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- car-vocab: no variables; stdout is the vocabulary JSON ---------------------------------
   # --- load: a materialised car tree -> the DX_DFIR Elastic stack (byakugan.elastic.load) ------
-  BYAKUGAN_LOAD_INPUT_DIR:        {required: false, default: /input,  desc: 'the materialised CAR tree to load (car_<object>.jsonl + car_relationships.jsonl per source, any depth; car_inferred.jsonl only when the build ran BYAKUGAN_BUILD_DERIVE), read-only'}
+  BYAKUGAN_LOAD_INPUT_DIR:        {required: false, default: /input,  desc: 'the materialised CAR tree to load (car_<object>.jsonl + car_relationships.jsonl per source, any depth; car_inferred.jsonl and car_content.jsonl only when the build ran BYAKUGAN_BUILD_DERIVE), read-only'}
   BYAKUGAN_LOAD_OUT_DIR:          {required: false, default: /output, desc: 'where the elastic/ bulk bundles, manifest.json and the load report are written'}
   BYAKUGAN_LOAD_ES_URL:           {required: false, default: "", desc: 'empty (default) selects bundle mode: no network, bundles are only rendered; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS. The explicit network opt-in, same shape as ANAMNESIS_SYMBOLS_ONLINE'}
   BYAKUGAN_LOAD_ES_API_KEY:       {required: false, default: "", desc: 'Elasticsearch API key for push mode (Authorization: ApiKey ...)'}
@@ -54,7 +54,7 @@ env:
   BYAKUGAN_LOAD_ES_PASSWORD_FILE: {required: false, default: "", desc: 'file holding the Elasticsearch basic-auth password for push mode; wins over _ES_PASSWORD'}
   BYAKUGAN_LOAD_ES_CA_FILE:       {required: false, default: /certs/ca/ca.crt, desc: 'CA bundle used to verify the Elasticsearch TLS certificate in push mode; the default applies only when the certs mount is present, otherwise the system trust store is used'}
   BYAKUGAN_LOAD_KIBANA_URL:       {required: false, default: "", desc: 'empty (default) skips the Kibana saved-objects import; set = also import the rendered Kibana saved objects, push mode only, requires BYAKUGAN_LOAD_SETUP'}
-  BYAKUGAN_LOAD_NAMESPACE:        {required: false, default: default, desc: 'the Elastic data-stream namespace: logs-car.<object>-<namespace>, logs-car.rel-<namespace>, logs-car.inferred-<namespace>'}
+  BYAKUGAN_LOAD_NAMESPACE:        {required: false, default: default, desc: 'the Elastic data-stream namespace: logs-car.<object>-<namespace>, logs-car.rel-<namespace>, logs-car.inferred-<namespace>, logs-car.content-<namespace>'}
   BYAKUGAN_LOAD_SETUP:            {required: false, default: "0", type: bool, desc: '1/true/yes/on applies the rendered index/component templates before loading (and, with _KIBANA_URL set, imports the Kibana saved objects); push mode only'}
   BYAKUGAN_LOAD_FORCE:            {required: false, default: "0", type: bool, desc: '1/true/yes/on re-renders bundles and, in push mode, re-pushes even when the manifest/load report already show the run complete'}
   BYAKUGAN_LOAD_ARGS:             {required: false, default: "", desc: 'extra byakugan.elastic.load argv, space-separated'}
@@ -79,7 +79,7 @@ summary_schema:
 
 outputs:
   build:
-    layout: "<OUT_DIR>/<source>/car_<object>.jsonl (13 CAR objects, populated ones only) + car_relationships.jsonl (always written, even empty — the build's done/skip marker) + sources.yaml, one set per processed source — the materialised JSONL tree is the build's ONLY on-disk product, no car.db or superset.db anywhere; car_inferred.jsonl is also written with DERIVE, stix_bundle.json with STIX; this tree is what timeline/verify/load and downstream ingest read; records = CAR events; a source whose car_relationships.jsonl already exists is skipped unless FORCE"
+    layout: "<OUT_DIR>/<source>/car_<object>.jsonl (13 CAR objects, populated ones only) + car_relationships.jsonl (always written, even empty — the build's done/skip marker) + sources.yaml, one set per processed source — the materialised JSONL tree is the build's ONLY on-disk product, no car.db or superset.db anywhere; car_inferred.jsonl and car_content.jsonl are also written with DERIVE, stix_bundle.json with STIX; this tree is what timeline/verify/load and downstream ingest read; records = CAR events; a source whose car_relationships.jsonl already exists is skipped unless FORCE"
   timeline:
     layout: "<OUT_DIR>/timeline.jsonl — the property-rich, time-ordered CAR timeline of the input tree; records = entries; skipped when it exists unless FORCE"
   verify:
@@ -87,7 +87,7 @@ outputs:
   car-vocab:
     layout: "stdout: {object: [car_actions]} as one JSON line"
   load:
-    layout: "<OUT_DIR>/elastic/*.ndjson — one Elasticsearch _bulk NDJSON bundle per data stream (logs-car.<object>-<namespace> x13, logs-car.rel-<namespace>, logs-car.inferred-<namespace>) with a deterministic per-document _id; <OUT_DIR>/elastic/manifest.json — per-stream document counts, ids and each bundle sha256; <OUT_DIR>/load.txt — the human-readable load report, also written to stderr; bundle mode (BYAKUGAN_LOAD_ES_URL unset) only renders these, push mode (BYAKUGAN_LOAD_ES_URL set) also POSTs them, treats an already-indexed document (409) as already_present, and verifies per-stream counts; records = documents bundled or indexed; the deterministic ids make a re-render or re-push an idempotent no-op"
+    layout: "<OUT_DIR>/elastic/*.ndjson — one Elasticsearch _bulk NDJSON bundle per data stream (logs-car.<object>-<namespace> x13, logs-car.rel-<namespace>, logs-car.inferred-<namespace>, logs-car.content-<namespace>) with a deterministic per-document _id; <OUT_DIR>/elastic/manifest.json — per-stream document counts, ids and each bundle sha256; <OUT_DIR>/load.txt — the human-readable load report, also written to stderr; bundle mode (BYAKUGAN_LOAD_ES_URL unset) only renders these, push mode (BYAKUGAN_LOAD_ES_URL set) also POSTs them, treats an already-indexed document (409) as already_present, and verifies per-stream counts; records = documents bundled or indexed; the deterministic ids make a re-render or re-push an idempotent no-op"
 
 hardening:
   declared: {shell: false, python: true, static_binary: false}

@@ -26,7 +26,7 @@
 ARG BASE=debian:trixie-slim
 ARG GO_BASE=golang:1.24-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/byakugan
-ARG BYAKUGAN_REF=af6e464b3aae1eddfb3fa572f4ff7ca4ed79b36c
+ARG BYAKUGAN_REF=f77cd53c70b44bf156a2b07d820a6187303129b9
 ARG TOOL_VERSION=0.2.1
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
