@@ -19,7 +19,7 @@ env:
 mounts:
   - {name: input,   path: /input,   mode: ro, env: ANAMNESIS_INPUT_DIR,   required: true}
   - {name: output,  path: /out,     mode: rw, env: ANAMNESIS_OUT_DIR,     required: true}
-  - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false, desc: 'persistent symbol cache: symsrv-layout PDBs (drop-in) plus the engine''s self-taught (GUID,age) offset store under anamnesis-offsets/; used exactly when writable — unmounted, both fall back to /tmp and evaporate with the container (command_line/create_time still recover from the image itself; sid/user stay empty pending the token scan)'}
+  - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false, desc: 'persistent symbol cache: symsrv-layout PDBs (drop-in) plus the engine''s self-taught (GUID,age) offset store under anamnesis-offsets/; used exactly when writable — unmounted, both fall back to /tmp and evaporate with the container (command_line/create_time/sid/user still recover from the image itself)'}
   - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: 'HOME and the MemProcFS fallback symbol cache under a read-only rootfs (tmpfs)'}
 
 # Always offline: the engine never downloads PDBs (at build time or at
