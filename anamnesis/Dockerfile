@@ -1,51 +1,11 @@
 # syntax=docker/dockerfile:1
 # get-sybers/anamnesis — the Anamnesis memory-forensics engine (pure Go on
-# MemProcFS) in ONE hardened image: it parses a memory image natively and
-# renders flat per-plugin JSONL + a CAR store (car.db) for the DX_DFIR CAR lane.
-#
-# The engine SOURCE is cloned at build time at the pinned commit (ANAMNESIS_REF,
-# the ref DX_DFIR's sources.yml pins); the Go binary is built with
-# `-tags memprocfs` (still CGO_ENABLED=0 — purego). The MemProcFS shared
-# libraries (vmm/leechcore, libpdbcrust for the Linux PDB parser,
-# libMSCompression for Win10 compressed memory) are fetched from a pinned
-# upstream release, sha256-verified, and bundled at /opt/anamnesis/lib; the
-# binary dlopen's them at runtime.
-#
-# PDB SYMBOLS COME FROM THE BIND-MOUNTED CACHE: the engine is always offline
-# (no symbol variable, no PDB download, no container network — at build time
-# or at runtime). The image ships an EMPTY /opt/anamnesis/lib/Symbols mount
-# point; the operator bind-mounts a persistent host directory there
-# read-write (contract mount `symbols`). MemProcFS uses <dir(vmm.so)>/Symbols
-# as its local symbol cache exactly when that directory is writable (pdb.c
-# PDB_Initialize_InitialValues), and the engine keeps its self-taught
-# (GUID,age) offset store in anamnesis-offsets/ inside the same cache
-# (Anamnesis docs/design/symbol-recovery.md): recovered kernel offsets
-# persist and converge across runs. The engine also recovers command_line
-# and create_time from the image itself with no PDB at all (PEB-anchored
-# walk; in-memory ntoskrnl accessor disassembly). Unmounted, the path is not
-# writable by the runtime uid (root-owned 0755, the container runs as uid
-# 2000 — and the framework adds a read-only rootfs), so the cache and store
-# fall back to /tmp and evaporate with the container; sid/user stay empty
-# either way pending the engine's token scan.
-# Shape B: glibc + libusb-1.0 are kept because the MemProcFS .so need them
-# (the justified native deviations); no shell, no python, no package manager
-# ship — the build-time hardener
-# (ansible-core) runs in a throwaway install and is removed with python.
-#
-# Self-orchestrating, env-driven, run-once-exit (docs/framework 03/04): the
-# ENTRYPOINT is the anamnesis binary; with NO arguments it discovers every memory
-# image under ANAMNESIS_INPUT_DIR, processes each into ANAMNESIS_OUT_DIR
-# (idempotent per collector) and prints ONE JSON summary line on stdout. The
-# variables, mounts, exit codes and output layout are declared in contract.yml.
-# Any argument switches to the single-image pass-through (`-f /input/<image> -o /out`).
+# MemProcFS) in ONE hardened image, for the DX_DFIR memory lane. The runtime
+# interface (env, mounts, exit codes, output layout) is contract.yml; the
+# symbol-cache mount, offline recovery and hardening shape are README.md.
 #
 #   docker build -t get-sybers/anamnesis:latest -f anamnesis/Dockerfile .
 #   (--build-arg ANAMNESIS_REF=<40-hex sha> overrides the baked pin)
-#
-# The MemProcFS release (tag, asset filename and sha256) is pinned by the
-# MEMPROCFS_* ARG defaults below; override them only to move to a new release.
-# The upstream tag (v5.18) and the asset filename (v5.18.11 + a date stamp)
-# differ, so the tag and the full asset name are pinned separately.
 ARG GO_VERSION=1.25
 ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
@@ -135,10 +95,7 @@ COPY hardening/harden.yml /tmp/hardening/harden.yml
 # harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
 # values below; the shell and python it declares absent are removed right after.
 RUN set -eux; \
-    # the symbol-cache mount point: EMPTY, root-owned 0755 — not writable by
-    # the runtime uid 2000 until the operator bind-mounts a persistent host
-    # directory here read-write (contract mount `symbols`); MemProcFS then
-    # uses it directly.
+    # the symbol-cache mount point (contract mount `symbols`; README: Symbols)
     mkdir -p /opt/anamnesis/lib/Symbols; \
     apt-get update; \
     apt-get install -y --no-install-recommends python3 python3-pip libusb-1.0-0; \
