@@ -74,9 +74,11 @@ offsets the engine disassembles out of the in-memory ntoskrnl, converging
 across runs until every readable accessor is covered.
 
 Processing a build with no cached symbols still recovers `command_line`
-(PEB-anchored walk of ProcessParameters) and `create_time` (the recovered
-kernel offset, gated on a System-process plausibility check) from the image
-itself; `sid`/`user` stay empty pending the engine's token scan.
+(PEB-anchored walk of ProcessParameters), `create_time` (the recovered
+kernel offset, gated on a System-process plausibility check), and
+`sid`/`user` (the constraint-solved `_EPROCESS.Token`, its allocation swept
+for the user SID and named from the registry's SID→account table) from the
+image itself.
 
 ## Exit codes
 
