@@ -20,9 +20,10 @@
 # PDB_Initialize_InitialValues), so the engine reads — and, as the offline
 # symbol-recovery tiers land (Anamnesis docs/design/symbol-recovery.md),
 # writes back — the cache directly in the mount, and it persists across runs.
-# Unmounted, the path is read-only and MemProcFS falls back to /tmp; PDB-derived
-# fields (command_line/sid/user) then stay empty and the info.db subset carries
-# the rest.
+# Unmounted, the path is not writable by the runtime uid (root-owned 0755,
+# the container runs as uid 2000 — and the framework adds a read-only rootfs)
+# and MemProcFS falls back to /tmp; PDB-derived fields (command_line/sid/user)
+# then stay empty and the info.db subset carries the rest.
 # Shape B: glibc + libusb-1.0 are kept because the MemProcFS .so need them
 # (the justified native deviations); no shell, no python, no package manager
 # ship — the build-time hardener
@@ -131,9 +132,10 @@ COPY hardening/harden.yml /tmp/hardening/harden.yml
 # harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
 # values below; the shell and python it declares absent are removed right after.
 RUN set -eux; \
-    # the symbol-cache mount point: EMPTY and read-only in the image; the
-    # operator bind-mounts a persistent host directory here read-write
-    # (contract mount `symbols`) and MemProcFS uses it directly.
+    # the symbol-cache mount point: EMPTY, root-owned 0755 — not writable by
+    # the runtime uid 2000 until the operator bind-mounts a persistent host
+    # directory here read-write (contract mount `symbols`); MemProcFS then
+    # uses it directly.
     mkdir -p /opt/anamnesis/lib/Symbols; \
     apt-get update; \
     apt-get install -y --no-install-recommends python3 python3-pip libusb-1.0-0; \

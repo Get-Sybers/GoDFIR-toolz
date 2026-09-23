@@ -32,7 +32,7 @@ gate exercises ([§6.5](06-verification-gate.md)).
 ## 4.2 The argv pass-through (debug only)
 
 When the entrypoint is invoked *with* arguments it MAY switch to a single-item
-mode (anamnesis: `anamnesis -f /mem/<img> -o /out`; the Go tools: `-d`, `-f`,
+mode (anamnesis: `anamnesis -f /input/<img> -o /out`; the Go tools: `-d`, `-f`,
 `--json`). This mode exists for interactive debugging and for lanes that want
 per-item parallelism under an operator's hand. The consumer never uses it: the
 batch mode is the interface DX_DFIR drives, and argv is demoted to a debug

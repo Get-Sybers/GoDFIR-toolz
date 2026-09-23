@@ -19,9 +19,8 @@ variable overrides the default. `anamnesis` is the reference.
   `ANAMNESIS_OUT_DIR`, `GOMFT_INPUT_DIR`. The tool name matches the
   `com.get-sybers.tool` label and the `images.yml` entry.
 - A tool MAY use a domain-specific name for its input mount when that reads more
-  clearly (anamnesis uses `ANAMNESIS_MEMORY_DIR` rather than
-  `ANAMNESIS_INPUT_DIR`), and MUST then document it as the input mount in
-  `contract.yml`.
+  clearly (e.g. `<TOOL>_MEMORY_DIR` rather than `<TOOL>_INPUT_DIR`), and MUST
+  then document it as the input mount in `contract.yml`.
 
 ## 3.3 Reserved cross-tool variables
 
@@ -112,13 +111,13 @@ description: >
   tree, one output folder per image.
 
 env:
-  ANAMNESIS_MEMORY_DIR: {required: false, default: /mem,      desc: memory image tree (recursed)}
+  ANAMNESIS_INPUT_DIR:  {required: false, default: /input,    desc: memory image tree (recursed)}
   ANAMNESIS_OUT_DIR:    {required: false, default: /out,      desc: output root, one folder per image}
   ANAMNESIS_PLUGINS:    {required: false, default: "",        desc: comma-list of collectors; empty = default CAR set}
   ANAMNESIS_FORCE:      {required: false, default: "0",       type: bool, desc: rerun collectors with valid output}
 
 mounts:
-  - {name: memory,  path: /mem,     mode: ro,  env: ANAMNESIS_MEMORY_DIR, required: true}
+  - {name: input,   path: /input,   mode: ro,  env: ANAMNESIS_INPUT_DIR,  required: true}
   - {name: output,  path: /out,     mode: rw,  env: ANAMNESIS_OUT_DIR,    required: true}
   - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false}
 
