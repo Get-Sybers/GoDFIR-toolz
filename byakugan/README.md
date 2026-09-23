@@ -33,7 +33,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 - `timeline` reads `BYAKUGAN_TIMELINE_INPUT_DIR` (default `/input`): a source's car directory, or a tree of them to aggregate — one item.
 - `verify` reads `BYAKUGAN_VERIFY_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` under it is one item.
 - `car-vocab` reads nothing.
-- `load` reads `BYAKUGAN_LOAD_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` (and, from a `BYAKUGAN_BUILD_DERIVE` build, `car_inferred.jsonl`) under it is one source, bulk-loaded into the `logs-car.*` data streams.
+- `load` reads `BYAKUGAN_LOAD_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` (and, from a `BYAKUGAN_BUILD_DERIVE` build, `car_inferred.jsonl` and `car_content.jsonl`) under it is one source, bulk-loaded into the `logs-car.*` data streams.
 
 ## Env
 
@@ -57,7 +57,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | `BYAKUGAN_VERIFY_INPUT_DIR` | `/input` | the materialised CAR tree the gate reads |
 | `BYAKUGAN_VERIFY_OUT_DIR` | `/output` | where the report `verify.txt` is written; the default applies only when `/output` is a mounted, writable directory — otherwise the report goes to stderr alone and the gate still runs |
 | `BYAKUGAN_VERIFY_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
-| `BYAKUGAN_LOAD_INPUT_DIR` | `/input` | the materialised CAR tree to load (`car_<object>.jsonl` + `car_relationships.jsonl` per source; `car_inferred.jsonl` when the build ran `BYAKUGAN_BUILD_DERIVE`) |
+| `BYAKUGAN_LOAD_INPUT_DIR` | `/input` | the materialised CAR tree to load (`car_<object>.jsonl` + `car_relationships.jsonl` per source; `car_inferred.jsonl` and `car_content.jsonl` when the build ran `BYAKUGAN_BUILD_DERIVE`) |
 | `BYAKUGAN_LOAD_OUT_DIR` | `/output` | where the `elastic/` bulk bundles, `manifest.json` and the load report are written |
 | `BYAKUGAN_LOAD_ES_URL` | *(empty)* | empty = bundle mode, no network; set = push mode, POSTs the bundles to this Elasticsearch base URL over HTTPS — the explicit network opt-in, same shape as `ANAMNESIS_SYMBOLS_ONLINE` |
 | `BYAKUGAN_LOAD_ES_API_KEY` | *(empty)* | Elasticsearch API key for push mode |
@@ -66,7 +66,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | `BYAKUGAN_LOAD_ES_PASSWORD_FILE` | *(empty)* | file holding the basic-auth password for push mode; wins over `_ES_PASSWORD` |
 | `BYAKUGAN_LOAD_ES_CA_FILE` | `/certs/ca/ca.crt` | CA bundle to verify the Elasticsearch TLS certificate in push mode; the default applies only when the `certs` mount is present, otherwise the system trust store is used |
 | `BYAKUGAN_LOAD_KIBANA_URL` | *(empty)* | empty = skip the Kibana saved-objects import; set = also import the engine's rendered saved objects, push mode only, requires `_SETUP` |
-| `BYAKUGAN_LOAD_NAMESPACE` | `default` | the Elastic data-stream namespace: `logs-car.<object>-<namespace>`, `logs-car.rel-<namespace>`, `logs-car.inferred-<namespace>` |
+| `BYAKUGAN_LOAD_NAMESPACE` | `default` | the Elastic data-stream namespace: `logs-car.<object>-<namespace>`, `logs-car.rel-<namespace>`, `logs-car.inferred-<namespace>`, `logs-car.content-<namespace>` |
 | `BYAKUGAN_LOAD_SETUP` | `0` | `1/true/yes/on`: apply the rendered index/component templates before loading (and, with `_KIBANA_URL` set, import the Kibana saved objects), push mode only |
 | `BYAKUGAN_LOAD_FORCE` | `0` | `1/true/yes/on`: re-render bundles and, in push mode, re-push even when the manifest/load report already show the run complete |
 | `BYAKUGAN_LOAD_ARGS` | *(empty)* | extra `byakugan.elastic.load` argv |
@@ -76,7 +76,7 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 
 | Sub-tool | Output | `records` |
 |---|---|---|
-| `build` | `<OUT_DIR>/<source>/car_<object>.jsonl` (13 CAR objects, populated ones only) + `car_relationships.jsonl` (always written, even empty — the done/skip marker) + `sources.yaml` — the materialised JSONL tree is the build's ONLY on-disk product, no `car.db` or `superset.db` anywhere; also `car_inferred.jsonl` with `DERIVE`, `stix_bundle.json` with `STIX`; this is what `timeline`/`verify`/`load` and downstream ingest read; a source whose `car_relationships.jsonl` already exists is skipped unless `FORCE` | CAR events |
+| `build` | `<OUT_DIR>/<source>/car_<object>.jsonl` (13 CAR objects, populated ones only) + `car_relationships.jsonl` (always written, even empty — the done/skip marker) + `sources.yaml` — the materialised JSONL tree is the build's ONLY on-disk product, no `car.db` or `superset.db` anywhere; also `car_inferred.jsonl` and `car_content.jsonl` with `DERIVE`, `stix_bundle.json` with `STIX`; this is what `timeline`/`verify`/`load` and downstream ingest read; a source whose `car_relationships.jsonl` already exists is skipped unless `FORCE` | CAR events |
 | `timeline` | `<OUT_DIR>/timeline.jsonl`; skipped when it exists unless `FORCE` | timeline entries |
 | `verify` | `<OUT_DIR>/verify.txt` — the gate report (every check, the tally, the verdict), also on stderr; written (replacing any earlier report) only when at least one materialised CAR source is found (status `ok` or `failed`) — an empty tree (status `nothing`) writes no report | CAR rows read |
 | `car-vocab` | stdout: `{object: [car_actions]}` as one JSON line | — |
@@ -136,8 +136,9 @@ idempotency and the config-error exit.
 
 `load` bulk-loads a materialised CAR tree (the output of `build`) into the
 DX_DFIR Elastic stack as `logs-car.<object>-<namespace>` (13 CAR objects),
-`logs-car.rel-<namespace>` (relationship instances) and
-`logs-car.inferred-<namespace>` (inferred nodes). Like every sub-tool it runs
+`logs-car.rel-<namespace>` (relationship instances),
+`logs-car.inferred-<namespace>` (inferred nodes) and
+`logs-car.content-<namespace>` (content nodes). Like every sub-tool it runs
 once and exits — never a daemon.
 
 - **Bundle mode (default, offline)** — `BYAKUGAN_LOAD_ES_URL` unset: renders

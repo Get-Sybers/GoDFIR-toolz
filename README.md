@@ -33,7 +33,8 @@ verifies it the same way as for the .NET images.
 ## Pipeline images
 
 - [byakugan/](byakugan/README.md) — `get-sybers/byakugan`: the external
-  Byakugan MITRE CAR engine, cloned recursively at a DX_DFIR-pinned sha
+  Byakugan MITRE CAR engine, cloned recursively at the sha pinned in its
+  Dockerfile (`BYAKUGAN_REF`)
 - [plaso/](plaso/README.md) — `get-sybers/plaso`: minimal hardened Plaso at a
   pinned PyPI release, plus the psort wrapper
 - [signatures/](signatures/README.md) — `get-sybers/signatures`: the whole

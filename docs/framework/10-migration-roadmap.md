@@ -83,7 +83,7 @@ the new labels and `contract.yml`, which every tool adds.
   and their siblings exist). Until ported, they conform through the shim and
   contract.
 - **byakugan** — Python CAR engine, dispatched on its first argument (build /
-  timeline / verify / car-vocab) by the engine's own `byakugan.cli`, keeps
+  timeline / verify / car-vocab / load) by the engine's own `byakugan.cli`, keeps
   Python. byakugan is a separate repository cloned in at a pin; DX_DFIR only
   orchestrates and links out. Conformant: the ENTRYPOINT delegates to the
   engine dispatcher, `contract.yml` (`entrypoint: multi-tool`, `python=true`)
