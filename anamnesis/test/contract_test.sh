@@ -84,7 +84,8 @@ grep -q '"error"' "$scratch/out3" || { echo "FAIL config error summary lacks an 
 
 echo "== 4. the baked PDB symbol cache ships in the image (the engine is always offline)"
 cid="$(docker create "$IMAGE")"
-docker export "$cid" | tar -t | grep -q '^opt/anamnesis/lib/Symbols/.*\.pdb$' \
+# tar member names may or may not carry a ./ prefix depending on the archiver.
+docker export "$cid" | tar -t | grep -Eq '^(\./)?opt/anamnesis/lib/Symbols/.+\.pdb$' \
     || { echo "FAIL image ships no baked PDB under /opt/anamnesis/lib/Symbols" >&2; docker rm -f "$cid" >/dev/null; exit 1; }
 docker rm -f "$cid" >/dev/null
 

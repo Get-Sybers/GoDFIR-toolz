@@ -103,10 +103,11 @@ build_anamnesis() {
   # sources.yml pin). The MemProcFS libraries are fetched at MEMPROCFS_VERSION and
   # verified against MEMPROCFS_SHA256 when set. The batch ENTRYPOINT is built into
   # the binary (no host wrapper). The PDB symbol bake seeds from the Dockerfile's
-  # pinned ANAMNESIS_SEED_SOURCES; override it (whitespace-separated url|sha256
-  # entries — an array-safe extra arg, the values may carry spaces) to widen the
-  # baked Windows-build coverage. The seed stage needs network and ~6.5 GB of
-  # transient build disk on the first (uncached) build.
+  # pinned ANAMNESIS_SEED_SOURCES; override it with whitespace-separated
+  # url|sha256 entries (URLs percent-encoded, so a single entry never contains
+  # a space — the whole LIST value does, hence the array-built extra arg below)
+  # to widen the baked Windows-build coverage. The seed stage needs network and
+  # ~6.5 GB of transient build disk on the first (uncached) build.
   local seed_args=()
   [[ -n "${ANAMNESIS_SEED_SOURCES:-}" ]] && \
     seed_args=(--build-arg "ANAMNESIS_SEED_SOURCES=${ANAMNESIS_SEED_SOURCES}")
