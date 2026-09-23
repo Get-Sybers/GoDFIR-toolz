@@ -11,15 +11,19 @@
 # upstream release, sha256-verified, and bundled at /opt/anamnesis/lib; the
 # binary dlopen's them at runtime.
 #
-# PDB SYMBOLS ARE BAKED AT BUILD TIME: the engine is always offline (no
-# symbol variable, no /symbols mount, no container network). The seed stage
-# fetches the pinned representative memory image(s) (ANAMNESIS_SEED_SOURCES)
-# and runs seed/seedsymbols.go over them with the symbol server enabled, so
-# MemProcFS populates Symbols/ beside vmm.so with the exact ntoskrnl/ntdll/…
-# PDBs those Windows builds need; the populated cache ships read-only in the
-# runtime image. Coverage therefore reaches exactly the Windows builds the
-# seed images represent — add a seed entry matching your corpus's build to
-# widen it (see ANAMNESIS_SEED_SOURCES below).
+# PDB SYMBOLS COME FROM THE BIND-MOUNTED CACHE: the engine is always offline
+# (no symbol variable, no PDB download, no container network — at build time
+# or at runtime). The image ships an EMPTY /opt/anamnesis/lib/Symbols mount
+# point; the operator bind-mounts a persistent host directory there
+# read-write (contract mount `symbols`). MemProcFS uses <dir(vmm.so)>/Symbols
+# as its local symbol cache exactly when that directory is writable (pdb.c
+# PDB_Initialize_InitialValues), so the engine reads — and, as the offline
+# symbol-recovery tiers land (Anamnesis docs/design/symbol-recovery.md),
+# writes back — the cache directly in the mount, and it persists across runs.
+# Unmounted, the path is not writable by the runtime uid (root-owned 0755,
+# the container runs as uid 2000 — and the framework adds a read-only rootfs)
+# and MemProcFS falls back to /tmp; PDB-derived fields (command_line/sid/user)
+# then stay empty and the info.db subset carries the rest.
 # Shape B: glibc + libusb-1.0 are kept because the MemProcFS .so need them
 # (the justified native deviations); no shell, no python, no package manager
 # ship — the build-time hardener
@@ -45,17 +49,6 @@ ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 # The anamnesis engine pin — the ONE place the engine version is set; consumers
 # (DX_DFIR included) build without a REF build-arg and inherit it.
 ARG ANAMNESIS_REF=d8663e612cbb469dd6da472154b997b06054b94a
-# The memory images the symbol bake seeds from: whitespace-separated
-# `url|sha256` entries (URLs percent-encoded, so entries never carry spaces).
-# An archive URL (.zip/.tar/.tgz/.tar.gz/.gz/.7z) is extracted and every
-# contained file >64M is seeded; any other URL is used as a raw image. The
-# default is the Magnet Forensics 2020 CTF Windows memory image
-# (memdump-001.mem, Windows 10 x64 build 18362) from the digitalcorpora.org
-# corpus — the image the DX_DFIR memory lane was validated against. Append an
-# entry with a dump matching your corpus's Windows build (PDBs are matched by
-# exact binary revision) to widen coverage. The seed stage transiently needs
-# ~6.5 GB of build disk with the default seed.
-ARG ANAMNESIS_SEED_SOURCES="https://digitalcorpora.s3.amazonaws.com/corpora/scenarios/magnet/2020%20CTF%20-%20Windows%20Memory.zip|8ba868f49bd33970a1cc6d7144a63f8336d83bf57bfddce3ba34a771a7d75955"
 # MemProcFS upstream release pin. The release TAG is major.minor (v5.18) but the
 # published asset filename carries the full patch version and a date stamp, so
 # the tag and the asset name are pinned as separate values. Bump all three (and
@@ -124,50 +117,7 @@ RUN set -eux; \
       cp "$(find /extract -name info.db | head -1)" /opt/anamnesis/lib/; \
     fi
 
-# --- stage 4: bake the PDB symbol cache ---------------------------------------
-# 4a: the seeder builds INSIDE the cloned engine source tree so it uses the
-# engine's own pinned gomemprocfs (a separate stage keeps the engine-binary
-# layer cache untouched when only the seeder changes).
-FROM build AS seedbuild
-COPY anamnesis/seed/seedsymbols.go /src/cmd/seed-symbols/main.go
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /seed-symbols ./cmd/seed-symbols
-
-# 4b: the ONE networked run — fetch the pinned seed image(s), open each with
-# the symbol server enabled, and let MemProcFS populate Symbols/ beside
-# vmm.so (it only uses that directory while it is WRITABLE, hence the bake
-# happens here and never at runtime). The seeder fails the build unless the
-# kernel PDB resolves and command_line/sid actually populate; the find-gate
-# below fails it if the cache still ships empty.
-FROM ${BASE} AS seed
-ARG ANAMNESIS_SEED_SOURCES
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends curl ca-certificates libarchive-tools libusb-1.0-0; \
-    rm -rf /var/lib/apt/lists/*
-COPY --from=memprocfs /opt/anamnesis/lib /opt/anamnesis/lib
-COPY --from=seedbuild /seed-symbols /usr/local/bin/seed-symbols
-ENV LD_LIBRARY_PATH=/opt/anamnesis/lib
-RUN set -eux; \
-    mkdir -p /opt/anamnesis/lib/Symbols /seed/imgs; \
-    cd /seed; i=0; \
-    for entry in ${ANAMNESIS_SEED_SOURCES}; do \
-      i=$((i+1)); url="${entry%%|*}"; sha="${entry##*|}"; \
-      if [ -z "$url" ] || [ -z "$sha" ] || [ "$url" = "$entry" ]; then \
-        echo "bad ANAMNESIS_SEED_SOURCES entry (want url|sha256): $entry" >&2; exit 1; \
-      fi; \
-      curl -fL --retry 3 -o "dl$i" "$url"; \
-      echo "$sha  dl$i" | sha256sum -c -; \
-      case "$url" in \
-        *.zip|*.tar|*.tgz|*.tar.gz|*.gz|*.7z) bsdtar -xf "dl$i" -C imgs; rm "dl$i" ;; \
-        *) mv "dl$i" "imgs/seed$i.raw" ;; \
-      esac; \
-    done; \
-    find imgs -type f -size +64M -exec seed-symbols -lib /opt/anamnesis/lib/vmm.so '{}' +; \
-    find /opt/anamnesis/lib/Symbols -name '*.pdb' | head -1 | grep -q . \
-      || { echo "symbol bake produced no PDBs — refusing to ship an empty cache" >&2; exit 1; }; \
-    rm -rf /seed
-
-# --- stage 5: hardened runtime -----------------------------------------------
+# --- stage 4: hardened runtime -------------------------------------------------
 # glibc + libusb-1.0 kept (the .so need them); the build-time hardener (ansible-core) is
 # installed into a THROWAWAY dir and removed with python afterwards, so the
 # runtime holds no python, no pip, no apt, no shell — only the anamnesis binary,
@@ -177,15 +127,16 @@ ARG DFIR_UID
 ARG DFIR_GID
 COPY --from=build /anamnesis /opt/anamnesis/anamnesis
 COPY --from=memprocfs /opt/anamnesis/lib /opt/anamnesis/lib
-# The baked PDB cache, read-only beside vmm.so. At runtime the engine stages
-# it into /tmp before opening vmm (MemProcFS only reads a Symbols/ dir it can
-# write, else it silently uses /tmp — see the engine's stageSymbols).
-COPY --from=seed /opt/anamnesis/lib/Symbols /opt/anamnesis/lib/Symbols
 COPY anamnesis/contract.yml /opt/anamnesis/contract.yml
 COPY hardening/harden.yml /tmp/hardening/harden.yml
 # harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
 # values below; the shell and python it declares absent are removed right after.
 RUN set -eux; \
+    # the symbol-cache mount point: EMPTY, root-owned 0755 — not writable by
+    # the runtime uid 2000 until the operator bind-mounts a persistent host
+    # directory here read-write (contract mount `symbols`); MemProcFS then
+    # uses it directly.
+    mkdir -p /opt/anamnesis/lib/Symbols; \
     apt-get update; \
     apt-get install -y --no-install-recommends python3 python3-pip libusb-1.0-0; \
     # keep libusb next to bundled MemProcFS libs so it survives scratch copy and resolves via LD_LIBRARY_PATH
@@ -228,7 +179,7 @@ ENV PATH=/opt/anamnesis:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/opt/anamnesis/anamnesis"]
 LABEL org.opencontainers.image.title="get-sybers/anamnesis" \
-      org.opencontainers.image.description="Anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR memory lane: the engine cloned + built at the pinned ref (-tags memprocfs, CGO_ENABLED=0), the MemProcFS vmm/leechcore/libpdbcrust/libMSCompression libraries bundled at a pinned, sha256-verified release, and the PDB symbol cache baked at build time (always offline at runtime — no symbol variable, no network). Self-orchestrating, env-driven batch over a mounted memory-image tree, one JSON summary line. Hardened: uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as uid 2000; glibc + libusb-1.0 kept for the native libraries." \
+      org.opencontainers.image.description="Anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR memory lane: the engine cloned + built at the pinned ref (-tags memprocfs, CGO_ENABLED=0), the MemProcFS vmm/leechcore/libpdbcrust/libMSCompression libraries bundled at a pinned, sha256-verified release, and the PDB symbol cache supplied by a read-write bind mount at /opt/anamnesis/lib/Symbols that persists across runs (always offline — no symbol variable, no PDB download, no network). Self-orchestrating, env-driven batch over a mounted memory-image tree, one JSON summary line. Hardened: uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as uid 2000; glibc + libusb-1.0 kept for the native libraries." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/Anamnesis" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${TOOL_VERSION}" \

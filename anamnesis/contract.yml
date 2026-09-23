@@ -19,11 +19,13 @@ env:
 mounts:
   - {name: input,   path: /input,   mode: ro, env: ANAMNESIS_INPUT_DIR,   required: true}
   - {name: output,  path: /out,     mode: rw, env: ANAMNESIS_OUT_DIR,     required: true}
-  - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: 'HOME, the cache and the staged PDB symbol cache under a read-only rootfs (tmpfs)'}
+  - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false, desc: 'persistent MemProcFS PDB/symbol cache (symsrv layout); MemProcFS reads and writes this directory exactly when it is writable — unmounted, it falls back to /tmp and PDB-derived fields (command_line/sid/user) stay empty'}
+  - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: 'HOME and the MemProcFS fallback symbol cache under a read-only rootfs (tmpfs)'}
 
-# Always offline: PDB symbols are baked into the image at build time (the
-# Dockerfile's seed stage populates Symbols/ beside vmm.so) — there is no
-# symbol variable, no symbol mount and no legitimate network need.
+# Always offline: the engine never downloads PDBs (at build time or at
+# runtime) — there is no symbol variable and no legitimate network need.
+# Symbols live in the bind-mounted `symbols` cache, which the offline
+# symbol-recovery tiers populate (Anamnesis docs/design/symbol-recovery.md).
 network: none
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
 

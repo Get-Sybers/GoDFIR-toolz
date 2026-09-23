@@ -35,11 +35,10 @@ recursively (symlinks ignored); every file matched by extension `.raw .mem
 | `ANAMNESIS_PLUGINS` | *(empty)* | comma-separated collector names; empty = the default CAR set |
 | `ANAMNESIS_FORCE` | `0` | `1/true/yes/on`: rerun collectors that already have valid output |
 
-There is no symbol variable and no symbol mount: the engine is **always
-offline**. The PDB symbol cache is baked into the image at build time (see
-[Symbols](#symbols-baked-at-build)); at runtime the engine stages it into
-`/tmp` (MemProcFS only reads a `Symbols/` cache it can write) and never
-touches the network.
+There is no symbol variable: the engine is **always offline** and never
+touches the network. The PDB symbol cache lives in a persistent host
+directory bind-mounted read-write at `/opt/anamnesis/lib/Symbols` (see
+[Symbols](#symbols-the-bind-mounted-cache)).
 
 ## Output
 
@@ -54,25 +53,26 @@ stdout is exactly one JSON object with `tool`, `input_dir`, `out_dir`,
 `skipped`, `failed` and `results` (one entry per image), plus `error` on a
 config error. Progress goes to stderr.
 
-## Symbols (baked at build)
+## Symbols (the bind-mounted cache)
 
 The PEB command line, token SID/user and symbol-name resolution need PDBs
 matched to the image's exact binary revisions; MemProcFS reads them from a
-`Symbols/` cache beside `vmm.so`. That cache is a **baked image dependency**
-(like the signatures image bakes its engines): the Dockerfile's seed stage
-fetches the pinned `ANAMNESIS_SEED_SOURCES` memory image(s) — default: the
-Magnet Forensics 2020 CTF Windows dump (Windows 10 x64 build 18362) from
-digitalcorpora.org — and runs `seed/seedsymbols.go` over each with the symbol
-server enabled, so MemProcFS downloads exactly the ntoskrnl/ntdll/… PDBs
-those builds need; the populated cache then ships read-only. The seed run
-fails the build unless `command_line`/`sid` actually populate, so an empty
-cache can never ship silently.
+`Symbols/` cache beside `vmm.so`, and it uses that directory exactly when it
+is **writable** — otherwise it silently falls back to `/tmp` and the cache
+evaporates with the container. The image therefore ships
+`/opt/anamnesis/lib/Symbols` as an **empty mount point**: bind-mount a
+persistent host directory there read-write (the contract's `symbols` mount,
+writable by uid 2000) and MemProcFS reads — and, as the engine's offline
+symbol-recovery tiers land
+([symbol-recovery.md](https://github.com/Get-Sybers/Anamnesis/blob/main/docs/design/symbol-recovery.md)),
+writes back — the cache in place, so it accumulates across runs. The engine
+never downloads a PDB.
 
-PDB coverage reaches exactly the Windows builds (binary revisions) the seed
-images represent. To cover another corpus, append a `url|sha256` entry with a
-representative dump of that build to `ANAMNESIS_SEED_SOURCES` and rebuild —
-processing a build with no baked PDBs still yields the whole
-kernel-`_EPROCESS` surface, just with empty PDB-derived fields.
+The cache uses the symsrv layout (`<name>/<GUID+age>/<name>`), so PDBs
+obtained by any external means can be dropped straight in. Processing a build
+with no cached symbols still yields the whole kernel-`_EPROCESS` surface
+(via MemProcFS's bundled `info.db` subset), just with empty PDB-derived
+fields (`command_line`/`sid`/`user`).
 
 ## Exit codes
 
@@ -89,22 +89,20 @@ kernel-`_EPROCESS` surface, just with empty PDB-derived fields.
 docker run --rm --network none --read-only --tmpfs /tmp \
   -e ANAMNESIS_PLUGINS= -e ANAMNESIS_FORCE=0 \
   -v "$input_dir:/input:ro" -v "$out:/out" \
+  -v "$symbols_dir:/opt/anamnesis/lib/Symbols" \
   get-sybers/anamnesis:latest
 ```
 
-`/out` must be writable by uid 2000; `/tmp` is `HOME`, the cache and where
-the baked symbol cache is staged, so a read-only rootfs needs the tmpfs.
-Build args: `ANAMNESIS_REF`
-(source pin), `ANAMNESIS_SEED_SOURCES` (the pinned `url|sha256` memory
-image(s) the symbol bake seeds from; the seed stage needs network and
-~6.5 GB of transient disk), `MEMPROCFS_VERSION` / `MEMPROCFS_TAG` /
-`MEMPROCFS_ASSET` /
+`/out` and the symbol cache must be writable by uid 2000; `/tmp` is `HOME`,
+the cache and the symbol fallback, so a read-only rootfs needs the tmpfs.
+Build args: `ANAMNESIS_REF` (source pin), `MEMPROCFS_VERSION` /
+`MEMPROCFS_TAG` / `MEMPROCFS_ASSET` /
 `MEMPROCFS_SHA256` (the pinned Linux release and its checksum), and
 `TOOL_VERSION` (the engine release the pin corresponds to; the
 `org.opencontainers.image.version` label). `test/contract_test.sh` builds the
 image, runs it over an empty memory dir (a memory image cannot be committed),
 and asserts the summary line, the exit code, idempotency, the config-error
-exit and that the baked PDB cache ships in the image.
+exit and that the empty symbol-cache mount point ships in the image.
 
 ## argv pass-through (debug only)
 
