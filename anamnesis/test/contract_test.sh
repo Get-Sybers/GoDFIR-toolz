@@ -5,10 +5,10 @@
 # runs it in batch mode over an empty input dir and asserts the exit code and
 # that stdout is exactly one JSON line carrying every summary_schema key,
 # reruns to assert idempotency (no files appear), runs with a bad
-# environment (missing input mount) and asserts exit 2, and asserts the baked
-# PDB symbol cache ships in the image (the engine is always offline; the
-# first build downloads + seeds from the pinned memory image, so it is slow
-# and needs network + ~6.5 GB of transient build disk).
+# environment (missing input mount) and asserts exit 2, and asserts the
+# empty symbol-cache mount point ships in the image (the engine is always
+# offline; the operator bind-mounts a persistent host directory over it
+# read-write — the contract's `symbols` mount).
 #
 #   test/contract_test.sh                                  # docker build + run
 #   IMAGE=get-sybers/anamnesis:latest test/contract_test.sh    # reuse a built image
@@ -82,11 +82,16 @@ rc=0; run "$scratch/env-bad" "$scratch/out3" "$scratch/err3" || rc=$?
 check "$scratch/out3" 2 "$rc" || { cat "$scratch/err3" >&2; exit 1; }
 grep -q '"error"' "$scratch/out3" || { echo "FAIL config error summary lacks an error key" >&2; exit 1; }
 
-echo "== 4. the baked PDB symbol cache ships in the image (the engine is always offline)"
+echo "== 4. the empty symbol-cache mount point ships in the image (the engine is always offline)"
 cid="$(docker create "$IMAGE")"
 # tar member names may or may not carry a ./ prefix depending on the archiver.
-docker export "$cid" | tar -t | grep -Eq '^(\./)?opt/anamnesis/lib/Symbols/.+\.pdb$' \
-    || { echo "FAIL image ships no baked PDB under /opt/anamnesis/lib/Symbols" >&2; docker rm -f "$cid" >/dev/null; exit 1; }
+listing="$(docker export "$cid" | tar -t | grep -E '^(\./)?opt/anamnesis/lib/Symbols(/|$)' || true)"
 docker rm -f "$cid" >/dev/null
+if [[ -z "$listing" ]]; then
+    echo "FAIL image ships no /opt/anamnesis/lib/Symbols mount point" >&2; exit 1
+fi
+if grep -Evq '^(\./)?opt/anamnesis/lib/Symbols/?$' <<<"$listing"; then
+    echo "FAIL the symbol-cache mount point is not empty: $listing" >&2; exit 1
+fi
 
 echo "PASS anamnesis contract test"

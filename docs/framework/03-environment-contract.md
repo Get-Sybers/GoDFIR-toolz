@@ -54,9 +54,10 @@ The runtime posture DX_DFIR applies, and which the contract assumes:
 A tool that needs network access (byakugan's `LOAD_ES_URL` push mode, which
 POSTs bundles to an Elastic stack) gates it behind an explicit variable that
 defaults to off, and declares `network: optional` in its contract. A cache a
-tool needs at runtime is a **baked image dependency**, never a network fetch:
-the anamnesis image seeds its MemProcFS PDB symbol cache at build time and
-runs fully offline.
+tool needs at runtime is a **baked image dependency or a declared read-write
+mount**, never a network fetch: the anamnesis image keeps its MemProcFS PDB
+symbol cache in a bind-mounted host directory (contract mount `symbols`) that
+persists across runs, and runs fully offline.
 
 ## 3.5 Exit-code table
 
@@ -119,8 +120,9 @@ env:
 mounts:
   - {name: memory,  path: /mem,     mode: ro,  env: ANAMNESIS_MEMORY_DIR, required: true}
   - {name: output,  path: /out,     mode: rw,  env: ANAMNESIS_OUT_DIR,    required: true}
+  - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false}
 
-network: none            # PDB symbols are baked into the image at build time
+network: none            # PDB symbols come from the bind-mounted persistent cache
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
 
 summary_schema:          # keys on the single stdout JSON line
