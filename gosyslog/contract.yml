@@ -1,0 +1,46 @@
+# gosyslog/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: gosyslog
+image: get-sybers/gosyslog:latest
+entrypoint: self-orchestrating
+description: >
+  Syslog-family text log parser (static Go on the shared pinfo module):
+  syslog, messages, auth.log, secure, kern.log, cron, daemon.log, mail.log
+  and friends — rotations and gzip included — become one record per line,
+  timestamp dialects normalised (RFC3164 yearless with mtime-anchored year
+  inference, ISO-8601, RFC5424), and known line families typed by the
+  parser: sshd authentication, sudo commands, pam sessions, cron jobs.
+
+env:
+  GOSYSLOG_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised syslog-family file is an item'}
+  GOSYSLOG_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per log file'}
+  GOSYSLOG_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gosyslog needs none but honours it'}
+  GOSYSLOG_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOSYSLOG_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GOSYSLOG_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GOSYSLOG_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GOSYSLOG_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GOSYSLOG_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/gosyslog.jsonl (or gosyslog.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+records:
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  syslog_line: {Host: 'the reporter hostname from the line prefix', Ident: 'syslog tag/program', PID: 'the [pid] suffix when present', Message: 'the message body (or the whole line for a continuation with no prefix)', Line: 'source line number', Raw: 'the whole line, always'}
+  sshd_event: {SSHEvent: 'accepted | failed | invalid_user', Method: 'authentication method as logged', Username: 'the account named by the line, verbatim', InvalidUser: 'the line named an unknown account', IPAddress: 'the peer address (the login SOURCE)', Port: 'the peer port', KeyType: 'key type when the line carries one', Fingerprint: 'key fingerprint when the line carries one', Host: 'as syslog_line', Ident: 'as syslog_line', PID: 'as syslog_line', Message: 'as syslog_line', Line: 'as syslog_line', Raw: 'as syslog_line'}
+  sudo_event: {Username: 'the invoking account', TargetUser: 'the USER= target', TTY: 'TTY=', PWD: 'PWD=', Command: 'COMMAND= verbatim', Host: 'as syslog_line', Ident: 'as syslog_line', Line: 'as syslog_line', Raw: 'as syslog_line'}
+  pam_session: {PamModule: 'the pam service (sshd:session, sudo:session, ...)', SessionOp: 'opened | closed', Username: 'the session user', ByUser: 'the invoking user when logged', ByUID: 'the invoking uid when logged', Line: 'as syslog_line', Raw: 'as syslog_line'}
+  cron_event: {Username: 'the job owner from the (user) field', Command: 'the CMD (...) body verbatim', Host: 'as syslog_line', Line: 'as syslog_line', Raw: 'as syslog_line'}
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
+  file failed.
