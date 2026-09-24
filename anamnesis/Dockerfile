@@ -11,7 +11,7 @@ ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 # The anamnesis engine pin — the ONE place the engine version is set; consumers
 # (DX_DFIR included) build without a REF build-arg and inherit it.
-ARG ANAMNESIS_REF=237a346f34b590b44c0823300b8ca9b340f6453e
+ARG ANAMNESIS_REF=1d612b7c460433878718eda9da2a45841e59940b
 # MemProcFS upstream release pin. The release TAG is major.minor (v5.18) but the
 # published asset filename carries the full patch version and a date stamp, so
 # the tag and the asset name are pinned as separate values. Bump all three (and
