@@ -237,13 +237,25 @@ clean-room over an `io.ReaderAt` is how gomount's partition code was built.
 
 ### 4.1 Records are designed against the byakugan data model
 
+The data models these records align to are byakugan's, at their remote
+origin: the CAR object definitions in
+[`Byakugan/model/car/objects`](https://github.com/Get-Sybers/Byakugan/tree/main/model/car/objects)
+(one YAML per object — `user_session`, `process`, `file`, `authentication`,
+… — generated from the pinned MITRE CAR submodule) and the row-identity
+registry
+[`byakugan/spindle.yml`](https://github.com/Get-Sybers/Byakugan/blob/main/byakugan/spindle.yml).
+The operative model version is whatever `BYAKUGAN_REF` pins in
+[`byakugan/Dockerfile`](../../byakugan/Dockerfile) — that is the engine the
+pipeline runs — so each tool's field floor is written against the pinned
+ref and re-checked when the pin advances, exactly like every other engine
+coupling in this repository.
 byakugan's store consumes typed rows and decides everything else itself:
 which values are canonical for a CAR object and which stay native (its
 "canonical column or honest null, never a near-miss" rule), how a row's guid
-is minted (the `spindle.yml` identity registry, from record fields alone),
-and every relationship (`cascade_relationships`, `crosssource`, `derive`).
-The parsers' whole job is to hand it the native truth, complete. Six rules
-bind every Linux tool's record design:
+is minted (the spindle registry, from record fields alone), and every
+relationship (`cascade_relationships`, `crosssource`, `derive`). The
+parsers' whole job is to hand it the native truth, complete. Six rules bind
+every Linux tool's record design:
 
 1. **Typed rows.** Every record carries a stable `RecordType` discriminator
    (the role Plaso's `data_type` plays), and known high-value line families
@@ -569,8 +581,15 @@ is gated on that report, per class.
 ### 7.3 byakugan
 
 New direct source maps consume the tools' JSONL by `input_pattern`, the way
-`goevtx.jsonl` is consumed today. The CAR-object targets (byakugan's model
-decides the final shapes; §4.1 fixes what the parsers owe them):
+`goevtx.jsonl` is consumed today — maps live in
+[`byakugan/mappings`](https://github.com/Get-Sybers/Byakugan/tree/main/byakugan/mappings)
+(today's Linux coverage is `plaso_linux.py`, the log2timeline-shaped module
+this work replaces) with their generated definitions in
+[`sources/`](https://github.com/Get-Sybers/Byakugan/tree/main/sources). The
+CAR-object targets against the
+[`model/car/objects`](https://github.com/Get-Sybers/Byakugan/tree/main/model/car/objects)
+definitions (byakugan's model decides the final shapes; §4.1 fixes what the
+parsers owe them):
 
 | Source | CAR object · action | Standing today |
 |---|---|---|
