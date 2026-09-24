@@ -1,0 +1,618 @@
+# GoDFIR-toolz for Linux — the plan
+
+**Status:** plan. **Scope:** a Linux artefact matrix in this repository with the
+same shape as the Windows one: static Go parsers, one per artefact class,
+inside the [Container Framework](../framework/README.md), driven by DX_DFIR
+lanes and mapped into CAR by byakugan. This paper states what gets built, in
+what order, and which decisions are taken or still open. Framework
+cross-references use the paper's `§<file>.<section>` notation, e.g.
+[§3.5](../framework/03-environment-contract.md) is the exit-code table.
+
+## Abstract
+
+The Windows artefact classes are parsed by twelve static Go tools — `FROM
+scratch`, env-contract driven, one JSON summary line — while Linux evidence is
+still processed by Plaso: `log2timeline` parses it, and byakugan reaches it
+only through `l2t_*` adapter maps. This plan replicates the Windows approach
+for Linux with **no log2timeline dependency anywhere in the Linux path**. It
+has three pillars:
+
+1. **`pinfo`** — one shared Go module every parser imports (replacing the
+   byte-identical `batch.go` copies): the batch runtime, a common record
+   envelope, timestamp normalisation, content-first discovery, the
+   `gomount stream` tar consumer, and run/output introspection. The Linux
+   tools are born on it; the Windows tools adopt it in a mechanical
+   follow-up phase.
+2. **Twelve Linux parsers** (`gojournal`, `goauditd`, `gowtmp`, `gosyslog`,
+   `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`, `gopkg`, `goacct`,
+   `gosqlite`) — each a framework-conformant Tier-1 image from its first
+   commit.
+3. **Linux evidence access in gomount** — ext4/XFS/Btrfs (and vfat, squashfs)
+   backends behind the existing verb surface, a volume stack that peels
+   partition → mdraid → LUKS → LVM, new image formats (qcow2 beside raw/E01),
+   a `linux-core` materialise set replacing Plaso `image_export` for Linux
+   images, a `timeline` verb replacing the `l2t_filestat` role — and
+   **snapshot traversal**: LVM and Btrfs snapshots (and qcow2 internal
+   snapshots) are enumerated and passed through `stream`/`materialise`/
+   `timeline` exactly as VSS stores are passed on the Windows side, with
+   provenance carried into every record.
+
+Done means: a Linux disk image — plain, LVM, or Btrfs, snapshots included —
+processes end-to-end into per-artefact JSONL and CAR **with the Plaso image
+absent**, and every new image passes the framework gate.
+
+## 1. Goal and non-goals
+
+**Goal.** Parity of *approach*, not of artefact list: single-purpose static Go
+parsers for the Linux artefact classes, self-orchestrating under the
+environment contract ([03](../framework/03-environment-contract.md)),
+hardened by construction ([05](../framework/05-hardening-standard.md)), fed
+either loose files or a disk image through a native Go access layer, and
+consumed by DX_DFIR and byakugan the same way the Windows tools are.
+
+**Non-goals.**
+
+- No change to the Windows path in this plan's phases. The Windows tools keep
+  their `image_export` staging and their VSS handling as they are; switching
+  them to `gomount materialise` and to the `pinfo` module are follow-ups this
+  plan enables but does not schedule (§10, §11).
+- No live-response agent. Like the Windows matrix, everything here parses
+  evidence at rest (an image, a mounted root, a staged tree) — offline, no
+  network, read-only.
+- No generic super-timeline engine. Plaso's breadth is not replicated;
+  byakugan's CAR model is the normalisation layer, fed by per-artefact
+  records, as it already is for Windows.
+
+## 2. What "replicate what's done for Windows" means
+
+The Windows shape being replicated, and the two log2timeline couplings being
+removed:
+
+| Piece | Windows today | Linux today | Linux target |
+|---|---|---|---|
+| Per-artefact parsers | 12 static Go tools (goevtx, gomft, gore, …) | Plaso parsers (syslog, utmp, cron, …) inside `log2timeline` | 12 static Go tools (§4) |
+| Shared runtime | `batch.go`, byte-identical copy in every tool dir | — | the `pinfo` module (§3), imported not copied |
+| Extraction from disk images | Plaso `image_export` + filter file (godfir-toolz lane) | Plaso `log2timeline` over the whole image | `gomount materialise --set linux-core` (§5) |
+| Snapshots | VSS via `PLASO_*_VSS=1` (in-lane) or libvshadow on the host | LVM/Btrfs snapshots not traversed at all | `gomount --snap all` over LVM/Btrfs/qcow2 snapshots (§6) |
+| Filesystem timeline | gomft over a materialised `$MFT` | Plaso `filestat` + `l2t_filestat` map | `gomount timeline` MACB records per volume and snapshot (§5.4) |
+| CAR mapping | direct maps on parser output (`goevtx.jsonl` input pattern) | `l2t_utmp`, `l2t_utmpx`, `plaso_exec_cron`, `l2t_text` adapters | direct maps on the Linux tools' JSONL (§7.3) |
+
+The Plaso image itself stays in the repository: it remains the Windows lane's
+export stage and a cross-validation reference during bring-up (§10). What ends
+is Linux processing *depending* on it.
+
+## 3. `pinfo` — the shared parser module
+
+### 3.1 Why a module now
+
+The batch runtime is today a 400-line `batch.go` kept byte-identical in
+fourteen tool directories by convention — nothing asserts it but the file's
+own header comment and review discipline. That
+was the right call for retrofitting twelve existing tools; it is the wrong
+starting point for twelve new ones, and the Linux set needs strictly more
+shared surface: a common record envelope, timestamp normalisation across a
+dozen text and binary formats, and snapshot provenance. That shared surface
+becomes a real module, named **`pinfo`** — parser infrastructure, and the
+run-introspection role plaso's `pinfo` plays for a `.plaso` storage (§3.5).
+
+### 3.2 Shape
+
+`pinfo/` is a directory-level Go module at the repo root,
+`github.com/Get-Sybers/GoDFIR-toolz/pinfo`, with no dependency on any parser
+and no cgo:
+
+```
+pinfo/
+├── go.mod
+├── batch/      the runtime: env contract, discovery loop, per-item .part
+│               commit, skip-unless-FORCE, the summary line, exit 0/1/2/3
+│               (a port of today's batch.go, semantics unchanged)
+├── record/     the envelope (§3.3) + ordered JSONL/CSV writers; the CSV
+│               list-join rule ('|') the Windows tools already use
+├── tstamp/     normalisation to RFC3339 UTC: RFC3164 (year inference from
+│               file mtime with rollover walk-back), RFC5424, ISO-8601,
+│               epoch s/ms/µs/ns, journal usec, days-since-epoch (shadow)
+├── discover/   walk + content-first magic detection helpers; transparent
+│               rotation (.1, .2.gz …) and gzip; deterministic ordering
+├── tarstream/  the --tar mode: consume `gomount stream` (one tar entry per
+│               file, entry name = volume path) — one implementation instead
+│               of today's per-tool copies
+├── contract/   --version / --print-contract handling and the contract.yml
+│               embed hook, so conform.sh and CI validate one code path
+└── report/     read an OUT_DIR tree (summary lines + record files) and
+                answer: which tools ran, over which items, how many records,
+                over what time range — the plaso-pinfo analogue (§3.5)
+```
+
+A tool binds to it the way it binds to `batch.go` today — the `batchTool`
+struct becomes `pinfo/batch.Tool` with the same four fields (`name`,
+`formats`, `discover`, `process`); `runFrameworkEntry` keeps its name and
+behaviour. The environment contract, summary schema, exit table, and argv
+pass-through of [03](../framework/03-environment-contract.md)/
+[04](../framework/04-self-orchestration.md) are unchanged — the module is a
+relocation plus additions, not a redesign.
+
+### 3.3 The record envelope
+
+Every Linux record is the tool's own flat payload plus a common envelope, so
+downstream (byakugan maps, Filebeat, the report verb) reads one shape:
+
+```json
+{"Tool":"goauditd","ToolVersion":"0.1.0",
+ "SourceFilename":"var/log/audit/audit.log.1.gz","SourceModified":"2026-03-02T04:11:09Z",
+ "EventTime":"2026-03-01T22:14:02.481Z","TimeKind":"event",
+ "Snapshot":{"Backend":"lvm","ID":"home-snap1","Time":"2026-02-28T00:00:04Z"},
+ "...payload fields..."}
+```
+
+- `EventTime` is UTC RFC3339, always populated when the artefact carries a
+  time; `TimeKind` says what the time is (`event`, `written`, `deleted`,
+  `install`, …) for artefacts with several.
+- `Snapshot` is present only for records that came out of a snapshot (§6.4);
+  absent means the live volume.
+- Payload fields stay flat and tool-specific, exactly like the Windows tools'
+  records (`goprefetch`'s `Executable`/`RunCount`/… pattern); CSV order is the
+  declared header order.
+
+The Windows tools' record shapes are not migrated by this plan; when they
+adopt `pinfo` (§10) they keep their existing fields and gain nothing
+mandatory.
+
+### 3.4 Build shape
+
+Today each Go tool builds with its own directory as context and `COPY *.go`.
+A shared module changes that one line of shape: **parser images build with the
+repo root as context** — the precedent anamnesis, plaso, byakugan and
+signatures already set — and the Dockerfile copies `pinfo/` beside the tool:
+
+```dockerfile
+COPY pinfo/ /src/pinfo/
+COPY gojournal/ /src/gojournal/
+WORKDIR /src/gojournal        # go.mod: require …/pinfo v0.0.0 + replace => ../pinfo
+```
+
+The `replace ../pinfo` directive keeps the build hermetic and air-gap-clean:
+`pinfo` is versioned by the checked-out tree and the release tag, never
+fetched. External dependencies keep the existing `go mod download`-from-lockfile
+discipline ([07](../framework/07-supply-chain-and-versioning.md)). A
+repo-root `go.work` covers local development; Docker builds do not read it.
+The summary line gains a `pinfo` version key so a record tree states which
+runtime produced it.
+
+### 3.5 The namesake: run and output introspection
+
+`pinfo/report` ships as a tiny `pinfo` binary (same Tier-1 image shape) whose
+batch mode walks an output tree — the thing plaso's `pinfo.py` does for a
+storage file, done for our on-disk layout: per tool and per item, the record
+count, the time span of `EventTime`, the snapshot set seen, and the summary
+lines' status/failure roll-up, as one JSONL report. DX_DFIR's verify/gate step
+and the operator get one place that answers "what did this evidence produce?"
+without opening record files. It reads outputs only; it is not on any parsing
+path.
+
+### 3.6 Rules the module keeps
+
+`pinfo` changes no contract semantics: stdout is still exactly one JSON line;
+records still go to files under `OUT_DIR`; exit codes stay `0/1/2/3`
+([§3.5](../framework/03-environment-contract.md)); idempotent re-runs and the
+`.part`-then-rename commit stay as they are. `conform.sh` gains one check
+(tools under `pinfo` must not carry a local `batch.go`) and loses none.
+
+## 4. The Linux parser set
+
+Twelve tools, one artefact class each, all Tier-1 shape from birth:
+`FROM scratch`, static, `USER 2000:2000`, `contract.yml`, batch mode on no
+arguments, argv/`--tar` debug pass-through, JSONL default (CSV where records
+are flat). Prior-art libraries are **candidates**: each is license-checked and
+pinned per [07](../framework/07-supply-chain-and-versioning.md) at
+implementation time; where no permissive pure-Go library holds up, the format
+is clean-roomed from its documentation — these are documented formats, and
+clean-room over an `io.ReaderAt` is how gomount's partition code was built.
+
+| Tool | Artefacts | Windows analogue | Phase |
+|---|---|---|---|
+| `gojournal` | systemd journal `*.journal` files | goevtx | L1 |
+| `goauditd` | auditd `audit.log*` | goevtx (Security) | L1 |
+| `gowtmp` | wtmp/utmp/btmp, lastlog, wtmpdb | goevtx logon events | L0 (pilot) |
+| `gosyslog` | syslog-family text logs | — (text logs) | L1 |
+| `goshell` | shell/REPL histories | — (closest: console artefacts) | L1 |
+| `gousers` | passwd/shadow/group, sudoers, SSH material | SAM via gore | L1 |
+| `gocron` | crontabs, cron.d, anacron, at | Scheduled Tasks via gore | L1 |
+| `gounit` | systemd units/timers + enablement | Services/Run keys via gore | L1 |
+| `gotrash` | XDG Trash | gorb | L1 |
+| `gopkg` | dpkg/rpm/pacman/apk + snap/flatpak | goamcache/goappcompat | L4 |
+| `goacct` | process accounting `pacct` | goprefetch | L4 |
+| `gosqlite` | profile-driven SQLite dumps | sqlecmd (.NET) | L4 |
+
+Per-tool briefs — what is parsed and the known format edges:
+
+- **`gojournal`** — the Linux evtx. Binary journal files from
+  `var/log/journal/<machine-id>/` (and `run/log/journal` when staged),
+  including archived and `~`-suffixed dirty files; entry payloads compressed
+  with XZ, LZ4 or ZSTD by header flag (pure-Go decompressors exist for all
+  three). One record per entry: `__REALTIME` µs → `EventTime`, monotonic +
+  boot ID, and the field set (`MESSAGE`, `PRIORITY`, `_PID`, `_UID`, `_COMM`,
+  `_EXE`, `_CMDLINE`, `_SYSTEMD_UNIT`, `SYSLOG_IDENTIFIER`, `_HOSTNAME`, …)
+  flattened. Journals are large: the parser streams entries and never buffers
+  a file. Prior art: Velociraptor parses journals in pure Go (AGPL — a
+  reference that the format is tractable, not code to reuse); the format is
+  documented by systemd.
+- **`goauditd`** — audit.log text records; records sharing one
+  `msg=audit(sec.usec:serial)` are coalesced into one event (SYSCALL + EXECVE
+  + PATH + CWD + PROCTITLE …), hex-encoded fields (proctitle, quoted execve
+  args) decoded, argv reassembled in order — the execve stream is the CAR
+  `process` feed. Candidate: `elastic/go-libaudit` (Apache-2.0) for record
+  parsing/coalescing rules.
+- **`gowtmp`** — the L0 pilot: small, fixed-record binary formats with
+  immediate CAR value. Classic glibc `struct utmp` (384-byte LE records) for
+  wtmp/utmp/btmp including rotated `wtmp.1(.gz)`; `lastlog` (292-byte
+  per-UID sparse records, UID from offset); the wtmpdb SQLite successor via
+  the same pure-Go driver gosqlite uses. Record-size sanity checks guard
+  against non-glibc layouts rather than misparsing them.
+- **`gosyslog`** — syslog-shaped text logs (`syslog`, `messages`, `auth.log`,
+  `secure`, `kern.log`, `cron`, `daemon.log`, mail logs, …) plus their
+  rotations, gzip included. Timestamp dialects: RFC3164 (no year — inferred
+  from file mtime, walking back across New Year), RFC5424, and ISO-8601
+  prefixes; continuation lines attach to their event. One record per line:
+  time, host, ident, PID, message, source file and line number.
+- **`goshell`** — per-user histories under `home/*` and `root`:
+  `.bash_history` (with `HISTTIMEFORMAT` `#<epoch>` stamp lines when
+  present), `.zsh_history` (extended `: <epoch>:<elapsed>;cmd` format,
+  zsh metafied-byte unescaping), fish, plus `.python_history`,
+  `.mysql_history`, `.psql_history`, `.lesshst`, `.viminfo` command lines.
+  Sequence order is preserved; `EventTime` is set only when the artefact
+  really carries one — no invented times.
+- **`gousers`** — account and access surface: `etc/passwd`, `etc/shadow`
+  (day-counts → dates; locked/empty markers), `etc/group`/`gshadow`,
+  `etc/sudoers` + `sudoers.d` (conservative directive/spec parse),
+  `etc/ssh/sshd_config` + drop-ins, per-user `authorized_keys` (options
+  captured) and `known_hosts`, host key fingerprints. Typed records
+  (`Kind: account|sudoers|sshkey|…`) in one output.
+- **`gocron`** — `etc/crontab`, `etc/cron.d/*`, run-parts membership of
+  `cron.{hourly,daily,weekly,monthly}`, user spools (`var/spool/cron/crontabs`
+  Debian-style and `var/spool/cron` RH-style), `etc/anacrontab`, the at spool
+  (job environment + payload).
+- **`gounit`** — systemd persistence surface: unit files across
+  `etc/systemd/system`, `run/systemd/system`, `usr/lib|lib/systemd/system`
+  and user units; enablement from `*.wants/`/`*.requires/` symlinks; masked
+  units; timers with their `OnCalendar`/`OnBoot*` spec; `Exec*`, `User`,
+  `Environment` lines; the vendor-vs-`/etc` override flag that makes a
+  dropped-in unit stand out.
+- **`gotrash`** — XDG Trash (`.local/share/Trash` and per-volume
+  `.Trash-<uid>`): each `info/*.trashinfo` (original path, deletion time)
+  joined with its `files/` twin's size — the `$I`/`$R` of Linux.
+- **`gopkg`** — software presence and package events. Inventories: dpkg
+  `status`, rpmdb (`var/lib/rpm` and `usr/lib/sysimage/rpm`; BerkeleyDB,
+  ndb and SQLite backends — candidate `knqyf263/go-rpmdb`, pure Go), pacman
+  `local/*/desc`, apk `installed`, snapd (`state.json` +
+  `snaps/*.snap` — squashfs read, §5.1 — for `meta/snap.yaml`), flatpak
+  deploy metadata. Events: `dpkg.log*`, `apt/history.log*`, `pacman.log` —
+  timestamped install/upgrade/remove records.
+- **`goacct`** — BSD process accounting `var/log/account/pacct*` (`acct_v3`
+  64-byte records: comm, uid/gid, tty, btime, elapsed/CPU comp_t, exit and
+  flags) — execution history with timestamps, the closest native thing to
+  prefetch. sysstat `sa` and atop raw files are version-tied binary formats:
+  deliberately out of v1 (§11.2).
+- **`gosqlite`** — the sqlecmd role in pure Go (`modernc.org/sqlite`, cgo-free
+  → `FROM scratch` holds): batch-drives embedded, versioned **profiles**
+  (a data file, like `materialise-sets.yml`) that map a recognised database —
+  Firefox `places.sqlite`, Chromium `History` (WebKit-epoch conversion),
+  wtmpdb, and future profiles — to named queries emitting flat records.
+  `-wal`/`-shm` siblings ride along under the existing sibling rule.
+
+Windows classes with no Linux analogue (registry, ESE, prefetch, shellbags,
+LNK, jump lists) get none; Linux surfaces Windows lacks (journal, auditd,
+package managers) are first-class above. Deferred candidates — web-server
+access logs, XDG `recently-used.xbel`, network configuration, browser
+profiles beyond the gosqlite profiles — are backlog, listed in §11.3.
+
+## 5. Evidence access: gomount grows Linux filesystems
+
+gomount already has the right verb surface (`ls cat stat tree browse stream
+materialise mount`) and the right internal seams: `image` (raw/E01 →
+`io.ReaderAt`) and `partition` (MBR/GPT) are filesystem-agnostic; only the
+`ntfs*` packages are NTFS-specific. The plan extends gomount rather than
+introducing a second mount tool (§11.1 records the decision):
+
+### 5.1 Filesystem backends
+
+A small `fsx` interface (open a volume `ReaderAt` → enumerate, stat, open
+files; expose all timestamps the filesystem has, owner/mode/inode, link
+targets unfollowed, nlink) with backends:
+
+| FS | Detection | Notes | Candidates |
+|---|---|---|---|
+| ext2/3/4 | magic `0xEF53` at sb+56 | crtime from 256-byte inodes; extents and legacy block maps | `masahiro331/go-ext4-filesystem`, `dsoprea/go-ext4` |
+| XFS | `XFSB` at 0 | v5 crtime | `masahiro331/go-xfs-filesystem` |
+| Btrfs | magic at 0x10040 | subvolumes = the snapshot backend (§6.1); no production pure-Go reader exists — **the largest single build item**, clean-room | — |
+| vfat | boot sector | `/boot/efi`, USB media | `diskfs/go-diskfs` |
+| squashfs | `hsqs` | snap packages, live-ISO roots | `CalebQ42/squashfs`, `diskfs/go-diskfs` |
+
+The userspace path stays the default (parse in-process, no privilege, no
+`/dev/fuse`), matching the NTFS backend's philosophy: a malformed filesystem
+is a Go error, not a kernel fault. The FUSE `mount` verb remains
+NTFS-via-ntfs-3g only; Linux filesystems are served userspace-only until a
+concrete need says otherwise.
+
+### 5.2 The volume stack
+
+Linux images are rarely partition→filesystem. Between `partition` and `fsx`
+sits a container-peeling layer, applied repeatedly until a filesystem is
+reached:
+
+```
+image (raw | E01 | qcow2 …)
+  └─ partition (MBR/GPT — exists today)
+       └─ mdraid?  (superblock 1.x; RAID 0/1 assembly)          [L4]
+            └─ LUKS?  (detect always; decrypt only with an
+                       operator-supplied key/passphrase file)    [open §11.2]
+                 └─ LVM2?  (PV label scan → text VG metadata →
+                            LV extent maps: linear, striped;
+                            snapshot-cow §6.2; thin/tmeta L4)    [L2]
+                      └─ filesystem probe → fsx backend
+```
+
+Every verb that names a volume today gains `--lv <vg/lv>` addressing beside
+`--volume N`. A new **`identify`** verb prints the whole resolved stack — image
+format, partitions, RAID/LUKS/LVM findings, per-volume filesystem, OS guess
+(`etc/os-release` vs `Windows/System32`), and the snapshot inventory (§6) — as
+one JSON document. It is the lane's routing and reporting input, and the
+`snaps` listing lives inside it.
+
+### 5.3 Image formats
+
+`image` gains qcow2 (magic `QFI\xfb`, already in the evidence taxonomy;
+candidate `lima-vm/go-qcow2reader`, backing chains followed read-only) beside
+raw/dd and E01/Ex01. VHD/VHDX/VMDK follow as candidates in the same seam
+(Velocidex-ecosystem readers exist) — they serve the VM_files lane and are not
+on the Linux critical path.
+
+### 5.4 `materialise --set linux-core` and `timeline`
+
+- **`linux-core`** joins `materialise-sets.yml` (same embedded catalogue, same
+  glob + siblings semantics): `var/log/**` (journal, audit, wtmp/btmp,
+  lastlog, syslog family, dpkg/apt/pacman logs), `etc/`
+  {passwd, shadow, group, gshadow, sudoers + sudoers.d, crontab + cron.*,
+  anacrontab, ssh, systemd, os-release, hostname, hosts, fstab,
+  ld.so.preload, modules-load.d}, `var/spool/{cron,at}/**`,
+  `usr/lib|lib/systemd/system/**`, `var/lib/{dpkg/status, rpm/**,
+  pacman/local/**, snapd/state.json}`, and per-user
+  `home/*|root/{.bash_history, .zsh_history, …, .ssh/**,
+  .config/systemd/user/**, .local/share/Trash/**}`. SQLite siblings
+  (`-wal`, `-shm`) ride the existing sibling rule. materialise gains a
+  `--max-file-size` guard (journals can be tens of GB); every skip lands in
+  the manifest, never silent.
+- **`timeline`** emits one MACB record per file — all timestamps the backend
+  exposes (ext4 crtime and Btrfs otime included), path, size, owner, mode,
+  inode, link target — as JSONL in the envelope shape (§3.3), per volume and,
+  under `--snap`, per snapshot. It is `stream --jsonl` minus content, tuned
+  for the bodyfile role, and it replaces `filestat`+`l2t_filestat` in the
+  Linux path. (Recovering deleted ext4 inodes is a later, flagged extension —
+  §11.3.)
+
+### 5.5 Contract and hardening posture
+
+gomount keeps `entrypoint: argv` (a declared deviation — its verbs are
+streaming) and its existing image shape; nothing here adds a shell
+dependency. The Linux backends are pure Go in the same binary. `conform.sh`
+and the gate apply unchanged. Whether gomount becomes a first-class
+`images.yml` entry is already framework open question #3; this plan makes it
+load-bearing for a whole OS family, which is an argument the decision record
+should note (§11.2).
+
+## 6. Snapshots: passing snaps to the parsers
+
+VSS parity is the point: on Windows every store is processed so pre-wipe and
+pre-rollback state is seen. The Linux equivalents are enumerated, read, and
+passed through the same verbs, and the parsers stay snapshot-agnostic — they
+just see more inputs, with provenance in the path and the envelope.
+
+### 6.1 Btrfs snapshots (L3)
+
+Snapshots are subvolumes. The Btrfs backend enumerates every subvolume from
+the root tree with its id, path, parent UUID, read-only flag and `otime`; a
+snapshot is just a subvolume the operator (or `--snap all`) selects. Distro
+layouts (snapper's `.snapshots/<n>/snapshot`, Timeshift trees, `@`/`@home`)
+need no special-casing — they are subvolumes like any other, and `identify`
+labels the recognisable conventions.
+
+### 6.2 LVM snapshots (L3 classic, L4 thin)
+
+- **Classic COW snapshots:** the snapshot LV's exception store (chunk-mapped
+  COW format) is overlaid on the origin LV read-only — origin plus exceptions
+  reconstructs the volume as of snapshot time.
+- **Thin snapshots:** thin LVs and their snapshots share the pool's `tmeta`
+  device — a superblock and a two-level B-tree mapping virtual to data
+  blocks. Same seam, more parsing; lands with the thin-pool work in L4.
+
+### 6.3 VM-format and ZFS snapshots
+
+qcow2 internal snapshots (the header's snapshot table, each with its own L1
+table) are listed by `identify` and readable best-effort in L3 — checkpoint
+parity for VM evidence. ZFS is the honest gap: no credible pure-Go reader
+exists and kernel mounts are off the table, so ZFS pools are **detected and
+reported, not read**, with the userspace-OpenZFS (`zdb`-style, declared
+Shape-B deviation) option recorded as the path if demand materialises
+(§11.2).
+
+### 6.4 The surface and the provenance rule
+
+- `gomount identify` lists snapshots; `stream`, `materialise` and `timeline`
+  take `--snap all` (or a comma list of ids) and iterate the base volume plus
+  each selected snapshot.
+- **Layout:** the base volume's output is unchanged; snapshot output lands
+  under `snap/<backend>-<id>/…` (materialise) or with the same prefix on tar
+  entry names (stream). `batchItemName` folds the prefix into item names, so
+  per-item outputs stay unique and self-describing with no parser changes.
+- **Envelope:** `timeline`/`stream --jsonl` records carry the `Snapshot`
+  object (§3.3) explicitly; parser records inherit provenance through
+  `SourceFilename` (the staged path keeps its `snap/…` prefix), and the
+  materialise manifest records `{snapshot: {backend,id,name,time}}` per pulled
+  file, so the CAR layer can group or diff by snapshot.
+- **Dedup:** `--snap-dedup` (default on for materialise, like Plaso's VSS
+  behaviour) skips a snapshot file whose path, size and mtime match the base
+  copy; content-hash comparison is opt-in. Everything skipped is in the
+  manifest.
+
+### 6.5 The other "snaps"
+
+Ubuntu snap *packages* are also covered, deliberately: `gopkg` inventories
+installed snaps from `snapd/state.json` and reads each `*.snap` (squashfs,
+§5.1) for its `meta/snap.yaml` — so both readings of "snaps" — snapshots and
+snap packages — are in scope, in their right places (§6.1–6.4 and §4·gopkg).
+
+## 7. Pipeline integration
+
+### 7.1 DX_DFIR lane
+
+The `godfir-toolz` lane already tolerates tools that find nothing (a
+non-Windows image exits 1 — tolerated by design), which makes the Linux
+integration additive:
+
+1. The lane declares **one more export run per image tree**:
+   `gomount materialise --set linux-core --snap all` into the same staging
+   root the Plaso `image_export` run uses today. On a Windows image it copies
+   nothing and that is not an error; on a Linux image `image_export` stages
+   nothing. No routing logic — content decides, as everywhere else.
+2. The Linux tools join `dxdfir_godfir_toolz_tools` and batch over the staged
+   tree exactly like the Windows tools; `gomount timeline` output is staged
+   beside them.
+3. `identify` output is captured per image as lane telemetry (and is the
+   input for eventually skipping the Plaso export on non-Windows images —
+   consumer optimisation, not a correctness need).
+
+Loose/staged Linux evidence (a tarred `/var/log`, a triage collection) needs
+no lane change at all: the tools content-detect under `INPUT_DIR` from L1.
+Evidence-taxonomy changes: none — Linux disk images are already
+`disk_images`/`vm_files`; loose artefact routing to the catch-all is
+unchanged, and refining it is a consumer follow-up.
+
+### 7.2 Keeping the pipeline green
+
+The Windows path is untouched at every phase; each Linux capability lands
+producer-first, consumer-switch-second, mirroring the framework's migration
+rules ([§10.4](../framework/10-migration-roadmap.md)). During L2–L5 the Plaso
+lane keeps running over the Linux corpus as a cross-check: a diff harness
+(conform.sh-style report) compares native output coverage against the
+equivalent Plaso parsers per image — utmp events, syslog line counts,
+filestat vs `timeline` — and the switch-off of log2timeline for Linux images
+is gated on that report, per class.
+
+### 7.3 byakugan
+
+New direct source maps consume the tools' JSONL by `input_pattern`, the way
+`goevtx.jsonl` is consumed today — candidates: `auditd_execve` and
+`goacct` → `process`, `wtmp_sessions` and journal/`gosyslog` sshd events →
+authentication/session, `timeline` → the file object, `gocron`/`gounit` →
+the scheduled/persistence surface `plaso_exec_cron` covers today, `gopkg` →
+software-inventory enrichment. The `l2t_utmp`, `l2t_utmpx`,
+`plaso_exec_cron` and `l2t_text`/`l2t_filestat` adapters stay for legacy
+storages and are retired from the *default* Linux path once the L5 parity
+report clears their class. Map authoring happens in the byakugan repository;
+this plan only fixes the interface: envelope fields (§3.3), stable payload
+field names per tool, and snapshot provenance available for grouping.
+
+## 8. Fixtures and testing
+
+Same regime as the Windows tools — committed fixtures or deterministic
+generators, a contract smoke test per tool asserting exit codes, the single
+summary line, idempotency and the config-error path — with the fixture
+strategy split by what can be generated unprivileged:
+
+- **Go-generated, in-repo:** utmp/wtmp/btmp/lastlog, pacct, trashinfo trees,
+  passwd/shadow/sudoers, crontabs, unit trees, histories, audit.log,
+  syslog files (plain and gz), SQLite profile fixtures. Each tool's
+  `test/fixtures/` carries a generator, not binaries, where possible.
+- **Unprivileged filesystem images:** `mkfs.ext4 -d <rootdir>` and
+  `mkfs.btrfs --rootdir` populate a file-backed image with no root and no
+  mounts; `mksquashfs` likewise; `qemu-img convert` wraps raw → qcow2. A
+  fixture-builder script produces small (≤ 8 MB, sparse) images from
+  committed root trees.
+- **Privileged-once goldens:** Btrfs *snapshots*, LVM (classic COW and thin)
+  and mdraid layouts cannot be authored offline with stock tools; a
+  `test/fixtures/gen-privileged.sh` builds them on a lab host (loop devices +
+  device-mapper), and the resulting small images are committed compressed
+  with the script as their provenance. Journal fixtures are captured tiny
+  real files (`systemd-journal-remote` from a fixed entry set), committed the
+  same way.
+- **Gate:** `conform.sh` and the CI gate ([06](../framework/06-verification-gate.md))
+  apply to every new directory from its first PR; the `pinfo` module carries
+  the runtime's unit tests (today's `batch_test.go` relocated) plus
+  golden-record tests per tstamp dialect.
+
+## 9. Framework conformance
+
+Nothing in this plan is exempt: every parser is a Tier-1 directory per
+[02](../framework/02-tool-directory-structure.md) (Dockerfile, contract.yml,
+README, tests), hardened per [05](../framework/05-hardening-standard.md)
+(`FROM scratch`, static, uid 2000, `/etc/dfir-hardened`, full label set), and
+enters `images.yml` on landing. There is deliberately **no new Tier-2 image**:
+no Python, no shell, no interpreter anywhere in the Linux path — the property
+the Windows matrix had to migrate toward is the Linux matrix's starting
+condition. The one structural novelty a reviewer will meet is the shared
+module and the repo-root build context (§3.4), which conform.sh learns to
+check.
+
+## 10. Phases
+
+Each phase ends with the gate green over its fixtures and the DX_DFIR light
+corpus run green; no consumer switch precedes its producer piece.
+
+| Phase | Scope | Lands | Proves |
+|---|---|---|---|
+| **L0** | `pinfo` + pilot | the module (batch port + envelope + tstamp + report), `gowtmp` built on it, conform.sh/module CI, repo-root build shape | the module and build shape work end-to-end on the smallest real parser |
+| **L1** | core parsers | `gojournal`, `goauditd`, `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`; tools join the lane list | staged/loose Linux evidence parses natively — no Plaso in that path |
+| **L2** | image path | gomount: `fsx`, ext4 + XFS + vfat backends, LVM (linear/striped), `identify`, `linux-core` materialise, `timeline`; lane adds the native export run | a plain or LVM Linux disk image processes end-to-end with the Plaso image absent |
+| **L3** | snaps | Btrfs backend + subvolume/snapshot enumeration, LVM COW snapshots, `--snap all` + provenance + dedup, qcow2 (+ internal-snapshot listing) | snapshot state reaches every parser with provenance — VSS parity |
+| **L4** | second wave | `gopkg` (squashfs/snap/flatpak included), `goacct`, `gosqlite` + profiles; LVM thin, mdraid | software/execution history classes; the hard volume layouts |
+| **L5** | cutover | byakugan direct maps; parity diff harness vs Plaso per class; DX_DFIR retires log2timeline from the default Linux path; `l2t_*` adapters demoted to legacy | the goal state: Linux CAR built entirely from native parser output |
+
+Follow-ups this plan enables but does not schedule: the Windows tools adopt
+`pinfo` (mechanical: delete `batch.go`, import, repo-root context — after L1
+proves the module); Windows extraction moves from `image_export` to
+`gomount materialise`; a VSS backend behind the same `--snap` surface. Each is
+a one-page decision when its time comes.
+
+## 11. Decisions and open questions
+
+### 11.1 Decided by this plan
+
+| # | Decision |
+|---|---|
+| 1 | No log2timeline anywhere in the Linux path; Plaso remains for the Windows export stage and as a bring-up cross-check only |
+| 2 | The shared runtime is a real module, `pinfo`, at the repo root; Linux tools are born on it; the byte-identical-`batch.go` rule remains for the Windows tools until their adoption phase |
+| 3 | Parser images build with the repo root as context and take `pinfo` via `replace` — hermetic, air-gap-clean, no module fetch |
+| 4 | The record envelope (§3.3) with UTC RFC3339 `EventTime` and explicit `Snapshot` provenance is mandatory for every Linux tool |
+| 5 | gomount is extended with Linux backends behind one `fsx` seam — no second mount tool; userspace-only for Linux filesystems |
+| 6 | Snapshots are passed by the access layer (`--snap all`), parsers stay snapshot-agnostic, provenance rides paths + envelope + manifest, dedup defaults on |
+| 7 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
+| 8 | Every new image is Tier-1/`FROM scratch`; no interpreter enters the Linux path |
+
+### 11.2 Open questions
+
+1. **ZFS.** If needed: userspace OpenZFS (`zdb`-style extraction) as a
+   declared Shape-B deviation image, vs. a pure-Go reader (research-grade
+   effort), vs. staying report-only. Decide on real corpus demand.
+2. **LUKS.** Detection always; decryption only with operator-provided key
+   material — the open part is the provisioning UX (a keyfile mount in the
+   lane contract vs. out-of-band pre-decryption on the host). LUKS2/argon2 is
+   feasible in pure Go; sequencing it is the question.
+3. **Journald library.** Adopt a permissively-licensed pure-Go journal reader
+   if one holds up at pinning time; otherwise clean-room (the format is
+   documented). AGPL implementations are references, never dependencies.
+4. **sysstat/atop.** Version-tied binary formats with real forensic value;
+   support matrix and effort unclear — revisit after L4's `goacct`.
+5. **When the Windows tools adopt `pinfo`** — after L1, in parallel with
+   L2–L3, or batched with their eventual materialise switch.
+6. **gomount inventory status** (framework open question #3) — this plan
+   makes gomount load-bearing for Linux; that weighs toward first-class
+   `images.yml` entry and should be settled by L2.
+
+### 11.3 Backlog (recorded, unscheduled)
+
+Web-server access/error logs (`goweb`); XDG `recently-used.xbel` and desktop
+artefacts; network configuration surface (hosts, resolv, NetworkManager
+profiles, firewall saves); browser-profile coverage beyond gosqlite's first
+profiles; ext4 deleted-inode recovery in `timeline`; VHD/VHDX/VMDK image
+formats; a persistence-sweep aggregator across gounit/gocron/gousers outputs
+(the autoruns analogue).
