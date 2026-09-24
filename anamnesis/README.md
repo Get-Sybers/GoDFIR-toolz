@@ -34,6 +34,7 @@ recursively (symlinks ignored); every file matched by extension `.raw .mem
 | `ANAMNESIS_OUT_DIR` | `/out` | output root — one folder per image, `/` and spaces folded to `_` |
 | `ANAMNESIS_PLUGINS` | *(empty)* | comma-separated collector names; empty = the default CAR set |
 | `ANAMNESIS_FORCE` | `0` | `1/true/yes/on`: rerun collectors that already have valid output |
+| `ANAMNESIS_SEED_DIR` | `/opt/anamnesis/seed-offsets` | read-only build-time offset-store seeds; read after the mounted cache and `/tmp`, never written |
 
 There is no symbol variable: the engine is **always offline** and never
 touches the network. The PDB symbol cache lives in a persistent host
@@ -64,6 +65,12 @@ evaporates with the container. The image therefore ships
 persistent host directory there read-write (the contract's `symbols` mount,
 writable by uid 2000) and the cache accumulates across runs. The engine
 never downloads a PDB.
+
+The image also bakes the engine repo's `seeds/anamnesis-offsets/` read-only
+at `/opt/anamnesis/seed-offsets` (`ANAMNESIS_SEED_DIR` overrides): build-time
+generated offset files (`symrec -store`) the engine reads last, so a seeded
+build is a store hit on its very first image; writes still go only to the
+mounted cache, and seeds stay pristine.
 
 The cache holds two things: symsrv-layout PDBs (`<name>/<GUID+age>/<name>`,
 so PDBs obtained by any external means drop straight in) and

@@ -15,6 +15,7 @@ env:
   ANAMNESIS_PLUGINS:        {required: false, default: "",       desc: 'comma-separated collector names; empty = the default CAR set'}
   ANAMNESIS_FORCE:          {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns collectors that already have valid output'}
   ANAMNESIS_STALL_TIMEOUT:  {required: false, default: "5m", desc: 'per-collector stall watchdog, a Go duration (0 disables); a collector blocked in the native engine past it is recorded in <OUT_DIR>/<clean image name>/plugins/<plugin>.stalled and the batch re-execs itself to resume — after two stalls the collector is skipped as failed'}
+  ANAMNESIS_SEED_DIR:       {required: false, default: /opt/anamnesis/seed-offsets, desc: 'read-only build-time offset-store seeds baked into the image; the engine reads it after the mounted cache and /tmp, and never writes it'}
 
 mounts:
   - {name: input,   path: /input,   mode: ro, env: ANAMNESIS_INPUT_DIR,   required: true}

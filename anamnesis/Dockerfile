@@ -11,7 +11,7 @@ ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 # The anamnesis engine pin — the ONE place the engine version is set; consumers
 # (DX_DFIR included) build without a REF build-arg and inherit it.
-ARG ANAMNESIS_REF=92d57e93c8a690696d933d3d579d52effa6b7b56
+ARG ANAMNESIS_REF=f03d0e8528d09624fa5cac293ffff77b25c95b9a
 # MemProcFS upstream release pin. The release TAG is major.minor (v5.18) but the
 # published asset filename carries the full patch version and a date stamp, so
 # the tag and the asset name are pinned as separate values. Bump all three (and
@@ -90,6 +90,8 @@ ARG DFIR_UID
 ARG DFIR_GID
 COPY --from=build /anamnesis /opt/anamnesis/anamnesis
 COPY --from=memprocfs /opt/anamnesis/lib /opt/anamnesis/lib
+# build-time offset-store seeds, read-only (README: Symbols)
+COPY --from=src /src/seeds/anamnesis-offsets/ /opt/anamnesis/seed-offsets/
 COPY anamnesis/contract.yml /opt/anamnesis/contract.yml
 COPY hardening/harden.yml /tmp/hardening/harden.yml
 # harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
