@@ -26,7 +26,10 @@ has three pillars:
 2. **Twelve Linux parsers** (`gojournal`, `goauditd`, `gowtmp`, `gosyslog`,
    `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`, `gopkg`, `goacct`,
    `gosqlite`) — each a framework-conformant Tier-1 image from its first
-   commit.
+   commit, with record schemas designed against the byakugan data model
+   (§4.1): the parsers extract everything byakugan's CAR maps need — typed
+   rows, native vocabulary, identity fields, join keys — and derive nothing
+   byakugan owns (relationships, canonicalisation, enrichment).
 3. **Linux evidence access in gomount** — continuing the native-extraction
    role gomount already started for Windows (`materialise` sets,
    `stream`→`--tar`): ext4/XFS/Btrfs (and vfat, squashfs)
@@ -110,8 +113,11 @@ pinfo/
 ├── batch/      the runtime: env contract, discovery loop, per-item .part
 │               commit, skip-unless-FORCE, the summary line, exit 0/1/2/3
 │               (a port of today's batch.go, semantics unchanged)
-├── record/     the envelope (§3.3) + ordered JSONL/CSV writers; the CSV
-│               list-join rule ('|') the Windows tools already use
+├── record/     the envelope (§3.3), typed-record schema declaration (the
+│               names contract.yml and byakugan's field_provenance cite,
+│               §4.1) + ordered JSONL/CSV writers with honest-null
+│               discipline; the CSV list-join rule ('|') the Windows tools
+│               already use
 ├── tstamp/     normalisation to RFC3339 UTC: RFC3164 (year inference from
 │               file mtime with rollover walk-back), RFC5424, ISO-8601,
 │               epoch s/ms/µs/ns, journal usec, days-since-epoch (shadow)
@@ -155,7 +161,9 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
   absent means the live volume.
 - Payload fields stay flat and tool-specific, exactly like the Windows tools'
   records (`goprefetch`'s `Executable`/`RunCount`/… pattern); CSV order is the
-  declared header order.
+  declared header order. Their design is governed by the byakugan-alignment
+  rules of §4.1: typed rows, native vocabulary verbatim, honest nulls, and
+  the field set each CAR map consumes as the floor.
 
 The Windows tools' record shapes are not migrated by this plan; when they
 adopt `pinfo` (§10) they keep their existing fields and gain nothing
@@ -227,7 +235,57 @@ clean-room over an `io.ReaderAt` is how gomount's partition code was built.
 | `goacct` | process accounting `pacct` | goprefetch | L4 |
 | `gosqlite` | profile-driven SQLite dumps | sqlecmd (.NET) | L4 |
 
-Per-tool briefs — what is parsed and the known format edges:
+### 4.1 Records are designed against the byakugan data model
+
+byakugan's store consumes typed rows and decides everything else itself:
+which values are canonical for a CAR object and which stay native (its
+"canonical column or honest null, never a near-miss" rule), how a row's guid
+is minted (the `spindle.yml` identity registry, from record fields alone),
+and every relationship (`cascade_relationships`, `crosssource`, `derive`).
+The parsers' whole job is to hand it the native truth, complete. Six rules
+bind every Linux tool's record design:
+
+1. **Typed rows.** Every record carries a stable `RecordType` discriminator
+   (the role Plaso's `data_type` plays), and known high-value line families
+   are typed *by the parser*: `gosyslog` types sshd `Accepted`/`Failed`,
+   sudo, su and cron-session lines the way Plaso's SSH plugin types
+   `syslog:ssh:login` — because maps select rows with predicates over typed
+   fields and never regex raw messages byakugan-side. The raw line always
+   rides along in the record.
+2. **Native vocabulary, verbatim.** utmp record types stay `6/7/8`, audit
+   record types stay `SYSCALL`/`EXECVE`, flags stay flags. No parser
+   pre-normalises into CAR vocabulary — the map's canonical-or-null
+   judgement only works when it receives the native value to judge (the
+   existing utmp map records `login_type` natively precisely because utmp's
+   vocabulary is *not* CAR's).
+3. **Honest nulls.** A field the artefact does not carry is omitted (JSONL)
+   or empty (CSV) — never `-`, `N/A` or an invented value — and a real zero
+   (root's uid) is emitted, not blanked.
+4. **Identity fields extracted.** Each tool documents which payload fields
+   identify a record — journal (boot id, seqnum), audit
+   (`sec.usec:serial`), utmp (pid, terminal, time), a timeline row (inode,
+   path, kind, time) — so spindle registry entries (or an external identity
+   form) mint row guids from fields alone, as today, with no parser change.
+5. **Join keys carried, relationships never derived.** PIDs, UIDs,
+   terminals, unit names, paths are extracted exactly as the artefact
+   states them; session pairing, parentage, cross-source correlation and
+   every enrichment stay in byakugan. A parser that starts joining records
+   is out of scope by design.
+6. **Field floors from the existing maps.** Where a Plaso-based map exists,
+   the field set it consumes is the new tool's minimum: `gowtmp` ⊇ the
+   `l2t_utmp` set (username, source hostname, ip_address, pid, terminal,
+   terminal_identifier, exit_status, login_type); `gosyslog`'s typed ssh
+   rows ⊇ the `syslog:ssh:login` set; `gomount timeline` ⊇ the
+   `l2t_filestat` set (§5.4). Classes with no existing map (journal,
+   auditd, packages) get their field set written together with their first
+   map. Each tool's `contract.yml` declares its record fields (name, type,
+   one-line semantic); CI holds the golden records to those names, and a
+   generated source definition's `field_provenance` cites exactly them —
+   so parser output and map input cannot drift silently.
+
+### 4.2 Per-tool briefs
+
+What is parsed and the known format edges:
 
 - **`gojournal`** — the Linux evtx. Binary journal files from
   `var/log/journal/<machine-id>/` (and `run/log/journal` when staged),
@@ -388,13 +446,17 @@ on the Linux critical path.
   (`-wal`, `-shm`) ride the existing sibling rule. materialise gains a
   `--max-file-size` guard (journals can be tens of GB); every skip lands in
   the manifest, never silent.
-- **`timeline`** emits one MACB record per file — all timestamps the backend
-  exposes (ext4 crtime and Btrfs otime included), path, size, owner, mode,
-  inode, link target — as JSONL in the envelope shape (§3.3), per volume and,
-  under `--snap`, per snapshot. It is `stream --jsonl` minus content, tuned
-  for the bodyfile role, and it replaces `filestat`+`l2t_filestat` in the
-  Linux path. (Recovering deleted ext4 inodes is a later, flagged extension —
-  §11.3.)
+- **`timeline`** emits one record per **(file, timestamp kind)** — the
+  `fs:stat` shape the existing CAR file maps consume, so their
+  timestamp-kind → file-action logic (create/modify/read; a kind with no
+  canonical action, like ctime, honestly stays raw) ports directly. Each row:
+  `TimeKind` (birth, modify, access, change — whatever the backend exposes,
+  ext4 crtime and Btrfs otime included), `EventTime`, path, size, mode,
+  owner uid/gid, inode, nlink, link target, in the envelope shape (§3.3),
+  per volume and, under `--snap`, per snapshot. `--hash` adds the file's own
+  md5/sha1/sha256 — canonical by the filestat precedent: the stat'ed file
+  *is* the file. It replaces `filestat`+`l2t_filestat` in the Linux path.
+  (Recovering deleted ext4 inodes is a later, flagged extension — §11.3.)
 
 ### 5.5 Contract and hardening posture
 
@@ -507,16 +569,29 @@ is gated on that report, per class.
 ### 7.3 byakugan
 
 New direct source maps consume the tools' JSONL by `input_pattern`, the way
-`goevtx.jsonl` is consumed today — candidates: `auditd_execve` and
-`goacct` → `process`, `wtmp_sessions` and journal/`gosyslog` sshd events →
-authentication/session, `timeline` → the file object, `gocron`/`gounit` →
-the scheduled/persistence surface `plaso_exec_cron` covers today, `gopkg` →
-software-inventory enrichment. The `l2t_utmp`, `l2t_utmpx`,
-`plaso_exec_cron` and `l2t_text`/`l2t_filestat` adapters stay for legacy
-storages and are retired from the *default* Linux path once the L5 parity
-report clears their class. Map authoring happens in the byakugan repository;
-this plan only fixes the interface: envelope fields (§3.3), stable payload
-field names per tool, and snapshot provenance available for grouping.
+`goevtx.jsonl` is consumed today. The CAR-object targets (byakugan's model
+decides the final shapes; §4.1 fixes what the parsers owe them):
+
+| Source | CAR object · action | Standing today |
+|---|---|---|
+| `gowtmp` | `user_session` login/logout (record types 6/7/8; others stay raw) | replaces `l2t_utmp`/`l2t_utmpx` |
+| `gosyslog` typed sshd/sudo/su rows | `user_session` / authentication | replaces the `l2t_text` ssh view |
+| `goauditd` execve events | `process` create/execute — argv, uids, tty carried | new coverage |
+| `goacct` | `process` (execution history) | new coverage |
+| `gojournal` (typed units/messages) | `user_session`, `process`, service surface | new coverage |
+| `gomount timeline` | `file` via `TimeKind` (§5.4) | replaces `l2t_filestat` |
+| `gocron` / `gounit` | the scheduled/persistence surface | replaces `plaso_exec_cron` |
+| `gopkg` | software inventory (native/other coverage) | new coverage |
+
+The `l2t_utmp`, `l2t_utmpx`, `plaso_exec_cron` and `l2t_text`/`l2t_filestat`
+adapters stay for legacy storages and are retired from the *default* Linux
+path once the L5 parity report clears their class. Map authoring happens in
+the byakugan repository; this plan fixes the interface it can rely on: the
+envelope (§3.3), the §4.1 record rules — typed rows, native vocabulary,
+declared field names for `field_provenance`, identity fields for the
+spindle registry — and snapshot provenance available for grouping. Each new
+source's generated definition cites the Go tool as `extractor` and
+`<tool>.jsonl` as its `input_pattern`, exactly as `goevtx` appears today.
 
 ## 8. Fixtures and testing
 
@@ -595,6 +670,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 6 | Snapshots are passed by the access layer (`--snap all`), parsers stay snapshot-agnostic, provenance rides paths + envelope + manifest, dedup defaults on |
 | 7 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
 | 8 | Every new image is Tier-1/`FROM scratch`; no interpreter enters the Linux path |
+| 9 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted, declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
 
 ### 11.2 Open questions
 
