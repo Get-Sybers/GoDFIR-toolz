@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build the hardened DFIR images: the twelve Go parsers (goprefetch/ … gowxt/),
+# Build the hardened DFIR images: the twelve Windows Go parsers
+# (goprefetch/ … gowxt/), the nine Linux Go parsers (gowtmp/ … gotrash/,
+# on the shared pinfo/ module, repo-root build context),
 # one per-tool image per remaining .NET tool (godfir-tool/Dockerfile), and the
 # DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/, anamnesis/).
 #
@@ -96,6 +98,24 @@ build_gowxt() {
   docker build "${STAMP[@]}" -t get-sybers/gowxt:latest -f gowxt/Dockerfile gowxt
 }
 
+# The Linux artefact parsers (docs/linux): static Go on the shared pinfo
+# module, so each builds with the REPO ROOT as context (the image copies the
+# sibling pinfo/ directory).
+build_linux_parser() {
+  local tool="$1" desc="$2"
+  echo "==> get-sybers/${tool} (Go, ${desc})"
+  docker build "${STAMP[@]}" -t "get-sybers/${tool}:latest" -f "${tool}/Dockerfile" .
+}
+build_gowtmp()    { build_linux_parser gowtmp    "Linux logins: utmp/wtmp/btmp/lastlog"; }
+build_gojournal() { build_linux_parser gojournal "systemd journal entries"; }
+build_goauditd()  { build_linux_parser goauditd  "audit.log records coalesced into events"; }
+build_gosyslog()  { build_linux_parser gosyslog  "syslog-family text logs, typed families"; }
+build_goshell()   { build_linux_parser goshell   "shell/REPL histories"; }
+build_gousers()   { build_linux_parser gousers   "accounts, sudoers, SSH access surface"; }
+build_gocron()    { build_linux_parser gocron    "cron/anacron/at scheduled tasks"; }
+build_gounit()    { build_linux_parser gounit    "systemd units and timers"; }
+build_gotrash()   { build_linux_parser gotrash   "XDG Trash"; }
+
 build_anamnesis() {
   # anamnesis (pure-Go memory forensics on MemProcFS — no Volatility, no Python).
   # Context is the repo root so hardening/harden.yml is in reach; the source is
@@ -156,6 +176,15 @@ resolve() {
     gole|lecmd) build_gole; return ;;
     gojle|jlecmd) build_gojle; return ;;
     gowxt|wxtcmd) build_gowxt; return ;;
+    gowtmp) build_gowtmp; return ;;
+    gojournal|journald) build_gojournal; return ;;
+    goauditd|auditd) build_goauditd; return ;;
+    gosyslog|syslog) build_gosyslog; return ;;
+    goshell) build_goshell; return ;;
+    gousers) build_gousers; return ;;
+    gocron) build_gocron; return ;;
+    gounit) build_gounit; return ;;
+    gotrash) build_gotrash; return ;;
     anamnesis|memory) build_anamnesis; return ;;
     byakugan|mitrecar|car) build_byakugan; return ;;
     plaso|log2timeline|psort) build_plaso; return ;;
@@ -173,7 +202,7 @@ resolve() {
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt anamnesis byakugan plaso signatures zeek" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt gowtmp gojournal goauditd gosyslog goshell gousers gocron gounit gotrash anamnesis byakugan plaso signatures zeek" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -194,6 +223,15 @@ else
   build_gole
   build_gojle
   build_gowxt
+  build_gowtmp
+  build_gojournal
+  build_goauditd
+  build_gosyslog
+  build_goshell
+  build_gousers
+  build_gocron
+  build_gounit
+  build_gotrash
   build_anamnesis
   build_byakugan
   build_plaso

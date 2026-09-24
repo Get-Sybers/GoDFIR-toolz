@@ -30,6 +30,28 @@ verifies it the same way as for the .NET images.
 - [gojle/](gojle/README.md) — AutomaticDestinations jump lists
 - [gowxt/](gowxt/README.md) — Windows Timeline ActivitiesCache.db
 
+## The Linux Go parsers (docs/linux — the same shape, second OS)
+
+Nine static Go binaries for the Linux artefact classes, built on the shared
+[`pinfo/`](docs/linux/README.md) module (batch runtime, record envelope,
+provenance stamping) instead of a copied `batch.go`, and therefore built
+with the **repo root as context**. Same hardening contract: `FROM scratch`,
+one static binary, `USER 2000:2000`.
+
+- [gowtmp/](gowtmp/README.md) — Linux logins: utmp/wtmp/btmp `struct utmp` records + the sparse lastlog table
+- [gojournal/](gojournal/README.md) — systemd journal: binary `.journal` files (dirty/compact included), XZ/LZ4/ZSTD payloads, streamed
+- [goauditd/](goauditd/README.md) — audit.log records coalesced into one record per event, hex fields decoded, execve argv reassembled
+- [gosyslog/](gosyslog/README.md) — syslog-family text logs, three timestamp dialects, sshd/sudo/pam/cron families typed by the parser
+- [goshell/](goshell/README.md) — bash/zsh/fish/sh/python/mysql/psql histories, one record per command
+- [gousers/](gousers/README.md) — passwd/shadow/group, sudoers, sshd_config, authorized_keys, known_hosts as typed records
+- [gocron/](gocron/README.md) — system/user crontabs, cron.d, run-parts, anacrontab, at jobs
+- [gounit/](gounit/README.md) — systemd units, timers and drop-ins, with the vendor/admin/runtime/user scope
+- [gotrash/](gotrash/README.md) — XDG Trash: original path, deletion time, paired content file
+
+The plan they implement — the pinfo module, snapshots, filesystem residue,
+byakugan alignment, the phased sequence — is
+[docs/linux/README.md](docs/linux/README.md).
+
 ## Pipeline images
 
 - [byakugan/](byakugan/README.md) — `get-sybers/byakugan`: the external
