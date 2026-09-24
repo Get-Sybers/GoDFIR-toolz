@@ -34,6 +34,7 @@ recursively (symlinks ignored); every file matched by extension `.raw .mem
 | `ANAMNESIS_OUT_DIR` | `/out` | output root — one folder per image, `/` and spaces folded to `_` |
 | `ANAMNESIS_PLUGINS` | *(empty)* | comma-separated collector names; empty = the default CAR set |
 | `ANAMNESIS_FORCE` | `0` | `1/true/yes/on`: rerun collectors that already have valid output |
+| `ANAMNESIS_SEED_DIR` | `/opt/anamnesis/seed-offsets` | read-only build-time offset-store seeds; read after the mounted cache and `/tmp`, never written |
 
 There is no symbol variable: the engine is **always offline** and never
 touches the network. The PDB symbol cache lives in a persistent host
