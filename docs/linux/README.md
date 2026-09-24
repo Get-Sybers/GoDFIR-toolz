@@ -50,11 +50,11 @@ Done means: a Linux disk image — plain, LVM, or Btrfs, snapshots included —
 processes end-to-end into per-artefact JSONL and CAR **with the Plaso image
 absent**, and every new image passes the framework gate.
 
-> ## The rule
+> ## The rules
 >
-> **The Go toolz never replace byakugan, and never use its synthetic joining
-> guids.** The parsers are parsers: they extract, complete and native,
-> everything byakugan needs to do its job — and nothing more. CAR
+> **1. The Go toolz never replace byakugan, and never use its synthetic
+> joining guids.** The parsers are parsers: they extract, complete and
+> native, everything byakugan needs to do its job — and nothing more. CAR
 > normalisation, canonicalisation, row identity, relationships and every
 > derived view are byakugan's; the row guids (`guid`, `owning_guid`,
 > `volume_guid`) are its synthetic join keys, minted by its engine alone
@@ -63,6 +63,16 @@ absent**, and every new image passes the framework gate.
 > is an extraction capability; anything that would synthesise, join or
 > normalise on the Go side is out of scope by this rule, wherever it
 > appears below.
+>
+> **2. The Go toolz are treated as parsers, with plaso-grade provenance.**
+> For every record it is easy to say what was parsed and where that file
+> existed: the parser that produced it (`Tool` + `RecordType` — the role
+> plaso's `Parser` field plays), the file it parsed (`SourceFilename`),
+> and the file's place in the evidence (`Origin`: image → volume →
+> snapshot/residue → original volume path, §3.3) — the traceability a
+> dfVFS path spec gives a plaso event. No tool writes any of it by hand:
+> the `pinfo` runtime stamps it from the access layer's manifest, one
+> implementation for the whole matrix.
 
 ## 1. Goal and non-goals
 
@@ -131,7 +141,9 @@ pinfo/
 ├── go.mod
 ├── batch/      the runtime: env contract, discovery loop, per-item .part
 │               commit, skip-unless-FORCE, the summary line, exit 0/1/2/3
-│               (a port of today's batch.go, semantics unchanged)
+│               (a port of today's batch.go, semantics unchanged) — plus
+│               the rule-2 provenance stamping: Origin/Snapshot/Residue
+│               joined from the stage manifest onto every record (§3.3)
 ├── record/     the envelope (§3.3), typed-record schema declaration (the
 │               names contract.yml and byakugan's field_provenance cite,
 │               §4.1) + ordered JSONL/CSV writers with honest-null
@@ -166,9 +178,11 @@ Every Linux record is the tool's own flat payload plus a common envelope, so
 downstream (byakugan maps, Filebeat, the report verb) reads one shape:
 
 ```json
-{"Tool":"goauditd","ToolVersion":"0.1.0",
+{"Tool":"goauditd","ToolVersion":"0.1.0","RecordType":"auditd_event",
  "SourceFilename":"var/log/audit/audit.log.1.gz","SourceModified":"2026-03-02T04:11:09Z",
  "EventTime":"2026-03-01T22:14:02.481Z","TimeKind":"event",
+ "Origin":{"Image":"srv01.E01","Volume":"vg0/root",
+           "Path":"/var/log/audit/audit.log.1.gz","Inode":131204},
  "Snapshot":{"Backend":"lvm","ID":"home-snap1","Time":"2026-02-28T00:00:04Z"},
  "...payload fields..."}
 ```
@@ -176,11 +190,22 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
 - `EventTime` is UTC RFC3339, always populated when the artefact carries a
   time; `TimeKind` says what the time is (`event`, `written`, `deleted`,
   `install`, …) for artefacts with several.
+- `Tool` + `RecordType` is the record's parser chain — the role plaso's
+  `Parser` field plays on the rows byakugan keeps (rule 2).
+- `Origin` is where the parsed file existed in the evidence: the image, the
+  volume (partition index or `vg/lv`), the original volume path and inode —
+  the dfVFS-path-spec role. The `pinfo` batch runtime stamps it (rule 2) by
+  joining the item's staged path against the access layer's manifest when
+  one is present at the input root, or from the stream's tar entry metadata
+  in `--tar` mode; for loose evidence it is absent and `SourceFilename` is
+  the whole truth. Tool code never computes it.
 - `Snapshot` is present only for records that came out of a snapshot (§6.4);
   absent means the live volume.
 - `Residue` (`Kind`, `Detail`) is its sibling for records recovered from
   filesystem residue — `lost+found`, orphan inodes, deleted directory
   entries, journal history (§5.5); absent means an ordinary allocated file.
+  Both it and `Snapshot` are resolved by the runtime alongside `Origin`,
+  from the same manifest — never by tool code parsing path prefixes.
 - Payload fields stay flat and tool-specific, exactly like the Windows tools'
   records (`goprefetch`'s `Executable`/`RunCount`/… pattern); CSV order is the
   declared header order. Their design is governed by the byakugan-alignment
@@ -188,7 +213,7 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
   the field set each CAR map consumes as the floor.
 - The envelope carries **no synthetic identifiers**: record identity is
   natural fields only (§4.1), and byakugan's guids never appear in parser
-  output — the rule.
+  output — rule 1.
 
 The Windows tools' record shapes are not migrated by this plan; when they
 adopt `pinfo` (§10) they keep their existing fields and gain nothing
@@ -226,7 +251,9 @@ and the operator get one place that answers "what did this evidence produce?"
 without opening record files. It reads outputs only; it is not on any parsing
 path — and it reports on *runs*, not evidence: it never joins records across
 tools, never mints an identity, and is no substitute for byakugan's timeline
-or cross-source views (the rule).
+or cross-source views (rule 1). With `Origin` on every record (rule 2), the
+report also answers plaso-pinfo's other half — what was parsed and where
+each file existed, per evidence item.
 
 ### 3.6 Rules the module keeps
 
@@ -307,7 +334,7 @@ every Linux tool's record design:
    form) mint row guids from fields alone, as today, with no parser change.
    The parsers only *carry* those natural fields: computing a spindle guid
    is the engine's alone, and no synthetic guid ever appears in parser
-   output (the rule).
+   output (rule 1).
 5. **Join keys carried, relationships never derived.** PIDs, UIDs,
    terminals, unit names, paths are extracted exactly as the artefact
    states them; session pairing, parentage, cross-source correlation and
@@ -490,7 +517,12 @@ on the Linux critical path.
   .config/systemd/user/**, .local/share/Trash/**}`. SQLite siblings
   (`-wal`, `-shm`) ride the existing sibling rule. materialise gains a
   `--max-file-size` guard (journals can be tens of GB); every skip lands in
-  the manifest, never silent.
+  the manifest, never silent. The manifest itself becomes the **origin
+  record** of rule 2: one row per staged file carrying the full chain —
+  evidence image, volume (partition index or `vg/lv`), snapshot or residue
+  identity, the original volume path, inode, size, mtime — the join the
+  `pinfo` runtime uses to stamp `Origin` onto every parser record (§3.3),
+  the way a dfVFS path spec rides every plaso event.
 - **`timeline`** emits one record per **(file, timestamp kind)** — the
   `fs:stat` shape the existing CAR file maps consume, so their
   timestamp-kind → file-action logic (create/modify/read; a kind with no
@@ -537,8 +569,9 @@ How it flows, consistent with everything else in this plan:
   the signatures lane scans recovered bytes it would otherwise never see.
   The parsers stay residue-agnostic exactly as they are snapshot-agnostic.
 - **Envelope:** a `Residue` object (`Kind`, `Detail`) parallels `Snapshot`
-  in §3.3 — explicit on access-layer rows, inherited through the
-  `residue/…` staged path by parser records.
+  in §3.3 — explicit on access-layer rows, stamped onto parser records by
+  the `pinfo` runtime from the manifest (rule 2), with the `residue/…`
+  staged path as the human-readable trace.
 - **Scope line:** this is structure-driven recovery — what the filesystem's
   own metadata still proves. Content carving over unallocated space is a
   different discipline and stays out (backlog, §11.3); the signatures lane
@@ -604,10 +637,11 @@ Shape-B deviation) option recorded as the path if demand materialises
   entry names (stream). `batchItemName` folds the prefix into item names, so
   per-item outputs stay unique and self-describing with no parser changes.
 - **Envelope:** `timeline`/`stream --jsonl` records carry the `Snapshot`
-  object (§3.3) explicitly; parser records inherit provenance through
-  `SourceFilename` (the staged path keeps its `snap/…` prefix), and the
-  materialise manifest records `{snapshot: {backend,id,name,time}}` per pulled
-  file, so the CAR layer can group or diff by snapshot.
+  object (§3.3) explicitly; on parser records the `pinfo` runtime stamps
+  `Snapshot` (and `Origin`) from the materialise manifest, which records
+  `{snapshot: {backend,id,name,time}}` per pulled file (§5.4) — the CAR
+  layer can group or diff by snapshot, and the `snap/…` path prefix stays
+  as the human-readable trace in `SourceFilename`.
 - **Dedup:** `--snap-dedup` (default on for materialise, like Plaso's VSS
   behaviour) skips a snapshot file whose path, size and mtime match the base
   copy; content-hash comparison is opt-in. Everything skipped is in the
@@ -687,7 +721,9 @@ path once the L5 parity report clears their class. Map authoring happens in
 the byakugan repository; this plan fixes the interface it can rely on: the
 envelope (§3.3), the §4.1 record rules — typed rows, native vocabulary,
 declared field names for `field_provenance`, identity fields for the
-spindle registry — and snapshot provenance available for grouping. Each new
+spindle registry — snapshot provenance available for grouping, and rule-2
+`Origin` giving every row its `SourceImage` roll-up identity natively
+(today derived from the processed tree's path layout). Each new
 source's generated definition cites the Go tool as `extractor` and
 `<tool>.jsonl` as its `input_pattern`, exactly as `goevtx` appears today.
 
@@ -763,11 +799,11 @@ snapshot story. Each is a one-page decision when its time comes.
 
 | # | Decision |
 |---|---|
-| 1 | **The rule** (stated in full after the abstract): the Go toolz never replace byakugan and never use its synthetic joining guids — parsers extract everything byakugan needs to do its job, and nothing on the Go side synthesises, joins or normalises |
+| 1 | **The rules** (stated in full after the abstract): (1) the Go toolz never replace byakugan and never use its synthetic joining guids — parsers extract everything byakugan needs to do its job, and nothing on the Go side synthesises, joins or normalises; (2) the toolz are treated as parsers with plaso-grade provenance — every record traceable to its parser, its source file, and where that file existed |
 | 2 | No log2timeline anywhere in the Linux path; Plaso remains for the Windows export stage and as a bring-up cross-check only |
 | 3 | The shared runtime is a real module, `pinfo`, at the repo root; Linux tools are born on it; the byte-identical-`batch.go` rule remains for the Windows tools until their adoption phase |
 | 4 | Parser images build with the repo root as context and take `pinfo` via `replace` — hermetic, air-gap-clean, no module fetch |
-| 5 | The record envelope (§3.3) with UTC RFC3339 `EventTime` and explicit `Snapshot` provenance is mandatory for every Linux tool — and carries no synthetic identifiers |
+| 5 | The record envelope (§3.3) with UTC RFC3339 `EventTime` and explicit provenance is mandatory for every Linux tool — and carries no synthetic identifiers; `Origin`/`Snapshot`/`Residue` are stamped by the `pinfo` runtime from the access layer's manifest, never computed by tool code |
 | 6 | gomount — already begun as the native extraction path on Windows — gains the Linux backends behind one `fsx` seam; no second mount tool; userspace-only for Linux filesystems |
 | 7 | Snapshots are passed by the access layer (`--snap all`), parsers stay snapshot-agnostic, provenance rides paths + envelope + manifest, dedup defaults on |
 | 8 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
@@ -805,5 +841,5 @@ ext4/jbd2); content carving over unallocated space (out of the residue
 surface by decision 11 — if it ever lands, it is the signatures lane's
 business); VHD/VHDX/VMDK image formats. A persistence-sweep view across
 gounit/gocron/gousers outputs (the autoruns analogue) is recorded here so
-it is not re-derived, but under the rule it is byakugan's side of the
+it is not re-derived, but under rule 1 it is byakugan's side of the
 boundary — a derived view over parser records, never a Go tool.
