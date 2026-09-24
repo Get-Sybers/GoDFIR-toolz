@@ -40,7 +40,11 @@ has three pillars:
    **snapshot traversal**: LVM and Btrfs snapshots (and qcow2 internal
    snapshots) are enumerated and passed through `stream`/`materialise`/
    `timeline` exactly as VSS stores are passed on the Windows side, with
-   provenance carried into every record.
+   provenance carried into every record — and **filesystem residue**: what
+   each filesystem leaves behind (`lost+found`, orphaned and deleted-but-
+   present entries, directory slack names, fs journals) is surfaced through
+   the same verbs with the same provenance discipline, and recovered
+   content is fed back through the same parsers (§5.5).
 
 Done means: a Linux disk image — plain, LVM, or Btrfs, snapshots included —
 processes end-to-end into per-artefact JSONL and CAR **with the Plaso image
@@ -80,6 +84,7 @@ removed:
 | Extraction from disk images | Plaso `image_export` + filter file in the lane; `gomount materialise` (Windows artefact sets) and `stream`→`--tar` already started as the native replacement | Plaso `log2timeline` over the whole image | `gomount materialise --set linux-core` (§5) — the same native path, second OS |
 | Snapshots | VSS via `PLASO_*_VSS=1` (in-lane) or libvshadow on the host | LVM/Btrfs snapshots not traversed at all | `gomount --snap all` over LVM/Btrfs/qcow2 snapshots (§6) |
 | Filesystem timeline | gomft over a materialised `$MFT` | Plaso `filestat` + `l2t_filestat` map | `gomount timeline` MACB records per volume and snapshot (§5.4) |
+| Filesystem residue | deleted `$MFT` entries ride gomft's parse; USN via l2t | nothing — `lost+found` at best walked as ordinary files | typed residue surface: `lost+found`, orphan inodes, deleted dirents, fs journals (§5.5) |
 | CAR mapping | direct maps on parser output (`goevtx.jsonl` input pattern) | `l2t_utmp`, `l2t_utmpx`, `plaso_exec_cron`, `l2t_text` adapters | direct maps on the Linux tools' JSONL (§7.3) |
 
 The Plaso image itself stays in the repository: it remains the Windows lane's
@@ -159,6 +164,9 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
   `install`, …) for artefacts with several.
 - `Snapshot` is present only for records that came out of a snapshot (§6.4);
   absent means the live volume.
+- `Residue` (`Kind`, `Detail`) is its sibling for records recovered from
+  filesystem residue — `lost+found`, orphan inodes, deleted directory
+  entries, journal history (§5.5); absent means an ordinary allocated file.
 - Payload fields stay flat and tool-specific, exactly like the Windows tools'
   records (`goprefetch`'s `Executable`/`RunCount`/… pattern); CSV order is the
   declared header order. Their design is governed by the byakugan-alignment
@@ -394,7 +402,9 @@ tool — same verbs, new backends — rather than introducing a second mount too
 
 A small `fsx` interface (open a volume `ReaderAt` → enumerate, stat, open
 files; expose all timestamps the filesystem has, owner/mode/inode, link
-targets unfollowed, nlink) with backends:
+targets unfollowed, nlink — plus **allocation state** and a per-backend
+**residue enumeration** seam, §5.5, designed in from the first backend
+rather than bolted on) with backends:
 
 | FS | Detection | Notes | Candidates |
 |---|---|---|---|
@@ -451,7 +461,8 @@ on the Linux critical path.
   {passwd, shadow, group, gshadow, sudoers + sudoers.d, crontab + cron.*,
   anacrontab, ssh, systemd, os-release, hostname, hosts, fstab,
   ld.so.preload, modules-load.d}, `var/spool/{cron,at}/**`,
-  `usr/lib|lib/systemd/system/**`, `var/lib/{dpkg/status, rpm/**,
+  `usr/lib|lib/systemd/system/**`, `lost+found/**` (§5.5),
+  `var/lib/{dpkg/status, rpm/**,
   pacman/local/**, snapd/state.json}`, and per-user
   `home/*|root/{.bash_history, .zsh_history, …, .ssh/**,
   .config/systemd/user/**, .local/share/Trash/**}`. SQLite siblings
@@ -465,12 +476,58 @@ on the Linux critical path.
   `TimeKind` (birth, modify, access, change — whatever the backend exposes,
   ext4 crtime and Btrfs otime included), `EventTime`, path, size, mode,
   owner uid/gid, inode, nlink, link target, in the envelope shape (§3.3),
-  per volume and, under `--snap`, per snapshot. `--hash` adds the file's own
-  md5/sha1/sha256 — canonical by the filestat precedent: the stat'ed file
-  *is* the file. It replaces `filestat`+`l2t_filestat` in the Linux path.
-  (Recovering deleted ext4 inodes is a later, flagged extension — §11.3.)
+  per volume and, under `--snap`, per snapshot. Every row carries the
+  entry's **allocation state** (the `InUse` gomft already emits for `$MFT`
+  entries), and `--residue` adds the recovered rows of §5.5. `--hash` adds
+  the file's own md5/sha1/sha256 — canonical by the filestat precedent: the
+  stat'ed file *is* the file. It replaces `filestat`+`l2t_filestat` in the
+  Linux path.
 
-### 5.5 Contract and hardening posture
+### 5.5 Filesystem residue: `lost+found`, orphans, deleted entries, journals
+
+Filesystems leave artefacts behind, and the Windows matrix already uses its
+own (gomft emits deleted `$MFT` entries as `InUse: false` rows). The Linux
+backends expose theirs through one typed residue surface on `fsx` — each
+item a kind, whatever metadata survives, and content where it is still
+addressable:
+
+| Kind | What it is | Backend |
+|---|---|---|
+| `lost_found` | fsck-recovered orphans under `lost+found/` (`#<inode>` names — the original path is gone, the inode metadata and content are not) | ext4, XFS (`xfs_repair`), Btrfs (`check --repair`) |
+| `orphan_inode` | unlinked-but-intact inodes: the superblock orphan list and inode-table sweep for in-range inodes with no directory entry | ext4 first |
+| `deleted_dirent` | names still readable in directory-block slack — the *filename and parent* of a deleted file, joined to its inode when that survives | ext4, vfat (0xE5 entries) |
+| `fs_journal` | metadata history out of the filesystem journal: prior inode versions, dropped dirents, commit sequence — recent deletes and renames with times | ext4/jbd2 (L4); XFS log is backlog (§11.3) |
+| `backup_root` | previous metadata-tree generations from superblock backup roots — bounded time-travel *beside* snapshots | Btrfs (listed by `identify`) |
+
+How it flows, consistent with everything else in this plan:
+
+- **`timeline --residue`** emits the recovered entries as ordinary rows —
+  allocation state, residue kind and whatever timestamps survive, native
+  and verbatim per §4.1 — so byakugan's file maps judge them (a recovered
+  delete with a real time is a `file` delete; a nameless orphan without one
+  honestly stays metadata/raw). Nothing recovered is ever silently mixed
+  in with allocated files: the kind and the `Residue` provenance are on
+  every row.
+- **`materialise --residue`** (and `stream --residue`) pulls recoverable
+  *content* into the stage under `residue/<kind>/<id>/…`, manifest rows
+  included — so a deleted-then-recovered `auth.log` or shell history is
+  parsed by the same gosyslog/goshell containers as its live sibling, and
+  the signatures lane scans recovered bytes it would otherwise never see.
+  The parsers stay residue-agnostic exactly as they are snapshot-agnostic.
+- **Envelope:** a `Residue` object (`Kind`, `Detail`) parallels `Snapshot`
+  in §3.3 — explicit on access-layer rows, inherited through the
+  `residue/…` staged path by parser records.
+- **Scope line:** this is structure-driven recovery — what the filesystem's
+  own metadata still proves. Content carving over unallocated space is a
+  different discipline and stays out (backlog, §11.3); the signatures lane
+  is the place raw-space scanning already lives.
+
+Phasing: allocation state and the `lost+found`/`orphan_inode`/
+`deleted_dirent` kinds land with the ext4 backend in L2; Btrfs
+`backup_root` listing joins the snapshot work in L3; jbd2 journal decoding
+is L4.
+
+### 5.6 Contract and hardening posture
 
 gomount keeps `entrypoint: argv` (a declared deviation — its verbs are
 streaming) and its existing image shape; nothing here adds a shell
@@ -627,7 +684,10 @@ strategy split by what can be generated unprivileged:
   `mkfs.btrfs --rootdir` populate a file-backed image with no root and no
   mounts; `mksquashfs` likewise; `qemu-img convert` wraps raw → qcow2. A
   fixture-builder script produces small (≤ 8 MB, sparse) images from
-  committed root trees.
+  committed root trees. **Residue fixtures** are generated the same
+  unprivileged way: `debugfs -w` unlinks and kills entries on the image
+  file without mounting it, deterministically manufacturing deleted
+  dirents, orphan inodes and `lost+found` cases for the §5.5 tests.
 - **Privileged-once goldens:** Btrfs *snapshots*, LVM (classic COW and thin)
   and mdraid layouts cannot be authored offline with stock tools; a
   `test/fixtures/gen-privileged.sh` builds them on a lab host (loop devices +
@@ -662,9 +722,9 @@ corpus run green; no consumer switch precedes its producer piece.
 |---|---|---|---|
 | **L0** | `pinfo` + pilot | the module (batch port + envelope + tstamp + report), `gowtmp` built on it, conform.sh/module CI, repo-root build shape | the module and build shape work end-to-end on the smallest real parser |
 | **L1** | core parsers | `gojournal`, `goauditd`, `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`; tools join the lane list | staged/loose Linux evidence parses natively — no Plaso in that path |
-| **L2** | image path | gomount: `fsx`, ext4 + XFS + vfat backends, LVM (linear/striped), `identify`, `linux-core` materialise, `timeline`; lane adds the native export run | a plain or LVM Linux disk image processes end-to-end with the Plaso image absent |
-| **L3** | snaps | Btrfs backend + subvolume/snapshot enumeration, LVM COW snapshots, `--snap all` + provenance + dedup, qcow2 (+ internal-snapshot listing) | snapshot state reaches every parser with provenance — VSS parity |
-| **L4** | second wave | `gopkg` (squashfs/snap/flatpak included), `goacct`, `gosqlite` + profiles; LVM thin, mdraid | software/execution history classes; the hard volume layouts |
+| **L2** | image path | gomount: `fsx`, ext4 + XFS + vfat backends, LVM (linear/striped), `identify`, `linux-core` materialise, `timeline` with allocation state; ext4 residue kinds — `lost+found`, orphan inodes, deleted dirents (§5.5); lane adds the native export run | a plain or LVM Linux disk image processes end-to-end with the Plaso image absent, residue included |
+| **L3** | snaps | Btrfs backend + subvolume/snapshot enumeration and `backup_root` residue listing, LVM COW snapshots, `--snap all` + provenance + dedup, qcow2 (+ internal-snapshot listing) | snapshot state reaches every parser with provenance — VSS parity |
+| **L4** | second wave | `gopkg` (squashfs/snap/flatpak included), `goacct`, `gosqlite` + profiles; LVM thin, mdraid; ext4/jbd2 journal residue | software/execution history classes; the hard volume layouts; journal-derived history |
 | **L5** | cutover | byakugan direct maps; parity diff harness vs Plaso per class; DX_DFIR retires log2timeline from the default Linux path; `l2t_*` adapters demoted to legacy | the goal state: Linux CAR built entirely from native parser output |
 
 Follow-ups this plan enables but does not schedule: the Windows tools adopt
@@ -690,6 +750,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 7 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
 | 8 | Every new image is Tier-1/`FROM scratch`; no interpreter enters the Linux path |
 | 9 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted, declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
+| 10 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
 
 ### 11.2 Open questions
 
@@ -716,6 +777,8 @@ snapshot story. Each is a one-page decision when its time comes.
 Web-server access/error logs (`goweb`); XDG `recently-used.xbel` and desktop
 artefacts; network configuration surface (hosts, resolv, NetworkManager
 profiles, firewall saves); browser-profile coverage beyond gosqlite's first
-profiles; ext4 deleted-inode recovery in `timeline`; VHD/VHDX/VMDK image
-formats; a persistence-sweep aggregator across gounit/gocron/gousers outputs
-(the autoruns analogue).
+profiles; XFS log decoding as a `fs_journal` residue backend (§5.5 covers
+ext4/jbd2); content carving over unallocated space (out of the residue
+surface by decision 10 — if it ever lands, it is the signatures lane's
+business); VHD/VHDX/VMDK image formats; a persistence-sweep aggregator
+across gounit/gocron/gousers outputs (the autoruns analogue).
