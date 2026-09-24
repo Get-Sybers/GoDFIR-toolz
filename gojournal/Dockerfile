@@ -9,7 +9,7 @@
 # Build from the REPO ROOT (the image copies the sibling pinfo/ module):
 #   docker build -t get-sybers/gojournal:latest -f gojournal/Dockerfile .
 
-ARG GO_VERSION=1.24
+ARG GO_VERSION=1.25
 ARG TOOL_VERSION=0.1.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
