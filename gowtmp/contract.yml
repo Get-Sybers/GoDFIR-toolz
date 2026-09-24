@@ -1,0 +1,61 @@
+# gowtmp/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: gowtmp
+image: get-sybers/gowtmp:latest
+entrypoint: self-orchestrating
+description: >
+  Linux login-record parser (static Go on the shared pinfo module): finds every
+  utmp-family file under the input tree — utmp, wtmp, btmp (failed logins) and
+  lastlog, rotations and gzip included — and writes one record per entry into
+  one output folder per file. Native utmp vocabulary verbatim; provenance
+  (Origin/Snapshot/Residue) stamped from a stage manifest when one is present.
+
+env:
+  GOWTMP_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every utmp/wtmp/btmp/lastlog file (rotations and .gz included) is an item'}
+  GOWTMP_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
+  GOWTMP_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gowtmp needs none but honours it'}
+  GOWTMP_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOWTMP_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GOWTMP_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GOWTMP_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GOWTMP_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GOWTMP_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/gowtmp.jsonl (or gowtmp.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+# The declared record fields (docs/linux §4.1): the names byakugan's maps and
+# field_provenance cite. Envelope head first (shared by every pinfo tool),
+# then the per-RecordType payload.
+records:
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  utmp:
+    Source: 'file family the record came from: utmp | wtmp | btmp (btmp rows are failed logins)'
+    LoginType: 'native utmp record type 1-9, verbatim (6/7 login, 8 logout; NOT the CAR login_type vocabulary)'
+    LoginTypeName: 'utmp(5) name of LoginType (USER_PROCESS, DEAD_PROCESS, ...)'
+    PID: 'session leader pid (identity field, carried never minted)'
+    Terminal: 'ut_line device name'
+    TerminalID: 'ut_id terminal suffix'
+    Username: 'ut_user, verbatim'
+    Hostname: 'login SOURCE host, verbatim (not the imaged host)'
+    IPAddress: 'ut_addr_v6 rendered IPv4/IPv6; absent when unset'
+    ExitTermination: 'e_termination'
+    ExitStatus: 'e_exit'
+    Session: 'ut_session'
+  lastlog:
+    Source: 'always lastlog'
+    UID: 'the slot index = the account uid (0 is root, a real value)'
+    Terminal: 'll_line'
+    Hostname: 'll_host'
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR | --tar (tar on stdin,
+  the gomount stream pipe), --format json|csv, -q. Records stream to stdout.
+  Exit 0 ok / 1 usage or fatal / 2 at least one file failed.
