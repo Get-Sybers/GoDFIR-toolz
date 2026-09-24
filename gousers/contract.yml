@@ -1,0 +1,51 @@
+# gousers/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: gousers
+image: get-sybers/gousers:latest
+entrypoint: self-orchestrating
+description: >
+  Linux account-and-access surface parser (static Go on the shared pinfo
+  module): passwd, shadow, group, gshadow, sudoers (+sudoers.d), sshd_config
+  (+drop-ins), authorized_keys and known_hosts become typed records — native
+  values verbatim, shadow day-counts also rendered as dates, SSH keys
+  identified by their standard SHA256 fingerprint.
+
+env:
+  GOUSERS_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised account/access file is an item'}
+  GOUSERS_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
+  GOUSERS_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gousers needs none but honours it'}
+  GOUSERS_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOUSERS_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GOUSERS_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GOUSERS_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GOUSERS_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GOUSERS_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/gousers.jsonl (or gousers.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+records:
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  account: {Username: 'passwd name', PasswordField: 'the passwd password column verbatim (x, *, a crypt, a NIS +)', UID: 'numeric uid (0 is a real value)', GID: 'primary gid', GECOS: 'comment field verbatim', HomeDir: 'home directory', Shell: 'login shell', Line: 'source line number'}
+  shadow: {Username: 'shadow name', PasswordCrypt: 'the crypt string verbatim (locked/starred values included; judging them is byakugan''s)', LastChangeDays: 'days-since-epoch, native (EventTime carries the date, TimeKind password_change)', MinDays: 'PASS_MIN_DAYS', MaxDays: 'PASS_MAX_DAYS', WarnDays: 'warn window', InactiveDays: 'inactivity window', ExpireDays: 'account expiry days-since-epoch, native', ExpireTime: 'ExpireDays rendered as a date', Line: 'source line number'}
+  group: {GroupName: 'group name', PasswordField: 'password column verbatim', GID: 'numeric gid', Members: 'member list', Line: 'source line number'}
+  gshadow: {GroupName: 'group name', PasswordCrypt: 'crypt verbatim', Admins: 'administrator list', Members: 'member list', Line: 'source line number'}
+  sudoers_default: {Parameters: 'the Defaults parameters verbatim', Raw: 'the whole line', Line: 'source line number'}
+  sudoers_alias: {AliasType: 'User_Alias | Runas_Alias | Host_Alias | Cmnd_Alias', AliasName: 'alias name', Members: 'alias members', Raw: 'the whole line', Line: 'source line number'}
+  sudoers_rule: {Users: 'user list', Hosts: 'host list', RunAs: 'the (runas) spec verbatim', Tags: 'NOPASSWD/NOEXEC/... tags', Commands: 'command list', Raw: 'the whole line (always present, also when the spec did not parse)', Line: 'source line number'}
+  sudoers_include: {Include: 'the included path', Raw: 'the whole line', Line: 'source line number'}
+  sshd_config: {Keyword: 'directive keyword', Value: 'directive value verbatim', MatchContext: 'the enclosing Match condition, empty at top level', Line: 'source line number'}
+  authorized_key: {Options: 'key options verbatim (command=, from=, ...)', KeyType: 'ssh key type', Fingerprint: 'standard OpenSSH SHA256 fingerprint of the key blob', Comment: 'trailing comment', Raw: 'the whole line', Line: 'source line number'}
+  known_host: {HostPattern: 'host field verbatim (hashed |1| forms included)', Hashed: 'whether the host field is hashed', Marker: '@revoked / @cert-authority when present', KeyType: 'ssh key type', Fingerprint: 'standard OpenSSH SHA256 fingerprint', Comment: 'trailing comment', Raw: 'the whole line', Line: 'source line number'}
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
+  file failed.

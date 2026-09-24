@@ -1,0 +1,40 @@
+# goshell/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: goshell
+image: get-sybers/goshell:latest
+entrypoint: self-orchestrating
+description: >
+  Shell and REPL history parser (static Go on the shared pinfo module):
+  bash (HISTTIMEFORMAT stamp lines), zsh extended (metafied bytes decoded),
+  fish, sh, python, mysql and psql histories become one record per command,
+  sequence order preserved; EventTime only when the artefact carries a time.
+
+env:
+  GOSHELL_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised history file is an item'}
+  GOSHELL_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per history file'}
+  GOSHELL_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); goshell needs none but honours it'}
+  GOSHELL_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOSHELL_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GOSHELL_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GOSHELL_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GOSHELL_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GOSHELL_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/goshell.jsonl (or goshell.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+records:
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  shell_history: {Shell: 'history family: bash | zsh | sh | python | mysql | psql | fish', Sequence: 'the command''s 1-based position in the file — the artefact''s own order', Command: 'the command line verbatim (zsh metafied bytes decoded)', Elapsed: 'zsh extended format only: seconds the command ran'}
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
+  file failed.

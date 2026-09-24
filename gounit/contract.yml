@@ -1,0 +1,44 @@
+# gounit/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: gounit
+image: get-sybers/gounit:latest
+entrypoint: self-orchestrating
+description: >
+  systemd unit parser (static Go on the shared pinfo module): unit files
+  (.service/.timer/.socket/.mount/.path/.target/...) and their drop-in
+  fragments across etc, run, usr/lib and per-user directories become one
+  record per file — Exec lines in order, User, timer schedule verbatim,
+  declared Install targets, and where the file sat (vendor/admin/runtime/
+  user). Enablement symlinks are the access layer's timeline, not this
+  parser's.
+
+env:
+  GOUNIT_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every unit file and drop-in is an item'}
+  GOUNIT_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per unit file'}
+  GOUNIT_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gounit needs none but honours it'}
+  GOUNIT_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GOUNIT_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
+  GOUNIT_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GOUNIT_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GOUNIT_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GOUNIT_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/gounit.jsonl (or gounit.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+records:
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  systemd_unit: &unit_fields {Unit: 'the unit name (file base, or the parent of a drop-in)', UnitType: 'service | timer | socket | mount | automount | path | target | slice | swap', Scope: 'where the file sat: vendor (usr/lib, lib) | admin (etc) | runtime (run) | user | other', DropIn: 'true for a <unit>.d/*.conf fragment', Description: '[Unit] Description', ExecStart: 'every ExecStart line in order (an empty assignment resets, systemd semantics)', ExecStartPre: 'as ExecStart', ExecStartPost: 'as ExecStart', ExecStop: 'as ExecStart', ExecStopPost: 'as ExecStart', ExecReload: 'as ExecStart', ExecCondition: 'as ExecStart', ServiceType: '[Service] Type', User: '[Service] User', Group: '[Service] Group', Environment: 'Environment lines in order', EnvironmentFile: 'EnvironmentFile lines in order', WorkingDirectory: '[Service] WorkingDirectory', OnCalendar: 'timer schedule spec verbatim (next-run resolution is derivation, byakugan''s)', OnBootSec: 'timer relative spec', OnStartupSec: 'timer relative spec', OnUnitActiveSec: 'timer relative spec', Persistent: '[Timer] Persistent verbatim', TimerUnit: '[Timer] Unit', ListenStream: '[Socket] ListenStream lines', WantedBy: '[Install] WantedBy (the DECLARED target; actual .wants links are filesystem structure)', RequiredBy: '[Install] RequiredBy', Also: '[Install] Also', Alias: '[Install] Alias', Requires: '[Unit] Requires', Wants: '[Unit] Wants', After: '[Unit] After', Before: '[Unit] Before', ConditionLines: 'every Condition*/Assert* line verbatim'}
+  systemd_dropin: *unit_fields
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
+  file failed.
