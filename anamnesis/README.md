@@ -65,6 +65,12 @@ persistent host directory there read-write (the contract's `symbols` mount,
 writable by uid 2000) and the cache accumulates across runs. The engine
 never downloads a PDB.
 
+The image also bakes the engine repo's `seeds/anamnesis-offsets/` read-only
+at `/opt/anamnesis/seed-offsets` (`ANAMNESIS_SEED_DIR` overrides): build-time
+generated offset files (`symrec -store`) the engine reads last, so a seeded
+build is a store hit on its very first image; writes still go only to the
+mounted cache, and seeds stay pristine.
+
 The cache holds two things: symsrv-layout PDBs (`<name>/<GUID+age>/<name>`,
 so PDBs obtained by any external means drop straight in) and
 `anamnesis-offsets/` — the engine's self-taught offset store
