@@ -27,7 +27,9 @@ has three pillars:
    `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`, `gopkg`, `goacct`,
    `gosqlite`) — each a framework-conformant Tier-1 image from its first
    commit.
-3. **Linux evidence access in gomount** — ext4/XFS/Btrfs (and vfat, squashfs)
+3. **Linux evidence access in gomount** — continuing the native-extraction
+   role gomount already started for Windows (`materialise` sets,
+   `stream`→`--tar`): ext4/XFS/Btrfs (and vfat, squashfs)
    backends behind the existing verb surface, a volume stack that peels
    partition → mdraid → LUKS → LVM, new image formats (qcow2 beside raw/E01),
    a `linux-core` materialise set replacing Plaso `image_export` for Linux
@@ -72,14 +74,15 @@ removed:
 |---|---|---|---|
 | Per-artefact parsers | 12 static Go tools (goevtx, gomft, gore, …) | Plaso parsers (syslog, utmp, cron, …) inside `log2timeline` | 12 static Go tools (§4) |
 | Shared runtime | `batch.go`, byte-identical copy in every tool dir | — | the `pinfo` module (§3), imported not copied |
-| Extraction from disk images | Plaso `image_export` + filter file (godfir-toolz lane) | Plaso `log2timeline` over the whole image | `gomount materialise --set linux-core` (§5) |
+| Extraction from disk images | Plaso `image_export` + filter file in the lane; `gomount materialise` (Windows artefact sets) and `stream`→`--tar` already started as the native replacement | Plaso `log2timeline` over the whole image | `gomount materialise --set linux-core` (§5) — the same native path, second OS |
 | Snapshots | VSS via `PLASO_*_VSS=1` (in-lane) or libvshadow on the host | LVM/Btrfs snapshots not traversed at all | `gomount --snap all` over LVM/Btrfs/qcow2 snapshots (§6) |
 | Filesystem timeline | gomft over a materialised `$MFT` | Plaso `filestat` + `l2t_filestat` map | `gomount timeline` MACB records per volume and snapshot (§5.4) |
 | CAR mapping | direct maps on parser output (`goevtx.jsonl` input pattern) | `l2t_utmp`, `l2t_utmpx`, `plaso_exec_cron`, `l2t_text` adapters | direct maps on the Linux tools' JSONL (§7.3) |
 
 The Plaso image itself stays in the repository: it remains the Windows lane's
-export stage and a cross-validation reference during bring-up (§10). What ends
-is Linux processing *depending* on it.
+export stage — until that lane completes the switch to `gomount materialise`
+that gomount already began (§10) — and a cross-validation reference during
+bring-up. What ends here is Linux processing *depending* on it.
 
 ## 3. `pinfo` — the shared parser module
 
@@ -308,11 +311,14 @@ profiles beyond the gosqlite profiles — are backlog, listed in §11.3.
 
 ## 5. Evidence access: gomount grows Linux filesystems
 
-gomount already has the right verb surface (`ls cat stat tree browse stream
-materialise mount`) and the right internal seams: `image` (raw/E01 →
+gomount is already the start of native disk extraction on the Windows side:
+`materialise` with its artefact-set catalogue and `stream` feeding the
+parsers' `--tar` mode exist precisely to displace the Plaso export stage,
+and its internal seams are ready for a second OS — `image` (raw/E01 →
 `io.ReaderAt`) and `partition` (MBR/GPT) are filesystem-agnostic; only the
-`ntfs*` packages are NTFS-specific. The plan extends gomount rather than
-introducing a second mount tool (§11.1 records the decision):
+`ntfs*` packages are NTFS-specific. The plan continues that line in the same
+tool — same verbs, new backends — rather than introducing a second mount tool
+(§11.1 records the decision):
 
 ### 5.1 Filesystem backends
 
@@ -569,9 +575,11 @@ corpus run green; no consumer switch precedes its producer piece.
 
 Follow-ups this plan enables but does not schedule: the Windows tools adopt
 `pinfo` (mechanical: delete `batch.go`, import, repo-root context — after L1
-proves the module); Windows extraction moves from `image_export` to
-`gomount materialise`; a VSS backend behind the same `--snap` surface. Each is
-a one-page decision when its time comes.
+proves the module); the Windows lane completes the extraction switch gomount
+already started — `image_export` retired in favour of `materialise` over the
+existing Windows sets, which by then is the proven Linux path; and a VSS
+backend behind the same `--snap` surface, giving both OS families one
+snapshot story. Each is a one-page decision when its time comes.
 
 ## 11. Decisions and open questions
 
@@ -583,7 +591,7 @@ a one-page decision when its time comes.
 | 2 | The shared runtime is a real module, `pinfo`, at the repo root; Linux tools are born on it; the byte-identical-`batch.go` rule remains for the Windows tools until their adoption phase |
 | 3 | Parser images build with the repo root as context and take `pinfo` via `replace` — hermetic, air-gap-clean, no module fetch |
 | 4 | The record envelope (§3.3) with UTC RFC3339 `EventTime` and explicit `Snapshot` provenance is mandatory for every Linux tool |
-| 5 | gomount is extended with Linux backends behind one `fsx` seam — no second mount tool; userspace-only for Linux filesystems |
+| 5 | gomount — already begun as the native extraction path on Windows — gains the Linux backends behind one `fsx` seam; no second mount tool; userspace-only for Linux filesystems |
 | 6 | Snapshots are passed by the access layer (`--snap all`), parsers stay snapshot-agnostic, provenance rides paths + envelope + manifest, dedup defaults on |
 | 7 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
 | 8 | Every new image is Tier-1/`FROM scratch`; no interpreter enters the Linux path |
