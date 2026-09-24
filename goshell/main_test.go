@@ -12,7 +12,7 @@ import (
 func parse(t *testing.T, shell, content string) []map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseHistory(strings.NewReader(content), shell, w); err != nil {
 		t.Fatal(err)
 	}

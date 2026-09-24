@@ -15,7 +15,6 @@ env:
   GOSYSLOG_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per log file'}
   GOSYSLOG_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gosyslog needs none but honours it'}
   GOSYSLOG_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
-  GOSYSLOG_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
   GOSYSLOG_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
@@ -30,7 +29,7 @@ summary_schema:
   required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
 
 outputs:
-  layout: "<OUT_DIR>/<item>/gosyslog.jsonl (or gosyslog.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+  layout: "<OUT_DIR>/<item>/gosyslog.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
   envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
@@ -41,6 +40,6 @@ records:
   cron_event: {Username: 'the job owner from the (user) field', Command: 'the CMD (...) body verbatim', Host: 'as syslog_line', Line: 'as syslog_line', Raw: 'as syslog_line'}
 
 argv_passthrough: >
-  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, -q.
   Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
   file failed.

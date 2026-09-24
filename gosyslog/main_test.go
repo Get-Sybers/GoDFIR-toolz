@@ -18,7 +18,7 @@ var ref = time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
 func parse(t *testing.T, content string) []map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseLog(strings.NewReader(content), ref, w); err != nil {
 		t.Fatal(err)
 	}

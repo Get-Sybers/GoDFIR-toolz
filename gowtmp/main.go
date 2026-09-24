@@ -22,7 +22,7 @@
 // one output folder per file and prints one JSON summary line. The argv
 // flags below are the debug pass-through:
 //
-//	gowtmp -f FILE | -d DIR | --tar [--format json|csv] [-q]
+//	gowtmp -f FILE | -d DIR | --tar [-q]
 //
 // argv exit codes: 0 = every file parsed; 1 = usage or fatal error; 2 = at
 // least one file failed to parse. Batch mode uses the uniform 0/1/2/3 table.
@@ -38,7 +38,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
@@ -93,28 +92,6 @@ type lastlogRecord struct {
 	UID      uint32 `json:"UID"`
 	Terminal string `json:"Terminal,omitempty"`
 	Hostname string `json:"Hostname,omitempty"`
-}
-
-// csvHeader is the unified CSV column order; lastlog rows leave the
-// utmp-only cells blank and vice versa.
-var csvHeader = append(record.EnvelopeCSV,
-	"Source", "LoginType", "LoginTypeName", "PID", "Terminal", "TerminalID",
-	"Username", "Hostname", "IPAddress", "ExitTermination", "ExitStatus",
-	"Session", "UID")
-
-func (r *utmpRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		r.Source, strconv.Itoa(int(r.LoginType)), r.LoginTypeName,
-		strconv.Itoa(int(r.PID)), r.Terminal, r.TerminalID,
-		r.Username, r.Hostname, r.IPAddress,
-		strconv.Itoa(int(r.ExitTerm)), strconv.Itoa(int(r.ExitStatus)),
-		strconv.Itoa(int(r.Session)), "")
-}
-
-func (r *lastlogRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		r.Source, "", "", "", r.Terminal, "", "", r.Hostname, "", "", "", "",
-		strconv.FormatUint(uint64(r.UID), 10))
 }
 
 // ---- discovery -------------------------------------------------------------
@@ -281,9 +258,7 @@ func parseStream(r io.Reader, family string, w *record.Writer, warnf func(string
 // ---- batch binding ---------------------------------------------------------
 
 var gowtmpTool = batch.Tool{
-	Name:      "gowtmp",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "gowtmp",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			return classify(strings.ToLower(filepath.Base(rel))) != ""
@@ -308,11 +283,10 @@ func main() {
 	batch.Entry(gowtmpTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one utmp/wtmp/btmp/lastlog file")
-		dir    = flag.String("d", "", "recurse a directory for utmp-family files")
-		tarIn  = flag.Bool("tar", false, "read a tar stream on stdin (gomount stream)")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress per-file progress on stderr")
+		file  = flag.String("f", "", "parse one utmp/wtmp/btmp/lastlog file")
+		dir   = flag.String("d", "", "recurse a directory for utmp-family files")
+		tarIn = flag.Bool("tar", false, "read a tar stream on stdin (gomount stream)")
+		quiet = flag.Bool("q", false, "suppress per-file progress on stderr")
 	)
 	flag.Parse()
 	modes := 0
@@ -325,10 +299,7 @@ func main() {
 		usage()
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fatal(err)
-	}
+	w := record.NewWriter(os.Stdout)
 	warnf := func(format string, args ...interface{}) {
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "gowtmp: "+format+"\n", args...)
@@ -406,7 +377,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: gowtmp                                  (env-driven batch mode)\n"+
-		"       gowtmp -f FILE | -d DIR | --tar [--format json|csv] [-q]")
+		"       gowtmp -f FILE | -d DIR | --tar [-q]")
 }
 
 func fatal(err error) {

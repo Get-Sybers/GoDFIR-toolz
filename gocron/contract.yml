@@ -13,7 +13,6 @@ env:
   GOCRON_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
   GOCRON_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gocron needs none but honours it'}
   GOCRON_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
-  GOCRON_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
   GOCRON_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
@@ -28,7 +27,7 @@ summary_schema:
   required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
 
 outputs:
-  layout: "<OUT_DIR>/<item>/gocron.jsonl (or gocron.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+  layout: "<OUT_DIR>/<item>/gocron.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
   envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
@@ -39,6 +38,6 @@ records:
   cron_runparts: {Name: 'the script file name', Value: 'the run-parts directory (cron.hourly/daily/weekly/monthly)', Line: 'always 1'}
 
 argv_passthrough: >
-  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, -q.
   Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
   file failed.

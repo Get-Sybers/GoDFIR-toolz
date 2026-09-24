@@ -18,7 +18,7 @@
 // (pinfo/batch) under the GOJOURNAL_* environment. The argv flags are the
 // debug pass-through:
 //
-//	gojournal -f FILE | -d DIR [--format json|csv] [-q]
+//	gojournal -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -28,7 +28,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -67,21 +66,6 @@ type journalRecord struct {
 	AuditSession string            `json:"AuditSession,omitempty"`
 	Fields       map[string]string `json:"Fields,omitempty"`
 	Truncated    bool              `json:"Truncated,omitempty"`
-}
-
-var csvHeader = append(record.EnvelopeCSV,
-	"MachineID", "BootID", "Seqnum", "MonotonicUS", "Message", "Priority",
-	"Facility", "Identifier", "PID", "UID", "GID", "Comm", "Exe", "Cmdline",
-	"SystemdUnit", "UserUnit", "Hostname", "Transport", "AuditSession",
-	"Truncated")
-
-func (r *journalRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		r.MachineID, r.BootID, strconv.FormatUint(r.Seqnum, 10),
-		strconv.FormatUint(r.MonotonicUS, 10), r.Message, r.Priority,
-		r.Facility, r.Identifier, r.PID, r.UID, r.GID, r.Comm, r.Exe,
-		r.Cmdline, r.SystemdUnit, r.UserUnit, r.Hostname, r.Transport,
-		r.AuditSession, strconv.FormatBool(r.Truncated))
 }
 
 const maxExtraFields = 128
@@ -196,9 +180,7 @@ func isJournalFile(rel string) bool {
 // ---- batch binding ---------------------------------------------------------
 
 var gojournalTool = batch.Tool{
-	Name:      "gojournal",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "gojournal",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			return isJournalFile(rel)
@@ -215,22 +197,17 @@ func main() {
 	batch.Entry(gojournalTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one .journal file")
-		dir    = flag.String("d", "", "recurse a directory for journal files")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one .journal file")
+		dir   = flag.String("d", "", "recurse a directory for journal files")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: gojournal                          (env-driven batch mode)\n"+
-			"       gojournal -f FILE | -d DIR [--format json|csv] [-q]")
+			"       gojournal -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gojournal: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	warnf := func(f string, a ...interface{}) {
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "gojournal: "+f+"\n", a...)

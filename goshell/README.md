@@ -37,12 +37,11 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 | `GOSHELL_OUT_DIR` | `/output` | output root, one folder per input file |
 | `GOSHELL_WORK_DIR` | `/work` | scratch (writable tmpfs); goshell needs none but honours it |
 | `GOSHELL_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
-| `GOSHELL_FORMAT` | `json` | record format, `json` (JSONL) or `csv` |
 | `GOSHELL_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |
 
 ## Output
 
-`<OUT_DIR>/<item>/goshell.jsonl` (or `.csv`), one folder per history
+`<OUT_DIR>/<item>/goshell.jsonl`, one folder per history
 file; one `shell_history` record per command.
 
 ## Exit codes
@@ -68,6 +67,6 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
 
 ## argv pass-through (debug only)
 
-`-f FILE | -d DIR`, `--format json|csv`, `-q`; records stream to stdout.
+`-f FILE | -d DIR`, `-q`; records stream to stdout.
 Exit 0 ok / 1 usage or fatal / 2 at least one file failed. `--version`
 prints the version; `--print-contract` prints `contract.yml`.

@@ -146,9 +146,9 @@ pinfo/
 │               joined from the stage manifest onto every record (§3.3)
 ├── record/     the envelope (§3.3), typed-record schema declaration (the
 │               names contract.yml and byakugan's field_provenance cite,
-│               §4.1) + ordered JSONL/CSV writers with honest-null
-│               discipline; the CSV list-join rule ('|') the Windows tools
-│               already use
+│               §4.1) + the JSONL writer with honest-null discipline —
+│               JSONL is the ONE output format of the Linux matrix
+│               (decision 12)
 ├── tstamp/     normalisation to RFC3339 UTC: RFC3164 (year inference from
 │               file mtime with rollover walk-back), RFC5424, ISO-8601,
 │               epoch s/ms/µs/ns, journal usec, days-since-epoch (shadow)
@@ -207,8 +207,8 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
   Both it and `Snapshot` are resolved by the runtime alongside `Origin`,
   from the same manifest — never by tool code parsing path prefixes.
 - Payload fields stay flat and tool-specific, exactly like the Windows tools'
-  records (`goprefetch`'s `Executable`/`RunCount`/… pattern); CSV order is the
-  declared header order. Their design is governed by the byakugan-alignment
+  records (`goprefetch`'s `Executable`/`RunCount`/… pattern). Their design
+  is governed by the byakugan-alignment
   rules of §4.1: typed rows, native vocabulary verbatim, honest nulls, and
   the field set each CAR map consumes as the floor.
 - The envelope carries **no synthetic identifiers**: record identity is
@@ -267,8 +267,8 @@ records still go to files under `OUT_DIR`; exit codes stay `0/1/2/3`
 
 Twelve tools, one artefact class each, all Tier-1 shape from birth:
 `FROM scratch`, static, `USER 2000:2000`, `contract.yml`, batch mode on no
-arguments, argv/`--tar` debug pass-through, JSONL default (CSV where records
-are flat). Prior-art libraries are **candidates**: each is license-checked and
+arguments, argv/`--tar` debug pass-through, JSONL output (the one record
+format, decision 12). Prior-art libraries are **candidates**: each is license-checked and
 pinned per [07](../framework/07-supply-chain-and-versioning.md) at
 implementation time; where no permissive pure-Go library holds up, the format
 is clean-roomed from its documentation — these are documented formats, and
@@ -324,9 +324,9 @@ every Linux tool's record design:
    judgement only works when it receives the native value to judge (the
    existing utmp map records `login_type` natively precisely because utmp's
    vocabulary is *not* CAR's).
-3. **Honest nulls.** A field the artefact does not carry is omitted (JSONL)
-   or empty (CSV) — never `-`, `N/A` or an invented value — and a real zero
-   (root's uid) is emitted, not blanked.
+3. **Honest nulls.** A field the artefact does not carry is omitted from
+   the JSON object — never written as `-`, `N/A` or an invented value —
+   and a real zero (root's uid) is emitted, not blanked.
 4. **Identity fields extracted, never minted.** Each tool documents which
    payload fields identify a record — journal (boot id, seqnum), audit
    (`sec.usec:serial`), utmp (pid, terminal, time), a timeline row (inode,
@@ -810,6 +810,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 9 | Every new image is Tier-1/`FROM scratch`; no interpreter enters the Linux path |
 | 10 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted (never minted), declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
 | 11 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
+| 12 | Records are **JSONL only** — one JSON object per record; CSV is not an output format anywhere in the Linux path and no `<TOOL>_FORMAT` variable exists. A tool that ever needs interim storage beyond streaming (sorting or aggregation past memory) uses a database format (SQLite via the cgo-free driver) in its `WORK_DIR` scratch — never an interchange text format — and the record files stay the JSONL interface |
 
 ### 11.2 Open questions
 

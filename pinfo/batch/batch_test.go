@@ -24,18 +24,12 @@ type fakeRecord struct {
 	Body string `json:"Body"`
 }
 
-func (r *fakeRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope), r.Body)
-}
-
 // fakeTool discovers every regular file under INPUT_DIR (the manifest
 // excluded) and "parses" it into one record carrying its bytes; a file whose
 // name starts with "bad" fails.
 func fakeTool() Tool {
 	return Tool{
-		Name:      "faketool",
-		Formats:   []string{"json", "csv"},
-		CSVHeader: append(record.EnvelopeCSV, "Body"),
+		Name: "faketool",
 		Discover: func(cfg *Config) ([]string, error) {
 			var out []string
 			err := filepath.WalkDir(cfg.InputDir, func(p string, d fs.DirEntry, err error) error {
@@ -193,12 +187,6 @@ func TestBatchConfigErrors(t *testing.T) {
 		t.Fatalf("missing input: %d %+v", code, sum)
 	}
 
-	_, _, env2 := dirs(t)
-	env2["FAKETOOL_FORMAT"] = "xml"
-	if code, sum, _ := runFake(t, env2); code != 2 || sum.Status != "config_error" {
-		t.Fatalf("bad format: %d %+v", code, sum)
-	}
-
 	_, _, env3 := dirs(t)
 	env3["FAKETOOL_LOG_LEVEL"] = "loud"
 	if code, sum, _ := runFake(t, env3); code != 2 || sum.Status != "config_error" {
@@ -209,23 +197,6 @@ func TestBatchConfigErrors(t *testing.T) {
 	env4["FAKETOOL_FORCE"] = "maybe"
 	if code, sum, _ := runFake(t, env4); code != 2 || sum.Status != "config_error" {
 		t.Fatalf("bad bool: %d %+v", code, sum)
-	}
-}
-
-func TestBatchCSV(t *testing.T) {
-	in, out, env := dirs(t)
-	write(t, in, "a.txt", "alpha")
-	env["FAKETOOL_FORMAT"] = "csv"
-	if code, _, _ := runFake(t, env); code != 0 {
-		t.Fatalf("csv run failed: %d", code)
-	}
-	b, err := os.ReadFile(filepath.Join(out, "a.txt", "faketool.csv"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[0], "RecordType,") || !strings.HasSuffix(lines[1], ",alpha") {
-		t.Fatalf("csv shape: %q", lines)
 	}
 }
 

@@ -1,17 +1,22 @@
 // Package record is the common record shape of the Linux Go tools: the
-// envelope every record carries (docs/linux §3.3), the JSONL/CSV writers, and
-// the stage-manifest join that stamps provenance — Origin, Snapshot, Residue —
-// onto records without any tool computing it (rule 2).
+// envelope every record carries (docs/linux §3.3), the JSONL writer, and
+// the stage-manifest join that stamps provenance — Origin, Snapshot,
+// Residue — onto records without any tool computing it (rule 2).
 //
-// The envelope carries no synthetic identifiers: record identity is natural
-// fields only, and byakugan's guids never appear in parser output (rule 1).
+// JSONL is the one output format of the Linux matrix: one JSON object per
+// record, nothing else. A tool that ever needs interim storage beyond
+// streaming (sorting, aggregation past memory) uses a database format in
+// its WORK_DIR scratch — never an interchange text format — and the record
+// files stay JSONL.
+//
+// The envelope carries no synthetic identifiers: record identity is
+// natural fields only, and byakugan's guids never appear in parser output
+// (rule 1).
 package record
 
 import (
 	"bufio"
-	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,8 +25,8 @@ import (
 
 // Origin is where the parsed file existed in the evidence — the dfVFS
 // path-spec role: the image, the volume (partition index or vg/lv), the
-// original volume path and inode. It is stamped by the batch runtime from the
-// access layer's manifest; tool code never computes it.
+// original volume path and inode. It is stamped by the batch runtime from
+// the access layer's manifest; tool code never computes it.
 type Origin struct {
 	Image  string `json:"Image,omitempty"`
 	Volume string `json:"Volume,omitempty"`
@@ -38,17 +43,18 @@ type Snapshot struct {
 	Time    string `json:"Time,omitempty"`
 }
 
-// Residue marks a record recovered from filesystem residue (docs/linux §5.5);
-// absent means an ordinary allocated file.
+// Residue marks a record recovered from filesystem residue (docs/linux
+// §5.5); absent means an ordinary allocated file.
 type Residue struct {
 	Kind   string `json:"Kind,omitempty"`
 	Detail string `json:"Detail,omitempty"`
 }
 
 // Envelope is the common head of every record. Tool + RecordType is the
-// record's parser chain (the role plaso's Parser field plays); SourceFilename
-// is the parsed file relative to the input root; EventTime is UTC RFC3339 and
-// TimeKind says what the time is when an artefact carries several.
+// record's parser chain (the role plaso's Parser field plays);
+// SourceFilename is the parsed file relative to the input root; EventTime
+// is UTC RFC3339 and TimeKind says what the time is when an artefact
+// carries several.
 type Envelope struct {
 	Tool           string    `json:"Tool"`
 	ToolVersion    string    `json:"ToolVersion"`
@@ -65,12 +71,10 @@ type Envelope struct {
 // Env makes an embedded Envelope satisfy the Record interface.
 func (e *Envelope) Env() *Envelope { return e }
 
-// Record is what a tool hands the writer: its own struct embedding Envelope.
-// CSVRow returns the row in the tool's declared header order; a JSONL-only
-// tool may return nil.
+// Record is what a tool hands the writer: its own struct embedding
+// Envelope.
 type Record interface {
 	Env() *Envelope
-	CSVRow() []string
 }
 
 // Stamp is what the runtime knows about the item being processed. Applied
@@ -110,35 +114,21 @@ func (s Stamp) apply(e *Envelope) {
 	}
 }
 
-// Writer writes a tool's records as JSONL or CSV, stamping the envelope on
-// every record. The CSV header is written eagerly so a committed file is
-// well-formed even with zero records.
+// Writer writes a tool's records as JSONL — one JSON object per line —
+// stamping the envelope on every record.
 type Writer struct {
-	format string
-	stamp  Stamp
-	bw     *bufio.Writer
-	jw     *json.Encoder
-	cw     *csv.Writer
-	n      int
+	stamp Stamp
+	bw    *bufio.Writer
+	jw    *json.Encoder
+	n     int
 }
 
-// NewWriter builds a writer for format ("csv", anything else is JSONL).
-func NewWriter(w io.Writer, format string, csvHeader []string) (*Writer, error) {
-	rw := &Writer{format: format}
-	if format == "csv" {
-		rw.cw = csv.NewWriter(w)
-		if len(csvHeader) == 0 {
-			return nil, errors.New("csv format with no declared header")
-		}
-		if err := rw.cw.Write(csvHeader); err != nil {
-			return nil, err
-		}
-		return rw, nil
-	}
-	rw.bw = bufio.NewWriter(w)
+// NewWriter builds the JSONL writer over w.
+func NewWriter(w io.Writer) *Writer {
+	rw := &Writer{bw: bufio.NewWriter(w)}
 	rw.jw = json.NewEncoder(rw.bw)
 	rw.jw.SetEscapeHTML(false)
-	return rw, nil
+	return rw
 }
 
 // SetStamp installs the per-item stamp the runtime resolved.
@@ -148,9 +138,6 @@ func (rw *Writer) SetStamp(s Stamp) { rw.stamp = s }
 func (rw *Writer) Write(rec Record) error {
 	rw.stamp.apply(rec.Env())
 	rw.n++
-	if rw.cw != nil {
-		return rw.cw.Write(rec.CSVRow())
-	}
 	return rw.jw.Encode(rec)
 }
 
@@ -158,22 +145,7 @@ func (rw *Writer) Write(rec Record) error {
 func (rw *Writer) Count() int { return rw.n }
 
 // Flush commits buffered output; call before closing the underlying file.
-func (rw *Writer) Flush() error {
-	if rw.cw != nil {
-		rw.cw.Flush()
-		return rw.cw.Error()
-	}
-	return rw.bw.Flush()
-}
-
-// EnvelopeCSV is the conventional envelope prefix of a tool's CSV header;
-// EnvelopeRow builds the matching cells. Tools append their payload columns.
-var EnvelopeCSV = []string{"RecordType", "SourceFilename", "EventTime", "TimeKind"}
-
-// EnvelopeRow returns the EnvelopeCSV cells for e.
-func EnvelopeRow(e *Envelope) []string {
-	return []string{e.RecordType, e.SourceFilename, e.EventTime, e.TimeKind}
-}
+func (rw *Writer) Flush() error { return rw.bw.Flush() }
 
 // ---- the stage-manifest join (rule 2) --------------------------------------
 
@@ -184,8 +156,9 @@ const ManifestName = "materialise.jsonl"
 // Manifest resolves a staged path to its origin chain. Rows are parsed
 // permissively: today's gomount fields (path, size, mtime, mftid) and the
 // docs/linux §5.4 origin-record fields (image, volume, inode, snapshot{},
-// residue{}, staged) are all understood, unknown keys are ignored, and a row
-// without a path is read as manifest-level metadata (image/volume defaults).
+// residue{}, staged) are all understood, unknown keys are ignored, and a
+// row without a path is read as manifest-level metadata (image/volume
+// defaults).
 type Manifest struct {
 	image  string
 	volume string
@@ -198,9 +171,9 @@ type manifestRow struct {
 	residue  *Residue
 }
 
-// LoadManifest reads root/materialise.jsonl. A missing or unreadable manifest
-// is not an error — provenance is simply absent (loose evidence): it returns
-// nil, and a nil *Manifest is safe to use.
+// LoadManifest reads root/materialise.jsonl. A missing or unreadable
+// manifest is not an error — provenance is simply absent (loose evidence):
+// it returns nil, and a nil *Manifest is safe to use.
 func LoadManifest(root string) *Manifest {
 	f, err := os.Open(filepath.Join(root, ManifestName))
 	if err != nil {
@@ -280,16 +253,17 @@ func str(v any) string {
 	return s
 }
 
-// normKey folds a staged path to the lookup key: forward slashes, no leading
-// separators, lower-cased (staged trees out of NTFS are case-insensitive).
+// normKey folds a staged path to the lookup key: forward slashes, no
+// leading separators, lower-cased (staged trees out of NTFS are
+// case-insensitive).
 func normKey(p string) string {
 	p = strings.ReplaceAll(p, "\\", "/")
 	p = strings.TrimLeft(p, "/")
 	return strings.ToLower(p)
 }
 
-// volumePath renders the manifest's path as the original volume path, with a
-// leading slash and forward separators.
+// volumePath renders the manifest's path as the original volume path, with
+// a leading slash and forward separators.
 func volumePath(p string) string {
 	p = strings.ReplaceAll(p, "\\", "/")
 	return "/" + strings.TrimLeft(p, "/")

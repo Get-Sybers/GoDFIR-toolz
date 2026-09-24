@@ -16,7 +16,7 @@
 // (pinfo/batch) under the GOUSERS_* environment. The argv flags are the
 // debug pass-through:
 //
-//	gousers -f FILE | -d DIR [--format json|csv] [-q]
+//	gousers -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -93,35 +93,6 @@ type userRecord struct {
 	// every family
 	Line int    `json:"Line"`
 	Raw  string `json:"Raw,omitempty"`
-}
-
-var csvHeader = append(record.EnvelopeCSV,
-	"Line", "Username", "PasswordField", "PasswordCrypt", "UID", "GID", "GECOS",
-	"HomeDir", "Shell", "GroupName", "Members", "Admins", "LastChangeDays",
-	"MinDays", "MaxDays", "WarnDays", "InactiveDays", "ExpireDays", "ExpireTime",
-	"Users", "Hosts", "RunAs", "Tags", "Commands", "AliasType", "AliasName",
-	"Parameters", "Include", "Keyword", "Value", "MatchContext", "Options",
-	"KeyType", "Fingerprint", "Comment", "HostPattern", "Hashed", "Marker", "Raw")
-
-func opt(p *int64) string {
-	if p == nil {
-		return ""
-	}
-	return strconv.FormatInt(*p, 10)
-}
-
-func join(s []string) string { return strings.Join(s, "|") }
-
-func (r *userRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		strconv.Itoa(r.Line), r.Username, r.PasswordField, r.PasswordCrypt,
-		opt(r.UID), opt(r.GID), r.GECOS, r.HomeDir, r.Shell, r.GroupName,
-		join(r.Members), join(r.Admins), opt(r.LastChangeDays), opt(r.MinDays),
-		opt(r.MaxDays), opt(r.WarnDays), opt(r.InactiveDays), opt(r.ExpireDays),
-		r.ExpireTime, join(r.Users), join(r.Hosts), r.RunAs, join(r.Tags),
-		join(r.Commands), r.AliasType, r.AliasName, r.Parameters, r.Include,
-		r.Keyword, r.Value, r.MatchContext, r.Options, r.KeyType, r.Fingerprint,
-		r.Comment, r.HostPattern, strconv.FormatBool(r.Hashed), r.Marker, r.Raw)
 }
 
 // ---- classification --------------------------------------------------------
@@ -468,9 +439,7 @@ func parseFile(rd io.Reader, family string, w *record.Writer, warnf func(string,
 // ---- batch binding ---------------------------------------------------------
 
 var gousersTool = batch.Tool{
-	Name:      "gousers",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "gousers",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			return classify(rel) != ""
@@ -493,22 +462,17 @@ func main() {
 	batch.Entry(gousersTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one file (family from its name)")
-		dir    = flag.String("d", "", "recurse a directory")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one file (family from its name)")
+		dir   = flag.String("d", "", "recurse a directory")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: gousers                            (env-driven batch mode)\n"+
-			"       gousers -f FILE | -d DIR [--format json|csv] [-q]")
+			"       gousers -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gousers: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	warnf := func(f string, a ...interface{}) {
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "gousers: "+f+"\n", a...)

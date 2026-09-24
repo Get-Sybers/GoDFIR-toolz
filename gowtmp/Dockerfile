@@ -44,7 +44,7 @@ ENV HOME=/tmp XDG_CACHE_HOME=/tmp/.cache
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/gowtmp"]
 LABEL org.opencontainers.image.title="get-sybers/gowtmp" \
-      org.opencontainers.image.description="Linux login-record parser (static Go, pinfo module): finds every utmp, wtmp, btmp and lastlog file under the input tree — rotations and gzip included — and writes one record per entry (native utmp vocabulary, login source host and IP, pid, terminal, exit status; lastlog per-uid last logins) as JSONL or CSV, one folder per file, with Origin/Snapshot/Residue provenance stamped from a stage manifest. Env-driven batch entrypoint; FROM scratch, runs as uid 2000." \
+      org.opencontainers.image.description="Linux login-record parser (static Go, pinfo module): finds every utmp, wtmp, btmp and lastlog file under the input tree — rotations and gzip included — and writes one record per entry (native utmp vocabulary, login source host and IP, pid, terminal, exit status; lastlog per-uid last logins) as JSONL, one folder per file, with Origin/Snapshot/Residue provenance stamped from a stage manifest. Env-driven batch entrypoint; FROM scratch, runs as uid 2000." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${TOOL_VERSION}" \

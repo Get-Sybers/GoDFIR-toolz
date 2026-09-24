@@ -17,7 +17,7 @@
 // (pinfo/batch) under the GOSYSLOG_* environment. The argv flags are the
 // debug pass-through:
 //
-//	gosyslog -f FILE | -d DIR [--format json|csv] [-q]
+//	gosyslog -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -72,28 +72,6 @@ type syslogRecord struct {
 	ByUID       *int64 `json:"ByUID,omitempty"`
 	Line        int    `json:"Line"`
 	Raw         string `json:"Raw"`
-}
-
-var csvHeader = append(record.EnvelopeCSV,
-	"Line", "Host", "Ident", "PID", "Message", "SSHEvent", "Method",
-	"Username", "TargetUser", "InvalidUser", "IPAddress", "Port", "KeyType",
-	"Fingerprint", "TTY", "PWD", "Command", "PamModule", "SessionOp",
-	"ByUser", "ByUID", "Raw")
-
-func opt(p *int64) string {
-	if p == nil {
-		return ""
-	}
-	return strconv.FormatInt(*p, 10)
-}
-
-func (r *syslogRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		strconv.Itoa(r.Line), r.Host, r.Ident, opt(r.PID), r.Message,
-		r.SSHEvent, r.Method, r.Username, r.TargetUser,
-		strconv.FormatBool(r.InvalidUser), r.IPAddress, opt(r.Port),
-		r.KeyType, r.Fingerprint, r.TTY, r.PWD, r.Command, r.PamModule,
-		r.SessionOp, r.ByUser, opt(r.ByUID), r.Raw)
 }
 
 // ---- discovery -------------------------------------------------------------
@@ -294,9 +272,7 @@ func parseLog(rd io.Reader, ref time.Time, w *record.Writer) (int, error) {
 // ---- batch binding ---------------------------------------------------------
 
 var gosyslogTool = batch.Tool{
-	Name:      "gosyslog",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "gosyslog",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			return isSyslogFile(rel)
@@ -320,22 +296,17 @@ func main() {
 	batch.Entry(gosyslogTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one log file")
-		dir    = flag.String("d", "", "recurse a directory for syslog-family files")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one log file")
+		dir   = flag.String("d", "", "recurse a directory for syslog-family files")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: gosyslog                           (env-driven batch mode)\n"+
-			"       gosyslog -f FILE | -d DIR [--format json|csv] [-q]")
+			"       gosyslog -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gosyslog: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	failed := 0
 	one := func(path, rel string) {
 		f, err := discover.OpenAuto(path)

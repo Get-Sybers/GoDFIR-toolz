@@ -22,7 +22,7 @@ type=SERVICE_START msg=audit(1767225700.000:43): pid=1 uid=0 auid=4294967295 ses
 func parse(t *testing.T, content string) []map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseAudit(strings.NewReader(content), w, func(string, ...interface{}) {}); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestCoalescedExecve(t *testing.T) {
 
 func TestGarbageRejected(t *testing.T) {
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseAudit(strings.NewReader("hello\nworld\n"), w, func(string, ...interface{}) {}); err == nil {
 		t.Fatal("garbage accepted")
 	}

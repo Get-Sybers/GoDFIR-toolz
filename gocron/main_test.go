@@ -12,7 +12,7 @@ import (
 func run(t *testing.T, fam, owner, base, rel, content string) []map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseByFamily(strings.NewReader(content), fam, owner, base, rel, w); err != nil {
 		t.Fatal(err)
 	}

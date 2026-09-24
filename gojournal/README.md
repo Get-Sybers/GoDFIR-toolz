@@ -46,12 +46,11 @@ is joined onto every record as `Origin`/`Snapshot`/`Residue`.
 | `GOJOURNAL_OUT_DIR` | `/output` | output root, one folder per journal |
 | `GOJOURNAL_WORK_DIR` | `/work` | scratch (writable tmpfs); gojournal needs none but honours it |
 | `GOJOURNAL_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
-| `GOJOURNAL_FORMAT` | `json` | record format, `json` (JSONL) or `csv` |
 | `GOJOURNAL_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |
 
 ## Output
 
-`<OUT_DIR>/<item>/gojournal.jsonl` (or `.csv`), one folder per journal
+`<OUT_DIR>/<item>/gojournal.jsonl`, one folder per journal
 file; one `journal_entry` record per entry.
 
 ## Exit codes
@@ -78,6 +77,6 @@ module; the pinned pure-Go decompressors ride `go.mod`/`go.sum`.)
 
 ## argv pass-through (debug only)
 
-`-f FILE | -d DIR`, `--format json|csv`, `-q`; records stream to stdout.
+`-f FILE | -d DIR`, `-q`; records stream to stdout.
 Exit 0 ok / 1 usage or fatal / 2 at least one file failed. `--version`
 prints the version; `--print-contract` prints `contract.yml`.

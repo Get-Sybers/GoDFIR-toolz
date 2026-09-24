@@ -14,14 +14,9 @@ type rec struct {
 	V string `json:"V"`
 }
 
-func (r *rec) CSVRow() []string { return append(EnvelopeRow(&r.Envelope), r.V) }
-
 func TestWriterJSONLStampsFillOnlyBlank(t *testing.T) {
 	var buf bytes.Buffer
-	w, err := NewWriter(&buf, "json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	w := NewWriter(&buf)
 	w.SetStamp(Stamp{
 		Tool: "tool", ToolVersion: "1.0", SourceFilename: "staged/path",
 		SourceModified: "2026-01-01T00:00:00Z",
@@ -61,23 +56,6 @@ func TestWriterJSONLStampsFillOnlyBlank(t *testing.T) {
 	}
 	if got2.SourceFilename != "/from/tar" {
 		t.Fatalf("tool-set SourceFilename overwritten: %+v", got2)
-	}
-}
-
-func TestWriterCSVHeaderEager(t *testing.T) {
-	var buf bytes.Buffer
-	w, err := NewWriter(&buf, "csv", append(EnvelopeCSV, "V"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := w.Flush(); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.TrimSpace(buf.String()); got != "RecordType,SourceFilename,EventTime,TimeKind,V" {
-		t.Fatalf("header: %q", got)
-	}
-	if _, err := NewWriter(&bytes.Buffer{}, "csv", nil); err == nil {
-		t.Fatal("csv with no header must error")
 	}
 }
 

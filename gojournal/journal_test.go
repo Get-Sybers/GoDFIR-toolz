@@ -164,7 +164,7 @@ func decode(t *testing.T, img []byte) []map[string]any {
 	}
 	defer j.close()
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	err = j.entryOffsets(func(off uint64) error {
 		e, rerr := j.readEntry(off)
 		if rerr != nil {

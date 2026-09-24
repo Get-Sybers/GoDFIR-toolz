@@ -40,12 +40,11 @@ is joined onto every record as `Origin`/`Snapshot`/`Residue`.
 | `GOAUDITD_OUT_DIR` | `/output` | output root, one folder per audit log |
 | `GOAUDITD_WORK_DIR` | `/work` | scratch (writable tmpfs); goauditd needs none but honours it |
 | `GOAUDITD_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
-| `GOAUDITD_FORMAT` | `json` | record format, `json` (JSONL) or `csv` |
 | `GOAUDITD_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |
 
 ## Output
 
-`<OUT_DIR>/<item>/goauditd.jsonl` (or `.csv`), one folder per audit log;
+`<OUT_DIR>/<item>/goauditd.jsonl`, one folder per audit log;
 one `auditd_event` record per coalesced event.
 
 ## Exit codes
@@ -71,6 +70,6 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
 
 ## argv pass-through (debug only)
 
-`-f FILE | -d DIR`, `--format json|csv`, `-q`; records stream to stdout.
+`-f FILE | -d DIR`, `-q`; records stream to stdout.
 Exit 0 ok / 1 usage or fatal / 2 at least one file failed. `--version`
 prints the version; `--print-contract` prints `contract.yml`.

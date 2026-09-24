@@ -13,7 +13,7 @@
 // (pinfo/batch) under the GOTRASH_* environment. The argv flags are the
 // debug pass-through:
 //
-//	gotrash -f FILE | -d DIR [--format json|csv] [-q]
+//	gotrash -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -26,7 +26,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
@@ -48,15 +47,6 @@ type trashRecord struct {
 	DeletionDateRaw   string `json:"DeletionDateRaw,omitempty"`
 	TrashedFileExists bool   `json:"TrashedFileExists"`
 	TrashedSize       int64  `json:"TrashedSize,omitempty"`
-}
-
-var csvHeader = append(record.EnvelopeCSV,
-	"OriginalPath", "OriginalPathRaw", "DeletionDateRaw", "TrashedFileExists", "TrashedSize")
-
-func (r *trashRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		r.OriginalPath, r.OriginalPathRaw, r.DeletionDateRaw,
-		strconv.FormatBool(r.TrashedFileExists), strconv.FormatInt(r.TrashedSize, 10))
 }
 
 // parseTrashinfo parses one [Trash Info] file. The paired content file is
@@ -117,9 +107,7 @@ func isTrashinfo(rel string) bool {
 }
 
 var gotrashTool = batch.Tool{
-	Name:      "gotrash",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "gotrash",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			return isTrashinfo(rel)
@@ -139,22 +127,17 @@ func main() {
 	batch.Entry(gotrashTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one .trashinfo file")
-		dir    = flag.String("d", "", "recurse a directory for .trashinfo files")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one .trashinfo file")
+		dir   = flag.String("d", "", "recurse a directory for .trashinfo files")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: gotrash                            (env-driven batch mode)\n"+
-			"       gotrash -f FILE | -d DIR [--format json|csv] [-q]")
+			"       gotrash -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gotrash: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	failed := 0
 	one := func(path, rel string) {
 		f, err := os.Open(path)

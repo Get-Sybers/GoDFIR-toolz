@@ -15,7 +15,7 @@
 // (pinfo/batch) under the GOAUDITD_* environment. The argv flags are the
 // debug pass-through:
 //
-//	goauditd -f FILE | -d DIR [--format json|csv] [-q]
+//	goauditd -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -29,7 +29,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -78,33 +77,6 @@ type auditEvent struct {
 	Paths       []pathEntry       `json:"Paths,omitempty"`
 	Proctitle   string            `json:"Proctitle,omitempty"`
 	Fields      map[string]string `json:"Fields,omitempty"`
-}
-
-var csvHeader = append(record.EnvelopeCSV,
-	"AuditID", "Types", "Syscall", "SyscallName", "Arch", "Success", "Exit",
-	"PID", "PPID", "UID", "AUID", "EUID", "GID", "SES", "TTY", "Comm", "Exe",
-	"Key", "Argv", "Cwd", "Paths", "Proctitle", "Fields")
-
-func (e *auditEvent) CSVRow() []string {
-	paths := make([]string, len(e.Paths))
-	for i, p := range e.Paths {
-		paths[i] = p.Name + "(" + p.Nametype + ")"
-	}
-	keys := make([]string, 0, len(e.Fields))
-	for k := range e.Fields {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	kv := make([]string, len(keys))
-	for i, k := range keys {
-		kv[i] = k + "=" + e.Fields[k]
-	}
-	return append(record.EnvelopeRow(&e.Envelope),
-		e.AuditID, strings.Join(e.Types, "|"), e.Syscall, e.SyscallName,
-		e.Arch, e.Success, e.Exit, e.PID, e.PPID, e.UID, e.AUID, e.EUID,
-		e.GID, e.SES, e.TTY, e.Comm, e.Exe, e.Key,
-		strings.Join(e.Argv, "|"), e.Cwd, strings.Join(paths, "|"),
-		e.Proctitle, strings.Join(kv, "|"))
 }
 
 // syscallNamesX8664 renders common x86_64 syscall numbers (arch c000003e);
@@ -356,9 +328,7 @@ func isAuditFile(rel string) bool {
 // ---- batch binding ---------------------------------------------------------
 
 var goauditdTool = batch.Tool{
-	Name:      "goauditd",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "goauditd",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			return isAuditFile(rel)
@@ -380,22 +350,17 @@ func main() {
 	batch.Entry(goauditdTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one audit.log file")
-		dir    = flag.String("d", "", "recurse a directory for audit.log files")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one audit.log file")
+		dir   = flag.String("d", "", "recurse a directory for audit.log files")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: goauditd                           (env-driven batch mode)\n"+
-			"       goauditd -f FILE | -d DIR [--format json|csv] [-q]")
+			"       goauditd -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "goauditd: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	warnf := func(f string, a ...interface{}) {
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "goauditd: "+f+"\n", a...)

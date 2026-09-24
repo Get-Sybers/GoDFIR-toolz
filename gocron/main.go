@@ -13,7 +13,7 @@
 // (pinfo/batch) under the GOCRON_* environment. The argv flags are the
 // debug pass-through:
 //
-//	gocron -f FILE | -d DIR [--format json|csv] [-q]
+//	gocron -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
@@ -58,17 +57,6 @@ type cronRecord struct {
 	Script     string `json:"Script,omitempty"`
 	Line       int    `json:"Line"`
 	Raw        string `json:"Raw,omitempty"`
-}
-
-var csvHeader = append(record.EnvelopeCSV,
-	"Line", "Schedule", "User", "SpoolOwner", "Command", "Name", "Value",
-	"Period", "Delay", "JobID", "AtUID", "AtGID", "Script", "Raw")
-
-func (r *cronRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		strconv.Itoa(r.Line), r.Schedule, r.User, r.SpoolOwner, r.Command,
-		r.Name, r.Value, r.Period, r.Delay, r.JobID, r.AtUID, r.AtGID,
-		r.Script, r.Raw)
 }
 
 // ---- classification --------------------------------------------------------
@@ -245,9 +233,7 @@ func parseByFamily(rd io.Reader, fam, spoolOwner, base, rel string, w *record.Wr
 // ---- batch binding ---------------------------------------------------------
 
 var gocronTool = batch.Tool{
-	Name:      "gocron",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "gocron",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			f, _ := family(rel)
@@ -270,22 +256,17 @@ func main() {
 	batch.Entry(gocronTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one crontab/anacrontab/at file")
-		dir    = flag.String("d", "", "recurse a directory")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one crontab/anacrontab/at file")
+		dir   = flag.String("d", "", "recurse a directory")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: gocron                             (env-driven batch mode)\n"+
-			"       gocron -f FILE | -d DIR [--format json|csv] [-q]")
+			"       gocron -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gocron: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	failed := 0
 	one := func(path, rel string) {
 		fam, owner := family(rel)

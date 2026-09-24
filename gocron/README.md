@@ -38,12 +38,11 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 | `GOCRON_OUT_DIR` | `/output` | output root, one folder per input file |
 | `GOCRON_WORK_DIR` | `/work` | scratch (writable tmpfs); gocron needs none but honours it |
 | `GOCRON_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
-| `GOCRON_FORMAT` | `json` | record format, `json` (JSONL) or `csv` |
 | `GOCRON_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |
 
 ## Output
 
-`<OUT_DIR>/<item>/gocron.jsonl` (or `.csv`), one folder per input file;
+`<OUT_DIR>/<item>/gocron.jsonl`, one folder per input file;
 `RecordType` is `crontab_entry`, `crontab_env`, `anacrontab_entry`,
 `at_job` or `cron_runparts`.
 
@@ -70,6 +69,6 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
 
 ## argv pass-through (debug only)
 
-`-f FILE | -d DIR`, `--format json|csv`, `-q`; records stream to stdout.
+`-f FILE | -d DIR`, `-q`; records stream to stdout.
 Exit 0 ok / 1 usage or fatal / 2 at least one file failed. `--version`
 prints the version; `--print-contract` prints `contract.yml`.

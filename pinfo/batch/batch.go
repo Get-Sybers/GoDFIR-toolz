@@ -8,11 +8,11 @@
 // With no arguments a bound tool runs in batch mode:
 //
 //  1. read the <TOOL>_* environment (INPUT_DIR, OUT_DIR, WORK_DIR, FORCE,
-//     FORMAT, LOG_LEVEL) — every variable has a default;
+//     LOG_LEVEL) — every variable has a default;
 //  2. discover every artefact the tool handles under INPUT_DIR (recursed);
 //  3. process each item into its own subfolder under OUT_DIR, writing the
-//     records to <OUT_DIR>/<item>/<tool>.<jsonl|csv> through a stamping
-//     record.Writer;
+//     records to <OUT_DIR>/<item>/<tool>.jsonl through a stamping
+//     record.Writer (JSONL is the one record format);
 //  4. skip an item whose record file already exists unless FORCE is set, so a
 //     rerun converges and never duplicates output;
 //  5. print exactly one JSON summary line on stdout and exit with the uniform
@@ -48,17 +48,12 @@ type Tool struct {
 	// Prefix overrides the variable prefix derived from Name (<NAME>_): a
 	// multi-tool image's sub-tool env block.
 	Prefix string
-	// Formats lists the accepted <TOOL>_FORMAT values; the first is the default.
-	Formats []string
-	// CSVHeader is the declared CSV column order (required when "csv" is in
-	// Formats); by convention record.EnvelopeCSV then the payload columns.
-	CSVHeader []string
 	// Discover returns every artefact under cfg.InputDir this tool handles,
 	// sorted. An error here is a config error (unreadable input, bad tool
 	// setting) and ends the run with exit 2.
 	Discover func(cfg *Config) ([]string, error)
 	// Process handles one item. w is the item's stamping record writer over
-	// <itemDir>/<tool>.<ext>, created by the runtime and committed only when
+	// <itemDir>/<tool>.jsonl, created by the runtime and committed only when
 	// Process returns nil; itemDir is there for tools that write further
 	// files beside it. It returns the number of records written (w.Count()
 	// unless the tool writes elsewhere too).
@@ -80,7 +75,6 @@ type Config struct {
 	OutDir   string
 	WorkDir  string
 	Force    bool
-	Format   string
 	LogLevel int
 	getenv   func(string) string
 	manifest *record.Manifest
@@ -198,14 +192,6 @@ func ParseBool(s string) (bool, error) {
 	return false, fmt.Errorf("not a boolean (1/true/yes/on or 0/false/no/off): %q", s)
 }
 
-// formatExt maps a <TOOL>_FORMAT value to the record file extension.
-func formatExt(format string) string {
-	if format == "csv" {
-		return "csv"
-	}
-	return "jsonl"
-}
-
 // loadConfig resolves the environment contract and validates the mounts.
 // Every failure is a config error (exit 2).
 func loadConfig(t Tool, getenv func(string) string) (*Config, error) {
@@ -226,20 +212,6 @@ func loadConfig(t Tool, getenv func(string) string) (*Config, error) {
 		return nil, fmt.Errorf("%s_LOG_LEVEL: %q is not one of error|warn|info|debug", cfg.Prefix, lvlName)
 	}
 	cfg.LogLevel = lvl
-
-	cfg.Format = strings.ToLower(cfg.Env("FORMAT", t.Formats[0]))
-	valid := false
-	for _, f := range t.Formats {
-		if f == cfg.Format {
-			valid = true
-		}
-	}
-	if !valid {
-		return nil, fmt.Errorf("%s_FORMAT: %q is not one of %s", cfg.Prefix, cfg.Format, strings.Join(t.Formats, "|"))
-	}
-	if cfg.Format == "csv" && len(t.CSVHeader) == 0 {
-		return nil, fmt.Errorf("%s_FORMAT: csv requested but the tool declares no CSV header", cfg.Prefix)
-	}
 
 	st, err := os.Stat(cfg.InputDir)
 	if err != nil {
@@ -371,10 +343,9 @@ func Run(t Tool, o Options, getenv func(string) string, stdout io.Writer) int {
 		return finish("nothing", 1)
 	}
 
-	ext := formatExt(cfg.Format)
 	for _, item := range items {
 		itemDir := filepath.Join(cfg.OutDir, itemName(cfg.InputDir, item))
-		final := filepath.Join(itemDir, t.fileBase()+"."+ext)
+		final := filepath.Join(itemDir, t.fileBase()+".jsonl")
 		if !cfg.Force {
 			if st, serr := os.Stat(final); serr == nil && st.Mode().IsRegular() {
 				sum.Skipped++
@@ -425,12 +396,7 @@ func runItem(t Tool, o Options, cfg *Config, item, itemDir, final string) (int, 
 	if err != nil {
 		return 0, err
 	}
-	w, err := record.NewWriter(f, cfg.Format, t.CSVHeader)
-	if err != nil {
-		f.Close()
-		os.Remove(part)
-		return 0, err
-	}
+	w := record.NewWriter(f)
 	w.SetStamp(itemStamp(t, o, cfg, item))
 	n, perr := t.Process(cfg, item, itemDir, w)
 	if ferr := w.Flush(); perr == nil {

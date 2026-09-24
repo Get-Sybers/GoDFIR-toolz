@@ -16,7 +16,7 @@
 // (pinfo/batch) under the GOUNIT_* environment. The argv flags are the
 // debug pass-through:
 //
-//	gounit -f FILE | -d DIR [--format json|csv] [-q]
+//	gounit -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -28,7 +28,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
@@ -80,29 +79,6 @@ type unitRecord struct {
 	After           []string `json:"After,omitempty"`
 	Before          []string `json:"Before,omitempty"`
 	ConditionLines  []string `json:"ConditionLines,omitempty"`
-}
-
-var csvHeader = append(record.EnvelopeCSV,
-	"Unit", "UnitType", "Scope", "DropIn", "Description", "ExecStart",
-	"ExecStartPre", "ExecStartPost", "ExecStop", "ExecStopPost", "ExecReload",
-	"ExecCondition", "ServiceType", "User", "Group", "Environment",
-	"EnvironmentFile", "WorkingDirectory", "OnCalendar", "OnBootSec",
-	"OnStartupSec", "OnUnitActiveSec", "Persistent", "TimerUnit",
-	"ListenStream", "WantedBy", "RequiredBy", "Also", "Alias", "Requires",
-	"Wants", "After", "Before", "ConditionLines")
-
-func j(s []string) string { return strings.Join(s, "|") }
-
-func (r *unitRecord) CSVRow() []string {
-	return append(record.EnvelopeRow(&r.Envelope),
-		r.Unit, r.UnitType, r.Scope, strconv.FormatBool(r.DropIn),
-		r.Description, j(r.ExecStart), j(r.ExecStartPre), j(r.ExecStartPost),
-		j(r.ExecStop), j(r.ExecStopPost), j(r.ExecReload), j(r.ExecCondition),
-		r.ServiceType, r.User, r.Group, j(r.Environment), j(r.EnvironmentFile),
-		r.WorkingDir, j(r.OnCalendar), r.OnBootSec, r.OnStartupSec,
-		r.OnUnitActiveSec, r.Persistent, r.Unit_, j(r.ListenStream),
-		j(r.WantedBy), j(r.RequiredBy), j(r.Also), j(r.Alias), j(r.Requires),
-		j(r.Wants), j(r.After), j(r.Before), j(r.ConditionLines))
 }
 
 // ---- classification --------------------------------------------------------
@@ -296,9 +272,7 @@ func (r *unitRecord) apply(section, k, v string) {
 // ---- batch binding ---------------------------------------------------------
 
 var gounitTool = batch.Tool{
-	Name:      "gounit",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "gounit",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			u, _, _ := classify(rel)
@@ -327,22 +301,17 @@ func main() {
 	batch.Entry(gounitTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one unit file")
-		dir    = flag.String("d", "", "recurse a directory for unit files")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one unit file")
+		dir   = flag.String("d", "", "recurse a directory for unit files")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: gounit                             (env-driven batch mode)\n"+
-			"       gounit -f FILE | -d DIR [--format json|csv] [-q]")
+			"       gounit -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gounit: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	failed := 0
 	one := func(path, rel string) {
 		unit, utype, dropin := classify(rel)

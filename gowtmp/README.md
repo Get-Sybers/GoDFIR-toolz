@@ -49,12 +49,11 @@ provenance itself.
 | `GOWTMP_OUT_DIR` | `/output` | output root, one folder per input file |
 | `GOWTMP_WORK_DIR` | `/work` | scratch (writable tmpfs); gowtmp needs none but honours it |
 | `GOWTMP_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
-| `GOWTMP_FORMAT` | `json` | record format, `json` (JSONL) or `csv` |
 | `GOWTMP_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |
 
 ## Output
 
-`<OUT_DIR>/<item>/gowtmp.jsonl` (or `.csv` with `GOWTMP_FORMAT=csv`), one
+`<OUT_DIR>/<item>/gowtmp.jsonl`, one
 folder per input file; `<item>` is the input-relative path with separators
 folded to `_`. One record per utmp entry / populated lastlog slot.
 
@@ -81,7 +80,6 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
 
 ## argv pass-through (debug only)
 
-`-f FILE | -d DIR | --tar` (a `gomount stream` tar on stdin), `--format
-json|csv`, `-q`; records stream to stdout. Exit 0 ok / 1 usage or fatal / 2
+`-f FILE | -d DIR | --tar` (a `gomount stream` tar on stdin), `-q`; records stream to stdout. Exit 0 ok / 1 usage or fatal / 2
 at least one file failed. `--version` prints the version;
 `--print-contract` prints `contract.yml`.

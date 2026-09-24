@@ -21,7 +21,7 @@ func parse(t *testing.T, rel, content string) map[string]any {
 		rec.RecordType = "systemd_dropin"
 	}
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseUnit(strings.NewReader(content), rec, w); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestUserScopeAndGarbage(t *testing.T) {
 	}
 	rec := &unitRecord{}
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseUnit(strings.NewReader("not a unit file at all\n"), rec, w); err == nil {
 		t.Fatal("garbage accepted")
 	}

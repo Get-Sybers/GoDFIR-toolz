@@ -14,7 +14,7 @@
 // (pinfo/batch) under the GOSHELL_* environment. The argv flags are the
 // debug pass-through:
 //
-//	goshell -f FILE | -d DIR [--format json|csv] [-q]
+//	goshell -f FILE | -d DIR [-q]
 package main
 
 import (
@@ -48,17 +48,6 @@ type historyRecord struct {
 	Sequence int    `json:"Sequence"`
 	Command  string `json:"Command"`
 	Elapsed  *int64 `json:"Elapsed,omitempty"` // zsh extended: seconds the command ran
-}
-
-var csvHeader = append(record.EnvelopeCSV, "Shell", "Sequence", "Command", "Elapsed")
-
-func (r *historyRecord) CSVRow() []string {
-	el := ""
-	if r.Elapsed != nil {
-		el = strconv.FormatInt(*r.Elapsed, 10)
-	}
-	return append(record.EnvelopeRow(&r.Envelope),
-		r.Shell, strconv.Itoa(r.Sequence), r.Command, el)
 }
 
 // shells maps recognised base names to the shell family.
@@ -200,9 +189,7 @@ func parseHistory(rd io.Reader, shell string, w *record.Writer) (int, error) {
 // ---- batch binding ---------------------------------------------------------
 
 var goshellTool = batch.Tool{
-	Name:      "goshell",
-	Formats:   []string{"json", "csv"},
-	CSVHeader: csvHeader,
+	Name: "goshell",
 	Discover: func(cfg *batch.Config) ([]string, error) {
 		return discover.Files(cfg.InputDir, func(rel string, d fs.DirEntry) bool {
 			return classify(rel) != ""
@@ -222,22 +209,17 @@ func main() {
 	batch.Entry(goshellTool, batch.Options{Version: version, Contract: contractYML})
 
 	var (
-		file   = flag.String("f", "", "parse one history file")
-		dir    = flag.String("d", "", "recurse a directory for history files")
-		format = flag.String("format", "json", "record format: json or csv")
-		quiet  = flag.Bool("q", false, "suppress warnings on stderr")
+		file  = flag.String("f", "", "parse one history file")
+		dir   = flag.String("d", "", "recurse a directory for history files")
+		quiet = flag.Bool("q", false, "suppress warnings on stderr")
 	)
 	flag.Parse()
 	if (*file == "") == (*dir == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: goshell                            (env-driven batch mode)\n"+
-			"       goshell -f FILE | -d DIR [--format json|csv] [-q]")
+			"       goshell -f FILE | -d DIR [-q]")
 		os.Exit(1)
 	}
-	w, err := record.NewWriter(os.Stdout, *format, csvHeader)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "goshell: %v\n", err)
-		os.Exit(1)
-	}
+	w := record.NewWriter(os.Stdout)
 	failed := 0
 	one := func(path, rel string) {
 		shell := classify(path)

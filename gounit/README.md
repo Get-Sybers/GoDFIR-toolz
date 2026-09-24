@@ -40,12 +40,11 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 | `GOUNIT_OUT_DIR` | `/output` | output root, one folder per input file |
 | `GOUNIT_WORK_DIR` | `/work` | scratch (writable tmpfs); gounit needs none but honours it |
 | `GOUNIT_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
-| `GOUNIT_FORMAT` | `json` | record format, `json` (JSONL) or `csv` |
 | `GOUNIT_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |
 
 ## Output
 
-`<OUT_DIR>/<item>/gounit.jsonl` (or `.csv`), one folder per unit file;
+`<OUT_DIR>/<item>/gounit.jsonl`, one folder per unit file;
 `RecordType` is `systemd_unit` or `systemd_dropin`.
 
 ## Exit codes
@@ -71,6 +70,6 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
 
 ## argv pass-through (debug only)
 
-`-f FILE | -d DIR`, `--format json|csv`, `-q`; records stream to stdout.
+`-f FILE | -d DIR`, `-q`; records stream to stdout.
 Exit 0 ok / 1 usage or fatal / 2 at least one file failed. `--version`
 prints the version; `--print-contract` prints `contract.yml`.

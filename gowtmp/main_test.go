@@ -86,11 +86,7 @@ func collect(t *testing.T, buf *bytes.Buffer) []map[string]any {
 func newJSONWriter(t *testing.T) (*record.Writer, *bytes.Buffer) {
 	t.Helper()
 	var buf bytes.Buffer
-	w, err := record.NewWriter(&buf, "json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return w, &buf
+	return record.NewWriter(&buf), &buf
 }
 
 func nowarn(string, ...interface{}) {}

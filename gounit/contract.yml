@@ -16,7 +16,6 @@ env:
   GOUNIT_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per unit file'}
   GOUNIT_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gounit needs none but honours it'}
   GOUNIT_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
-  GOUNIT_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
   GOUNIT_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
@@ -31,7 +30,7 @@ summary_schema:
   required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
 
 outputs:
-  layout: "<OUT_DIR>/<item>/gounit.jsonl (or gounit.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+  layout: "<OUT_DIR>/<item>/gounit.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
   envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
@@ -39,6 +38,6 @@ records:
   systemd_dropin: *unit_fields
 
 argv_passthrough: >
-  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, -q.
   Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
   file failed.

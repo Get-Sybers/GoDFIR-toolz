@@ -23,7 +23,7 @@ func TestParseTrashinfo(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "Trash", "files", "secret plans.docx"), bytes.Repeat([]byte("x"), 42), 0o644)
 
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	f, _ := os.Open(ip)
 	defer f.Close()
 	n, err := parseTrashinfo(f, ip, w)
@@ -47,7 +47,7 @@ func TestParseTrashinfo(t *testing.T) {
 
 func TestParseTrashinfoRejectsGarbage(t *testing.T) {
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseTrashinfo(strings.NewReader("just some text\n"), "", w); err == nil {
 		t.Fatal("garbage accepted")
 	}

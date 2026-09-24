@@ -12,7 +12,7 @@ import (
 func parse(t *testing.T, family, content string) []map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	n, err := parseFile(strings.NewReader(content), family, w, func(string, ...interface{}) {})
 	if err != nil {
 		t.Fatalf("%s: %v", family, err)
@@ -138,7 +138,7 @@ func TestClassify(t *testing.T) {
 
 func TestGarbageYieldsError(t *testing.T) {
 	var buf bytes.Buffer
-	w, _ := record.NewWriter(&buf, "json", nil)
+	w := record.NewWriter(&buf)
 	if _, err := parseFile(strings.NewReader("no colons here\nat all\n"), "passwd", w,
 		func(string, ...interface{}) {}); err == nil {
 		t.Fatal("garbage passwd accepted")

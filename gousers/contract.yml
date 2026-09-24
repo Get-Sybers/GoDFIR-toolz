@@ -14,7 +14,6 @@ env:
   GOUSERS_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
   GOUSERS_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gousers needs none but honours it'}
   GOUSERS_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
-  GOUSERS_FORMAT:    {required: false, default: json,    desc: 'record format, json (JSONL) or csv'}
   GOUSERS_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
@@ -29,7 +28,7 @@ summary_schema:
   required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
 
 outputs:
-  layout: "<OUT_DIR>/<item>/gousers.jsonl (or gousers.csv); <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+  layout: "<OUT_DIR>/<item>/gousers.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
   envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
@@ -46,6 +45,6 @@ records:
   known_host: {HostPattern: 'host field verbatim (hashed |1| forms included)', Hashed: 'whether the host field is hashed', Marker: '@revoked / @cert-authority when present', KeyType: 'ssh key type', Fingerprint: 'standard OpenSSH SHA256 fingerprint', Comment: 'trailing comment', Raw: 'the whole line', Line: 'source line number'}
 
 argv_passthrough: >
-  Debug only, never used by DX_DFIR: -f FILE | -d DIR, --format json|csv, -q.
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, -q.
   Records stream to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one
   file failed.
