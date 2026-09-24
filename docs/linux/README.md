@@ -50,6 +50,20 @@ Done means: a Linux disk image — plain, LVM, or Btrfs, snapshots included —
 processes end-to-end into per-artefact JSONL and CAR **with the Plaso image
 absent**, and every new image passes the framework gate.
 
+> ## The rule
+>
+> **The Go toolz never replace byakugan, and never use its synthetic joining
+> guids.** The parsers are parsers: they extract, complete and native,
+> everything byakugan needs to do its job — and nothing more. CAR
+> normalisation, canonicalisation, row identity, relationships and every
+> derived view are byakugan's; the row guids (`guid`, `owning_guid`,
+> `volume_guid`) are its synthetic join keys, minted by its engine alone
+> from natural record fields via the spindle registry — no Go tool emits
+> one, computes one, or carries one through. Every capability in this paper
+> is an extraction capability; anything that would synthesise, join or
+> normalise on the Go side is out of scope by this rule, wherever it
+> appears below.
+
 ## 1. Goal and non-goals
 
 **Goal.** Parity of *approach*, not of artefact list: single-purpose static Go
@@ -172,6 +186,9 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
   declared header order. Their design is governed by the byakugan-alignment
   rules of §4.1: typed rows, native vocabulary verbatim, honest nulls, and
   the field set each CAR map consumes as the floor.
+- The envelope carries **no synthetic identifiers**: record identity is
+  natural fields only (§4.1), and byakugan's guids never appear in parser
+  output — the rule.
 
 The Windows tools' record shapes are not migrated by this plan; when they
 adopt `pinfo` (§10) they keep their existing fields and gain nothing
@@ -207,7 +224,9 @@ count, the time span of `EventTime`, the snapshot set seen, and the summary
 lines' status/failure roll-up, as one JSONL report. DX_DFIR's verify/gate step
 and the operator get one place that answers "what did this evidence produce?"
 without opening record files. It reads outputs only; it is not on any parsing
-path.
+path — and it reports on *runs*, not evidence: it never joins records across
+tools, never mints an identity, and is no substitute for byakugan's timeline
+or cross-source views (the rule).
 
 ### 3.6 Rules the module keeps
 
@@ -281,11 +300,14 @@ every Linux tool's record design:
 3. **Honest nulls.** A field the artefact does not carry is omitted (JSONL)
    or empty (CSV) — never `-`, `N/A` or an invented value — and a real zero
    (root's uid) is emitted, not blanked.
-4. **Identity fields extracted.** Each tool documents which payload fields
-   identify a record — journal (boot id, seqnum), audit
+4. **Identity fields extracted, never minted.** Each tool documents which
+   payload fields identify a record — journal (boot id, seqnum), audit
    (`sec.usec:serial`), utmp (pid, terminal, time), a timeline row (inode,
    path, kind, time) — so spindle registry entries (or an external identity
    form) mint row guids from fields alone, as today, with no parser change.
+   The parsers only *carry* those natural fields: computing a spindle guid
+   is the engine's alone, and no synthetic guid ever appears in parser
+   output (the rule).
 5. **Join keys carried, relationships never derived.** PIDs, UIDs,
    terminals, unit names, paths are extracted exactly as the artefact
    states them; session pairing, parentage, cross-source correlation and
@@ -741,16 +763,17 @@ snapshot story. Each is a one-page decision when its time comes.
 
 | # | Decision |
 |---|---|
-| 1 | No log2timeline anywhere in the Linux path; Plaso remains for the Windows export stage and as a bring-up cross-check only |
-| 2 | The shared runtime is a real module, `pinfo`, at the repo root; Linux tools are born on it; the byte-identical-`batch.go` rule remains for the Windows tools until their adoption phase |
-| 3 | Parser images build with the repo root as context and take `pinfo` via `replace` — hermetic, air-gap-clean, no module fetch |
-| 4 | The record envelope (§3.3) with UTC RFC3339 `EventTime` and explicit `Snapshot` provenance is mandatory for every Linux tool |
-| 5 | gomount — already begun as the native extraction path on Windows — gains the Linux backends behind one `fsx` seam; no second mount tool; userspace-only for Linux filesystems |
-| 6 | Snapshots are passed by the access layer (`--snap all`), parsers stay snapshot-agnostic, provenance rides paths + envelope + manifest, dedup defaults on |
-| 7 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
-| 8 | Every new image is Tier-1/`FROM scratch`; no interpreter enters the Linux path |
-| 9 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted, declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
-| 10 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
+| 1 | **The rule** (stated in full after the abstract): the Go toolz never replace byakugan and never use its synthetic joining guids — parsers extract everything byakugan needs to do its job, and nothing on the Go side synthesises, joins or normalises |
+| 2 | No log2timeline anywhere in the Linux path; Plaso remains for the Windows export stage and as a bring-up cross-check only |
+| 3 | The shared runtime is a real module, `pinfo`, at the repo root; Linux tools are born on it; the byte-identical-`batch.go` rule remains for the Windows tools until their adoption phase |
+| 4 | Parser images build with the repo root as context and take `pinfo` via `replace` — hermetic, air-gap-clean, no module fetch |
+| 5 | The record envelope (§3.3) with UTC RFC3339 `EventTime` and explicit `Snapshot` provenance is mandatory for every Linux tool — and carries no synthetic identifiers |
+| 6 | gomount — already begun as the native extraction path on Windows — gains the Linux backends behind one `fsx` seam; no second mount tool; userspace-only for Linux filesystems |
+| 7 | Snapshots are passed by the access layer (`--snap all`), parsers stay snapshot-agnostic, provenance rides paths + envelope + manifest, dedup defaults on |
+| 8 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
+| 9 | Every new image is Tier-1/`FROM scratch`; no interpreter enters the Linux path |
+| 10 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted (never minted), declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
+| 11 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
 
 ### 11.2 Open questions
 
@@ -779,6 +802,8 @@ artefacts; network configuration surface (hosts, resolv, NetworkManager
 profiles, firewall saves); browser-profile coverage beyond gosqlite's first
 profiles; XFS log decoding as a `fs_journal` residue backend (§5.5 covers
 ext4/jbd2); content carving over unallocated space (out of the residue
-surface by decision 10 — if it ever lands, it is the signatures lane's
-business); VHD/VHDX/VMDK image formats; a persistence-sweep aggregator
-across gounit/gocron/gousers outputs (the autoruns analogue).
+surface by decision 11 — if it ever lands, it is the signatures lane's
+business); VHD/VHDX/VMDK image formats. A persistence-sweep view across
+gounit/gocron/gousers outputs (the autoruns analogue) is recorded here so
+it is not re-derived, but under the rule it is byakugan's side of the
+boundary — a derived view over parser records, never a Go tool.
