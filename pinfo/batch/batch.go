@@ -35,6 +35,7 @@ import (
 	"unicode"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo"
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
 )
@@ -70,15 +71,17 @@ type Options struct {
 
 // Config is the resolved environment contract of one run.
 type Config struct {
-	Tool     string
-	Prefix   string
-	InputDir string
-	OutDir   string
-	WorkDir  string
-	Force    bool
-	LogLevel int
-	getenv   func(string) string
-	manifest *record.Manifest
+	Tool         string
+	Prefix       string
+	InputDir     string
+	OutDir       string
+	WorkDir      string
+	KnowledgeDir string
+	Force        bool
+	LogLevel     int
+	getenv       func(string) string
+	manifest     *record.Manifest
+	knowledge    *knowledge.Store
 }
 
 // Log levels, in decreasing severity; a message prints when its level is at
@@ -176,6 +179,10 @@ func (c *Config) Logf(level int, format string, args ...interface{}) {
 // argv-mode -q equivalent).
 func (c *Config) Quiet() bool { return c.LogLevel < LogInfo }
 
+// Knowledge is the Layer-1 store of this run, nil when none was mounted;
+// a nil store is safe and resolves nothing.
+func (c *Config) Knowledge() *knowledge.Store { return c.knowledge }
+
 // Prefix derives the SCREAMING_SNAKE_CASE variable prefix from a tool name.
 func Prefix(tool string) string {
 	return strings.ToUpper(strings.ReplaceAll(tool, "-", "_"))
@@ -200,6 +207,7 @@ func loadConfig(t Tool, getenv func(string) string) (*Config, error) {
 	cfg.InputDir = cfg.Env("INPUT_DIR", "/input")
 	cfg.OutDir = cfg.Env("OUT_DIR", "/output")
 	cfg.WorkDir = cfg.Env("WORK_DIR", "/work")
+	cfg.KnowledgeDir = cfg.Env("KNOWLEDGE_DIR", "/knowledge")
 
 	force, err := ParseBool(cfg.Env("FORCE", "0"))
 	if err != nil {
@@ -332,6 +340,14 @@ func Run(t Tool, o Options, getenv func(string) string, stdout io.Writer) int {
 		cfg.Logf(LogDebug, "stage manifest loaded from %s", filepath.Join(cfg.InputDir, record.ManifestName))
 	}
 
+	// The Layer-1 knowledge store (docs/linux decision 14): what the image
+	// says about itself, loaded from the knowledge mount when present so
+	// records carry the Host context and tools can resolve against it.
+	cfg.knowledge = knowledge.Load(cfg.KnowledgeDir)
+	if cfg.knowledge != nil {
+		cfg.Logf(LogDebug, "knowledge store loaded from %s", cfg.KnowledgeDir)
+	}
+
 	items, err := t.Discover(cfg)
 	if err != nil {
 		sum.Error = "discover: " + err.Error()
@@ -430,5 +446,6 @@ func itemStamp(t Tool, o Options, cfg *Config, item string) record.Stamp {
 		s.SourceModified = tstamp.ISO8601(st.ModTime())
 	}
 	s.Origin, s.Snapshot, s.Residue = cfg.manifest.Stamp(rel)
+	s.Host = cfg.knowledge.Host()
 	return s
 }

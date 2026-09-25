@@ -170,7 +170,7 @@ func decode(t *testing.T, img []byte) []map[string]any {
 		if rerr != nil {
 			return rerr
 		}
-		return w.Write(buildRecord(e, j.hdr.machineID))
+		return w.Write(buildRecord(e, j.hdr.machineID, nil))
 	})
 	if err != nil {
 		t.Fatal(err)

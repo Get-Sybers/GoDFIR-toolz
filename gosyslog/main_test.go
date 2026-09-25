@@ -19,7 +19,7 @@ func parse(t *testing.T, content string) []map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
 	w := record.NewWriter(&buf)
-	if _, err := parseLog(strings.NewReader(content), ref, w); err != nil {
+	if _, err := parseLog(strings.NewReader(content), ref, nil, w); err != nil {
 		t.Fatal(err)
 	}
 	w.Flush()
@@ -106,5 +106,25 @@ func TestIsSyslogFile(t *testing.T) {
 		if isSyslogFile(p) {
 			t.Errorf("isSyslogFile(%q) = true", p)
 		}
+	}
+}
+
+func TestHostZoneApplied(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Skip("zoneinfo unavailable")
+	}
+	var buf bytes.Buffer
+	w := record.NewWriter(&buf)
+	// winter (CET, +01:00): naive local 22:14:02 == 21:14:02Z
+	if _, err := parseLog(strings.NewReader("Jan 10 22:14:02 web01 systemd[1]: Started daily apt activities.\n"),
+		time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC), loc, w); err != nil {
+		t.Fatal(err)
+	}
+	w.Flush()
+	var m map[string]any
+	json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &m)
+	if m["EventTime"] != "2026-01-10T21:14:02.000000Z" {
+		t.Fatalf("zone not applied: %v", m["EventTime"])
 	}
 }

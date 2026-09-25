@@ -35,6 +35,7 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOTRASH_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOTRASH_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOTRASH_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOTRASH_WORK_DIR` | `/work` | scratch (writable tmpfs); gotrash needs none but honours it |
 | `GOTRASH_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOTRASH_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

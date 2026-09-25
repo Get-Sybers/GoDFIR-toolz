@@ -38,6 +38,7 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOUNIT_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOUNIT_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOUNIT_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOUNIT_WORK_DIR` | `/work` | scratch (writable tmpfs); gounit needs none but honours it |
 | `GOUNIT_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOUNIT_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

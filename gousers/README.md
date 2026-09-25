@@ -39,6 +39,7 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOUSERS_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOUSERS_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOUSERS_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOUSERS_WORK_DIR` | `/work` | scratch (writable tmpfs); gousers needs none but honours it |
 | `GOUSERS_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOUSERS_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

@@ -12,6 +12,7 @@ description: >
 env:
   GOAUDITD_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every audit.log (rotations, .gz) is an item'}
   GOAUDITD_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per audit log'}
+  GOAUDITD_KNOWLEDGE_DIR: {required: false, default: /knowledge, desc: 'the Layer-1 knowledge store (gohost/gousers/gonetwork output trees); when the mount is absent, enrichment is simply absent'}
   GOAUDITD_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); goauditd needs none but honours it'}
   GOAUDITD_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
   GOAUDITD_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
@@ -19,6 +20,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOAUDITD_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: GOAUDITD_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: ro, env: GOAUDITD_KNOWLEDGE_DIR, required: false}
   - {name: work,   path: /work,   mode: rw, env: GOAUDITD_WORK_DIR,  required: false}
 
 network: none
@@ -31,7 +33,7 @@ outputs:
   layout: "<OUT_DIR>/<item>/goauditd.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
-  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue, Host]
   auditd_event:
     AuditID: 'the audit(sec.msec:serial) id — the record identity, carried never minted'
     Node: 'the node= prefix of aggregated (audisp-remote) logs, when present'
@@ -43,10 +45,14 @@ records:
     Exit: 'exit value verbatim'
     PID: 'process id (numeric string, native)'
     PPID: 'parent pid'
-    UID: 'uid, numeric verbatim (resolution is enrichment, byakugan''s)'
+    UID: 'uid, numeric verbatim'
+    UIDName: 'the uid resolved against the image''s own passwd (Layer-1 knowledge store, decision 14) — beside the native value, absent without the store'
     AUID: 'audit (login) uid, numeric verbatim'
+    AUIDName: 'as UIDName'
     EUID: 'effective uid'
+    EUIDName: 'as UIDName'
     GID: 'gid'
+    GIDName: 'the gid resolved against the image''s own group file, as UIDName'
     SES: 'audit session id'
     TTY: 'tty'
     Comm: 'comm, hex-decoded when encoded'

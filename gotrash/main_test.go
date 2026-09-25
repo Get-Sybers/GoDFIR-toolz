@@ -26,7 +26,7 @@ func TestParseTrashinfo(t *testing.T) {
 	w := record.NewWriter(&buf)
 	f, _ := os.Open(ip)
 	defer f.Close()
-	n, err := parseTrashinfo(f, ip, w)
+	n, err := parseTrashinfo(f, ip, nil, w)
 	if err != nil || n != 1 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
@@ -48,7 +48,7 @@ func TestParseTrashinfo(t *testing.T) {
 func TestParseTrashinfoRejectsGarbage(t *testing.T) {
 	var buf bytes.Buffer
 	w := record.NewWriter(&buf)
-	if _, err := parseTrashinfo(strings.NewReader("just some text\n"), "", w); err == nil {
+	if _, err := parseTrashinfo(strings.NewReader("just some text\n"), "", nil, w); err == nil {
 		t.Fatal("garbage accepted")
 	}
 }

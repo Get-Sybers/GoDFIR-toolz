@@ -58,6 +58,17 @@ func Days(days int64) string {
 // which case it is the year before (the December-log-read-in-January case).
 // The result is naive-as-UTC per the package rule.
 func Syslog3164(s string, ref time.Time) (time.Time, bool) {
+	return Syslog3164In(s, ref, nil)
+}
+
+// Syslog3164In is Syslog3164 with the host's zone from the Layer-1
+// knowledge store (decision 14): a non-nil loc interprets the naive
+// prefix as host-local time — the rendered ISO 8601 UTC is then the real
+// instant. nil keeps the naive-as-UTC rule.
+func Syslog3164In(s string, ref time.Time, loc *time.Location) (time.Time, bool) {
+	if loc == nil {
+		loc = time.UTC
+	}
 	t, err := time.Parse("Jan _2 15:04:05", strings.TrimSpace(s))
 	if err != nil {
 		return time.Time{}, false
@@ -66,7 +77,7 @@ func Syslog3164(s string, ref time.Time) (time.Time, bool) {
 		ref = time.Now().UTC()
 	}
 	ref = ref.UTC()
-	t = time.Date(ref.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.UTC)
+	t = time.Date(ref.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, loc)
 	if t.After(ref.Add(48 * time.Hour)) {
 		t = t.AddDate(-1, 0, 0)
 	}
@@ -90,9 +101,19 @@ var flexLayouts = []string{
 // Flexible parses a self-describing timestamp string in the common log
 // dialects; ok is false when none match.
 func Flexible(s string) (time.Time, bool) {
+	return FlexibleIn(s, nil)
+}
+
+// FlexibleIn is Flexible with the host's zone for the zone-LESS layouts
+// (decision 14): a form carrying its own offset is unaffected; a naive
+// form is interpreted in loc when non-nil, else as UTC.
+func FlexibleIn(s string, loc *time.Location) (time.Time, bool) {
+	if loc == nil {
+		loc = time.UTC
+	}
 	s = strings.TrimSpace(s)
 	for _, l := range flexLayouts {
-		if t, err := time.Parse(l, s); err == nil {
+		if t, err := time.ParseInLocation(l, s, loc); err == nil {
 			return t, true
 		}
 	}

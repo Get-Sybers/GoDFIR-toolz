@@ -34,6 +34,7 @@ import (
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
 )
@@ -65,9 +66,13 @@ type auditEvent struct {
 	PID         string            `json:"PID,omitempty"`
 	PPID        string            `json:"PPID,omitempty"`
 	UID         string            `json:"UID,omitempty"`
+	UIDName     string            `json:"UIDName,omitempty"`
 	AUID        string            `json:"AUID,omitempty"`
+	AUIDName    string            `json:"AUIDName,omitempty"`
 	EUID        string            `json:"EUID,omitempty"`
+	EUIDName    string            `json:"EUIDName,omitempty"`
 	GID         string            `json:"GID,omitempty"`
+	GIDName     string            `json:"GIDName,omitempty"`
 	SES         string            `json:"SES,omitempty"`
 	TTY         string            `json:"TTY,omitempty"`
 	Comm        string            `json:"Comm,omitempty"`
@@ -261,7 +266,16 @@ func (e *auditEvent) field(k, v string) {
 }
 
 // parseAudit streams audit.log lines, coalescing by audit id.
-func parseAudit(rd io.Reader, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
+// resolve fills the knowledge-store name fields beside the native
+// numeric ids (decision 14: fill-only, image-self-knowledge).
+func (e *auditEvent) resolve(ks *knowledge.Store) {
+	e.UIDName = ks.Username(e.UID)
+	e.AUIDName = ks.Username(e.AUID)
+	e.EUIDName = ks.Username(e.EUID)
+	e.GIDName = ks.Groupname(e.GID)
+}
+
+func parseAudit(rd io.Reader, ks *knowledge.Store, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
 	sc := bufio.NewScanner(rd)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	emitted, unmatched, lines := 0, 0, 0
@@ -272,6 +286,7 @@ func parseAudit(rd io.Reader, w *record.Writer, warnf func(string, ...interface{
 		if cur == nil {
 			return nil
 		}
+		cur.resolve(ks)
 		err := w.Write(cur)
 		cur = nil
 		if err == nil {
@@ -341,7 +356,7 @@ var goauditdTool = batch.Tool{
 			return 0, err
 		}
 		defer f.Close()
-		return parseAudit(f, w, func(format string, args ...interface{}) {
+		return parseAudit(f, cfg.Knowledge(), w, func(format string, args ...interface{}) {
 			cfg.Logf(batch.LogWarn, item+": "+format, args...)
 		})
 	},
@@ -377,7 +392,7 @@ func main() {
 				s.SourceModified = tstamp.ISO8601(st.ModTime())
 			}
 			w.SetStamp(s)
-			_, err = parseAudit(f, w, warnf)
+			_, err = parseAudit(f, nil, w, warnf)
 			f.Close()
 		}
 		if err != nil {

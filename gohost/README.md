@@ -43,6 +43,7 @@ is joined onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOHOST_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOHOST_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOHOST_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOHOST_WORK_DIR` | `/work` | scratch (writable tmpfs); gohost needs none but honours it |
 | `GOHOST_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOHOST_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

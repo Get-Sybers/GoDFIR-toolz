@@ -154,7 +154,7 @@ func TestParseLastlog(t *testing.T) {
 		1000: {"1767229200", "pts/0", "workstation.example"},
 	})
 	w, buf := newJSONWriter(t)
-	n, err := parseLastlog(bytes.NewReader(raw), w, nowarn)
+	n, err := parseLastlog(bytes.NewReader(raw), nil, w, nowarn)
 	if err != nil || n != 2 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}

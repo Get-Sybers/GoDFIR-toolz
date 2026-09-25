@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
@@ -51,7 +52,7 @@ type trashRecord struct {
 
 // parseTrashinfo parses one [Trash Info] file. The paired content file is
 // looked up at ../files/<name> relative to the info file when path != "".
-func parseTrashinfo(rd io.Reader, infoPath string, w *record.Writer) (int, error) {
+func parseTrashinfo(rd io.Reader, infoPath string, loc *time.Location, w *record.Writer) (int, error) {
 	rec := &trashRecord{}
 	rec.RecordType = "trashinfo"
 	sc := bufio.NewScanner(rd)
@@ -74,7 +75,7 @@ func parseTrashinfo(rd io.Reader, infoPath string, w *record.Writer) (int, error
 			}
 		case strings.HasPrefix(line, "DeletionDate="):
 			rec.DeletionDateRaw = line[len("DeletionDate="):]
-			if t, ok := tstamp.Flexible(rec.DeletionDateRaw); ok {
+			if t, ok := tstamp.FlexibleIn(rec.DeletionDateRaw, loc); ok {
 				rec.EventTime = tstamp.ISO8601(t)
 				rec.TimeKind = "deleted"
 			}
@@ -119,7 +120,7 @@ var gotrashTool = batch.Tool{
 			return 0, err
 		}
 		defer f.Close()
-		return parseTrashinfo(f, item, w)
+		return parseTrashinfo(f, item, cfg.Knowledge().Location(), w)
 	},
 }
 
@@ -148,7 +149,7 @@ func main() {
 				s.SourceModified = tstamp.ISO8601(st.ModTime())
 			}
 			w.SetStamp(s)
-			_, err = parseTrashinfo(f, path, w)
+			_, err = parseTrashinfo(f, path, nil, w)
 			f.Close()
 		}
 		if err != nil {

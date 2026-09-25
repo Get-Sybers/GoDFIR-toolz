@@ -38,6 +38,7 @@ is joined onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOAUDITD_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOAUDITD_OUT_DIR` | `/output` | output root, one folder per audit log |
+| `GOAUDITD_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOAUDITD_WORK_DIR` | `/work` | scratch (writable tmpfs); goauditd needs none but honours it |
 | `GOAUDITD_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOAUDITD_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

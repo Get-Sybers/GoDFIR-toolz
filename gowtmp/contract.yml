@@ -12,6 +12,7 @@ description: >
 env:
   GOWTMP_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every utmp/wtmp/btmp/lastlog file (rotations and .gz included) is an item'}
   GOWTMP_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
+  GOWTMP_KNOWLEDGE_DIR: {required: false, default: /knowledge, desc: 'the Layer-1 knowledge store (gohost/gousers/gonetwork output trees); when the mount is absent, enrichment is simply absent'}
   GOWTMP_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gowtmp needs none but honours it'}
   GOWTMP_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
   GOWTMP_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
@@ -19,6 +20,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOWTMP_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: GOWTMP_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: ro, env: GOWTMP_KNOWLEDGE_DIR, required: false}
   - {name: work,   path: /work,   mode: rw, env: GOWTMP_WORK_DIR,  required: false}
 
 network: none
@@ -34,7 +36,7 @@ outputs:
 # field_provenance cite. Envelope head first (shared by every pinfo tool),
 # then the per-RecordType payload.
 records:
-  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue, Host]
   utmp:
     Source: 'file family the record came from: utmp | wtmp | btmp (btmp rows are failed logins)'
     LoginType: 'native utmp record type 1-9, verbatim (6/7 login, 8 logout; NOT the CAR login_type vocabulary)'
@@ -51,6 +53,7 @@ records:
   lastlog:
     Source: 'always lastlog'
     UID: 'the slot index = the account uid (0 is root, a real value)'
+    UIDName: 'the uid resolved against the image''s own passwd (Layer-1 knowledge store) — beside the native value'
     Terminal: 'll_line'
     Hostname: 'll_host'
 

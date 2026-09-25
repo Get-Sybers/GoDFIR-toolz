@@ -3,9 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
 )
 
@@ -23,7 +26,7 @@ func parse(t *testing.T, content string) []map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
 	w := record.NewWriter(&buf)
-	if _, err := parseAudit(strings.NewReader(content), w, func(string, ...interface{}) {}); err != nil {
+	if _, err := parseAudit(strings.NewReader(content), nil, w, func(string, ...interface{}) {}); err != nil {
 		t.Fatal(err)
 	}
 	w.Flush()
@@ -83,7 +86,7 @@ func TestCoalescedExecve(t *testing.T) {
 func TestGarbageRejected(t *testing.T) {
 	var buf bytes.Buffer
 	w := record.NewWriter(&buf)
-	if _, err := parseAudit(strings.NewReader("hello\nworld\n"), w, func(string, ...interface{}) {}); err == nil {
+	if _, err := parseAudit(strings.NewReader("hello\nworld\n"), nil, w, func(string, ...interface{}) {}); err == nil {
 		t.Fatal("garbage accepted")
 	}
 }
@@ -109,5 +112,29 @@ func TestNodePrefix(t *testing.T) {
 	if len(recs) != 1 || recs[0]["Node"] != "srv02" || recs[0]["AuditID"] != "1767225800.001:44" ||
 		recs[0]["SyscallName"] != "openat" {
 		t.Fatalf("node event: %v", recs)
+	}
+}
+
+func TestKnowledgeResolution(t *testing.T) {
+	kd := t.TempDir()
+	os.MkdirAll(filepath.Join(kd, "etc_passwd"), 0o755)
+	os.WriteFile(filepath.Join(kd, "etc_passwd", "gousers.jsonl"), []byte(
+		`{"RecordType":"account","Username":"alice","UID":1000}`+"\n"+
+			`{"RecordType":"group","GroupName":"alice","GID":1000}`+"\n"), 0o644)
+	ks := knowledge.Load(kd)
+	if ks == nil {
+		t.Fatal("store not loaded")
+	}
+	var buf bytes.Buffer
+	w := record.NewWriter(&buf)
+	if _, err := parseAudit(strings.NewReader(fixture), ks, w, func(string, ...interface{}) {}); err != nil {
+		t.Fatal(err)
+	}
+	w.Flush()
+	var e map[string]any
+	json.Unmarshal([]byte(strings.SplitN(strings.TrimSpace(buf.String()), "\n", 2)[0]), &e)
+	if e["UID"] != "1000" || e["UIDName"] != "alice" || e["AUIDName"] != "alice" ||
+		e["GIDName"] != "alice" || e["EUIDName"] != "alice" {
+		t.Fatalf("resolution (native beside resolved): %v", e)
 	}
 }

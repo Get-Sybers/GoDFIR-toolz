@@ -36,6 +36,7 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOCRON_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOCRON_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOCRON_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOCRON_WORK_DIR` | `/work` | scratch (writable tmpfs); gocron needs none but honours it |
 | `GOCRON_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOCRON_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

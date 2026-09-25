@@ -54,6 +54,17 @@ type Residue struct {
 	Detail string `json:"Detail,omitempty"`
 }
 
+// Host is the imaged host's own identity, stamped from the Layer-1
+// knowledge store (docs/linux §4, decision 14): the image's hostname,
+// machine id, OS and the timezone that was applied to naive timestamps.
+// Image-self-knowledge, never an inference.
+type Host struct {
+	Hostname  string `json:"Hostname,omitempty"`
+	MachineID string `json:"MachineID,omitempty"`
+	OS        string `json:"OS,omitempty"`
+	Timezone  string `json:"Timezone,omitempty"`
+}
+
 // Envelope is the common head of every record. Tool + RecordType is the
 // record's parser chain (the role plaso's Parser field plays);
 // SourceFilename is the parsed file relative to the input root; EventTime
@@ -70,6 +81,7 @@ type Envelope struct {
 	Origin         *Origin   `json:"Origin,omitempty"`
 	Snapshot       *Snapshot `json:"Snapshot,omitempty"`
 	Residue        *Residue  `json:"Residue,omitempty"`
+	Host           *Host     `json:"Host,omitempty"`
 }
 
 // Env makes an embedded Envelope satisfy the Record interface.
@@ -92,6 +104,7 @@ type Stamp struct {
 	Origin         *Origin
 	Snapshot       *Snapshot
 	Residue        *Residue
+	Host           *Host
 }
 
 func (s Stamp) apply(e *Envelope) {
@@ -115,6 +128,9 @@ func (s Stamp) apply(e *Envelope) {
 	}
 	if e.Residue == nil {
 		e.Residue = s.Residue
+	}
+	if e.Host == nil {
+		e.Host = s.Host
 	}
 }
 

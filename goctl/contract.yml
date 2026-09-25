@@ -13,6 +13,7 @@ description: >
 env:
   GOCTL_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised control file is an item'}
   GOCTL_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
+  GOCTL_KNOWLEDGE_DIR: {required: false, default: /knowledge, desc: 'the Layer-1 knowledge store (gohost/gousers/gonetwork output trees); when the mount is absent, enrichment is simply absent'}
   GOCTL_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); goctl needs none but honours it'}
   GOCTL_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
   GOCTL_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
@@ -20,6 +21,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOCTL_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: GOCTL_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: ro, env: GOCTL_KNOWLEDGE_DIR, required: false}
   - {name: work,   path: /work,   mode: rw, env: GOCTL_WORK_DIR,  required: false}
 
 network: none
@@ -32,7 +34,7 @@ outputs:
   layout: "<OUT_DIR>/<item>/goctl.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
-  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue, Host]
   sysctl_param: {Parameter: 'the key verbatim', Value: 'the value verbatim', Scope: 'vendor | admin | runtime | other — where the file sat', Raw: 'the whole line (keeps the error-ignoring - prefix)', Line: 'source line number'}
   module_load: {Module: 'module to load at boot', Scope: 'as sysctl_param', Raw: 'the whole line when it carries parameters', Line: 'source line number'}
   modprobe_directive: {Directive: 'alias | options | install | remove | blacklist | softdep (install/remove values are shell commands)', Module: 'the module named', Value: 'the directive arguments verbatim', Scope: 'as sysctl_param', Raw: 'the whole line', Line: 'source line number'}

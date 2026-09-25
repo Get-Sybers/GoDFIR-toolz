@@ -46,6 +46,7 @@ is joined onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOCTL_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOCTL_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOCTL_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOCTL_WORK_DIR` | `/work` | scratch (writable tmpfs); goctl needs none but honours it |
 | `GOCTL_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOCTL_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

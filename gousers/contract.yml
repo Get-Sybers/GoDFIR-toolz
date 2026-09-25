@@ -12,6 +12,7 @@ description: >
 env:
   GOUSERS_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised account/access file is an item'}
   GOUSERS_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
+  GOUSERS_KNOWLEDGE_DIR: {required: false, default: /knowledge, desc: 'the Layer-1 knowledge store (gohost/gousers/gonetwork output trees); when the mount is absent, enrichment is simply absent'}
   GOUSERS_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gousers needs none but honours it'}
   GOUSERS_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
   GOUSERS_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
@@ -19,6 +20,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOUSERS_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: GOUSERS_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: ro, env: GOUSERS_KNOWLEDGE_DIR, required: false}
   - {name: work,   path: /work,   mode: rw, env: GOUSERS_WORK_DIR,  required: false}
 
 network: none
@@ -31,7 +33,7 @@ outputs:
   layout: "<OUT_DIR>/<item>/gousers.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
-  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue, Host]
   account: {Username: 'passwd name', PasswordField: 'the passwd password column verbatim (x, *, a crypt, a NIS +)', UID: 'numeric uid (0 is a real value)', GID: 'primary gid', GECOS: 'comment field verbatim', HomeDir: 'home directory', Shell: 'login shell', Line: 'source line number'}
   shadow: {Username: 'shadow name', PasswordCrypt: 'the crypt string verbatim (locked/starred values included; judging them is byakugan''s)', LastChangeDays: 'days-since-epoch, native (EventTime carries the date, TimeKind password_change)', MinDays: 'PASS_MIN_DAYS', MaxDays: 'PASS_MAX_DAYS', WarnDays: 'warn window', InactiveDays: 'inactivity window', ExpireDays: 'account expiry days-since-epoch, native', ExpireTime: 'ExpireDays rendered as a date', Line: 'source line number'}
   group: {GroupName: 'group name', PasswordField: 'password column verbatim', GID: 'numeric gid', Members: 'member list', Line: 'source line number'}

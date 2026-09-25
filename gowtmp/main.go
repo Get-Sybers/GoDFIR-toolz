@@ -1,4 +1,4 @@
-// gowtmp — Linux login-record parser for the DX_DFIR pipeline: the L0 pilot
+// gowtmp — Linux login-record parser for the DX_DFIR pipeline: the P0 pilot
 // of the Linux matrix (docs/linux §4), built on the shared pinfo module.
 //
 // Parses the classic glibc binary login records:
@@ -38,10 +38,12 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tarstream"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
@@ -90,6 +92,7 @@ type lastlogRecord struct {
 	record.Envelope
 	Source   string `json:"Source"`
 	UID      uint32 `json:"UID"`
+	UIDName  string `json:"UIDName,omitempty"`
 	Terminal string `json:"Terminal,omitempty"`
 	Hostname string `json:"Hostname,omitempty"`
 }
@@ -214,7 +217,7 @@ func parseUtmp(r io.Reader, source string, w *record.Writer, warnf func(string, 
 
 // parseLastlog reads the sparse per-UID table, emitting one record per
 // populated slot (zero-time, empty slots are the table's normal state).
-func parseLastlog(r io.Reader, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
+func parseLastlog(r io.Reader, ks *knowledge.Store, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
 	buf := make([]byte, lastlogLen)
 	emitted := 0
 	var uid uint32
@@ -236,6 +239,7 @@ func parseLastlog(r io.Reader, w *record.Writer, warnf func(string, ...interface
 			continue
 		}
 		rec := &lastlogRecord{Source: lastlogBase, UID: uid, Terminal: line, Hostname: host}
+		rec.UIDName = ks.Username(strconv.FormatUint(uint64(uid), 10))
 		rec.RecordType = "lastlog"
 		rec.EventTime = tstamp.Unix(sec, 0)
 		rec.TimeKind = "last_login"
@@ -248,9 +252,9 @@ func parseLastlog(r io.Reader, w *record.Writer, warnf func(string, ...interface
 }
 
 // parseStream dispatches one input by family.
-func parseStream(r io.Reader, family string, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
+func parseStream(r io.Reader, family string, ks *knowledge.Store, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
 	if family == lastlogBase {
-		return parseLastlog(r, w, warnf)
+		return parseLastlog(r, ks, w, warnf)
 	}
 	return parseUtmp(r, family, w, warnf)
 }
@@ -271,7 +275,7 @@ var gowtmpTool = batch.Tool{
 			return 0, err
 		}
 		defer f.Close()
-		return parseStream(f, family, w, func(format string, args ...interface{}) {
+		return parseStream(f, family, cfg.Knowledge(), w, func(format string, args ...interface{}) {
 			cfg.Logf(batch.LogWarn, item+": "+format, args...)
 		})
 	},
@@ -325,7 +329,7 @@ func main() {
 			s.SourceModified = tstamp.ISO8601(st.ModTime())
 		}
 		w.SetStamp(s)
-		if _, err := parseStream(f, family, w, warnf); err != nil {
+		if _, err := parseStream(f, family, nil, w, warnf); err != nil {
 			warnf("%s: %v", path, err)
 			failed++
 		}
@@ -357,7 +361,7 @@ func main() {
 				Tool: "gowtmp", ToolVersion: version,
 				SourceFilename: e.Name, SourceModified: tstamp.ISO8601(e.Mod),
 			})
-			if _, perr := parseStream(e.R, family, w, warnf); perr != nil {
+			if _, perr := parseStream(e.R, family, nil, w, warnf); perr != nil {
 				warnf("%s: %v", e.Name, perr)
 				failed++
 			}

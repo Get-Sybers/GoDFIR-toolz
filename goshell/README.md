@@ -35,6 +35,7 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOSHELL_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOSHELL_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOSHELL_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOSHELL_WORK_DIR` | `/work` | scratch (writable tmpfs); goshell needs none but honours it |
 | `GOSHELL_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOSHELL_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

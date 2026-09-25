@@ -34,6 +34,7 @@ import (
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/families"
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
 )
@@ -56,7 +57,9 @@ type journalRecord struct {
 	Identifier   string `json:"Identifier,omitempty"`
 	PID          string `json:"PID,omitempty"`
 	UID          string `json:"UID,omitempty"`
+	UIDName      string `json:"UIDName,omitempty"`
 	GID          string `json:"GID,omitempty"`
+	GIDName      string `json:"GIDName,omitempty"`
 	Comm         string `json:"Comm,omitempty"`
 	Exe          string `json:"Exe,omitempty"`
 	Cmdline      string `json:"Cmdline,omitempty"`
@@ -106,7 +109,7 @@ func safeValue(b []byte) string {
 }
 
 // buildRecord shapes one decoded entry into the output record.
-func buildRecord(e *entry, machineID string) *journalRecord {
+func buildRecord(e *entry, machineID string, ks *knowledge.Store) *journalRecord {
 	rec := &journalRecord{
 		MachineID: machineID, BootID: e.bootID, Seqnum: e.seqnum,
 		MonotonicUS: e.monotonic, Truncated: e.truncated,
@@ -141,11 +144,13 @@ func buildRecord(e *entry, machineID string) *journalRecord {
 	if rt := families.Type(ident, rec.Message, &rec.Typed); rt != "" {
 		rec.RecordType = rt
 	}
+	rec.UIDName = ks.Username(rec.UID)
+	rec.GIDName = ks.Groupname(rec.GID)
 	return rec
 }
 
 // parseJournal streams one journal file's entries into the writer.
-func parseJournal(path string, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
+func parseJournal(path string, ks *knowledge.Store, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, err
@@ -168,7 +173,7 @@ func parseJournal(path string, w *record.Writer, warnf func(string, ...interface
 			unreadable++
 			return nil // dirty tail: keep going, count it
 		}
-		if werr := w.Write(buildRecord(e, j.hdr.machineID)); werr != nil {
+		if werr := w.Write(buildRecord(e, j.hdr.machineID, ks)); werr != nil {
 			return werr
 		}
 		emitted++
@@ -201,7 +206,7 @@ var gojournalTool = batch.Tool{
 		})
 	},
 	Process: func(cfg *batch.Config, item, _ string, w *record.Writer) (int, error) {
-		return parseJournal(item, w, func(format string, args ...interface{}) {
+		return parseJournal(item, cfg.Knowledge(), w, func(format string, args ...interface{}) {
 			cfg.Logf(batch.LogWarn, item+": "+format, args...)
 		})
 	},
@@ -235,7 +240,7 @@ func main() {
 			s.SourceModified = tstamp.ISO8601(st.ModTime())
 		}
 		w.SetStamp(s)
-		if _, err := parseJournal(path, w, warnf); err != nil {
+		if _, err := parseJournal(path, nil, w, warnf); err != nil {
 			warnf("%s: %v", path, err)
 			failed++
 		}

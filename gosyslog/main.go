@@ -113,7 +113,7 @@ func dash(s string) string {
 }
 
 // parseLine fills one record from a raw line; ref anchors yearless stamps.
-func parseLine(line string, ref time.Time, rec *syslogRecord) {
+func parseLine(line string, ref time.Time, loc *time.Location, rec *syslogRecord) {
 	rec.Raw = line
 	switch {
 	case r5424Re.MatchString(line):
@@ -132,7 +132,7 @@ func parseLine(line string, ref time.Time, rec *syslogRecord) {
 		rec.Message = m[5]
 	case isoRe.MatchString(line):
 		m := isoRe.FindStringSubmatch(line)
-		if t, ok := tstamp.Flexible(m[1]); ok {
+		if t, ok := tstamp.FlexibleIn(m[1], loc); ok {
 			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
@@ -140,7 +140,7 @@ func parseLine(line string, ref time.Time, rec *syslogRecord) {
 		splitIdent(m[3], rec)
 	case bsdRe.MatchString(line):
 		m := bsdRe.FindStringSubmatch(line)
-		if t, ok := tstamp.Syslog3164(m[1], ref); ok {
+		if t, ok := tstamp.Syslog3164In(m[1], ref, loc); ok {
 			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
@@ -156,7 +156,7 @@ func parseLine(line string, ref time.Time, rec *syslogRecord) {
 }
 
 // parseLog emits one record per line of one log stream.
-func parseLog(rd io.Reader, ref time.Time, w *record.Writer) (int, error) {
+func parseLog(rd io.Reader, ref time.Time, loc *time.Location, w *record.Writer) (int, error) {
 	sc := bufio.NewScanner(rd)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	emitted, lineNo := 0, 0
@@ -167,7 +167,7 @@ func parseLog(rd io.Reader, ref time.Time, w *record.Writer) (int, error) {
 			continue
 		}
 		rec := &syslogRecord{Line: lineNo}
-		parseLine(line, ref, rec)
+		parseLine(line, ref, loc, rec)
 		if err := w.Write(rec); err != nil {
 			return emitted, err
 		}
@@ -195,7 +195,7 @@ var gosyslogTool = batch.Tool{
 		if st, err := os.Stat(item); err == nil {
 			ref = st.ModTime().UTC()
 		}
-		return parseLog(f, ref, w)
+		return parseLog(f, ref, cfg.Knowledge().Location(), w)
 	},
 }
 
@@ -226,7 +226,7 @@ func main() {
 				s.SourceModified = tstamp.ISO8601(st.ModTime())
 			}
 			w.SetStamp(s)
-			_, err = parseLog(f, ref, w)
+			_, err = parseLog(f, ref, nil, w)
 			f.Close()
 		}
 		if err != nil {

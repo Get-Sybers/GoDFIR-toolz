@@ -64,7 +64,12 @@ absent**, and every new image passes the framework gate.
 > one, computes one, or carries one through. Every capability in this paper
 > is an extraction capability; anything that would synthesise, join or
 > normalise on the Go side is out of scope by this rule, wherever it
-> appears below.
+> appears below — with ONE sanctioned join (decision 14): the image's own
+> knowledge store. Layer 1 (`gohost`, `gousers`, `gonetwork`) extracts
+> what the image says about itself, and the daemon parsers may resolve
+> against it — uid to name, the host's zone and identity — fill-only and
+> beside the native values. Cross-record correlation and the guids remain
+> byakugan's.
 >
 > **2. The Go toolz are treated as parsers, with plaso-grade provenance.**
 > For every record it is easy to say what was parsed and where that file
@@ -207,6 +212,10 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
   the whole truth. Tool code never computes it.
 - `Snapshot` is present only for records that came out of a snapshot (§6.4);
   absent means the live volume.
+- `Host` is the imaged host's own identity — hostname, machine id, OS,
+  and the timezone that was applied to naive timestamps — stamped by the
+  runtime from the Layer-1 knowledge store (decision 14); absent when no
+  store was mounted. Image-self-knowledge, never an inference.
 - `Residue` (`Kind`, `Detail`) is its sibling for records recovered from
   filesystem residue — `lost+found`, orphan inodes, deleted directory
   entries, journal history (§5.5); absent means an ordinary allocated file.
@@ -283,6 +292,18 @@ network daemons' profiles, the mount generators' fstab). The set is
 capped by that principle: growth happens by deepening the daemons'
 record streams, never by adding parsers for things no daemon owns.
 
+The told-side splits once more into **Layer 1 — the knowledge builders**:
+`gohost`, `gousers` and `gonetwork` run FIRST and their output trees are
+the image's **knowledge store** — who the host is (hostname, machine-id,
+timezone, os-release), who the accounts are (uid↔name, groups, keys),
+how it talks and mounts. The daemon parsers then run with that store
+mounted read-only (`<TOOL>_KNOWLEDGE_DIR`, the `knowledge` mount) and are
+**enriched by it** (decision 14): every record carries the `Host` block,
+numeric ids gain resolved names beside them (`UID` stays `1000`,
+`UIDName` says `alice` — per this image's own passwd), and naive
+timestamps are interpreted in the host's zone. The plaso preprocessing
+analogue, done by the matrix's own Layer-1 parsers.
+
 Every tool is `FROM scratch`, static, `USER 2000:2000`, with a
 `contract.yml`, batch mode on no arguments, argv/`--tar` debug pass-through, JSONL output (the one record
 format, decision 12). Prior-art libraries are **candidates**: each is license-checked and
@@ -293,20 +314,20 @@ clean-room over an `io.ReaderAt` is how gomount's partition code was built.
 
 | Tool | Daemon | Reads | Artefacts | Phase |
 |---|---|---|---|---|
-| `gojournal` | systemd-journald — the relay every daemon logs through | writes | systemd journal `*.journal` files | L1 |
-| `goauditd` | auditd / kauditd | writes | auditd `audit.log*` | L1 |
-| `gowtmp` | the login machinery (login, sshd, systemd-logind) | writes | wtmp/utmp/btmp, lastlog, wtmpdb | L0 (pilot) |
-| `gosyslog` | rsyslog / syslog-ng — the fallback relay | writes | syslog-family text logs | L1 |
-| `goshell` | the user's shells and REPLs | writes | shell/REPL histories | L1 |
-| `gousers` | sshd, PAM and the account machinery | is told | passwd/shadow/group, sudoers, SSH material | L1 |
-| `gocron` | crond / anacron / atd | is told | crontabs, cron.d, anacron, at | L1 |
-| `gounit` | systemd (pid 1) itself | is told | units/timers + enablement | L1 |
-| `gotrash` | the desktop's trash machinery (gvfsd-trash) | writes | XDG Trash | L1 |
-| `gohost` | systemd-hostnamed/timedated + the mount generators | is told | host identity + fstab/crypttab volume mapping | L1 |
-| `gonetwork` | NetworkManager / systemd-networkd / the resolver / netfilter | is told | network configuration surface | L1 |
-| `goctl` | the kernel and the dynamic loader | is told | sysctl, modprobe, ld.so | L1 |
-| `gopkg` | dpkg/rpm/pacman/apk and snapd | writes | package logs, state stores, snap/flatpak | L4 |
-| `goacct` | the kernel's process accounting | writes | `pacct` | L4 |
+| `gojournal` | systemd-journald — the relay every daemon logs through | writes | systemd journal `*.journal` files | P1 |
+| `goauditd` | auditd / kauditd | writes | auditd `audit.log*` | P1 |
+| `gowtmp` | the login machinery (login, sshd, systemd-logind) | writes | wtmp/utmp/btmp, lastlog, wtmpdb | P0 (pilot) |
+| `gosyslog` | rsyslog / syslog-ng — the fallback relay | writes | syslog-family text logs | P1 |
+| `goshell` | the user's shells and REPLs | writes | shell/REPL histories | P1 |
+| `gousers` | sshd, PAM and the account machinery | is told | passwd/shadow/group, sudoers, SSH material | P1 |
+| `gocron` | crond / anacron / atd | is told | crontabs, cron.d, anacron, at | P1 |
+| `gounit` | systemd (pid 1) itself | is told | units/timers + enablement | P1 |
+| `gotrash` | the desktop's trash machinery (gvfsd-trash) | writes | XDG Trash | P1 |
+| `gohost` | systemd-hostnamed/timedated + the mount generators | is told | host identity + fstab/crypttab volume mapping | P1 |
+| `gonetwork` | NetworkManager / systemd-networkd / the resolver / netfilter | is told | network configuration surface | P1 |
+| `goctl` | the kernel and the dynamic loader | is told | sysctl, modprobe, ld.so | P1 |
+| `gopkg` | dpkg/rpm/pacman/apk and snapd | writes | package logs, state stores, snap/flatpak | P4 |
+| `goacct` | the kernel's process accounting | writes | `pacct` | P4 |
 
 (The Windows analogues the earlier revisions tabulated — goevtx for the
 record streams, gore's registry surfaces for the told-side — hold
@@ -396,7 +417,7 @@ What is parsed and the known format edges:
   args) decoded, argv reassembled in order — the execve stream is the CAR
   `process` feed. Candidate: `elastic/go-libaudit` (Apache-2.0) for record
   parsing/coalescing rules.
-- **`gowtmp`** — the L0 pilot: small, fixed-record binary formats with
+- **`gowtmp`** — the P0 pilot: small, fixed-record binary formats with
   immediate CAR value. Classic glibc `struct utmp` (384-byte LE records) for
   wtmp/utmp/btmp including rotated `wtmp.1(.gz)`; `lastlog` (292-byte
   per-UID sparse records, UID from offset); the wtmpdb SQLite successor via
@@ -521,12 +542,12 @@ reached:
 ```
 image (raw | E01 | qcow2 …)
   └─ partition (MBR/GPT — exists today)
-       └─ mdraid?  (superblock 1.x; RAID 0/1 assembly)          [L4]
+       └─ mdraid?  (superblock 1.x; RAID 0/1 assembly)          [P4]
             └─ LUKS?  (detect always; decrypt only with an
                        operator-supplied key/passphrase file)    [open §11.2]
                  └─ LVM2?  (PV label scan → text VG metadata →
                             LV extent maps: linear, striped;
-                            snapshot-cow §6.2; thin/tmeta L4)    [L2]
+                            snapshot-cow §6.2; thin/tmeta P4)    [P2]
                       └─ filesystem probe → fsx backend
 ```
 
@@ -597,7 +618,7 @@ addressable:
 | `lost_found` | fsck-recovered orphans under `lost+found/` (`#<inode>` names — the original path is gone, the inode metadata and content are not) | ext4, XFS (`xfs_repair`), Btrfs (`check --repair`) |
 | `orphan_inode` | unlinked-but-intact inodes: the superblock orphan list and inode-table sweep for in-range inodes with no directory entry | ext4 first |
 | `deleted_dirent` | names still readable in directory-block slack — the *filename and parent* of a deleted file, joined to its inode when that survives | ext4, vfat (0xE5 entries) |
-| `fs_journal` | metadata history out of the filesystem journal: prior inode versions, dropped dirents, commit sequence — recent deletes and renames with times | ext4/jbd2 (L4); XFS log is backlog (§11.3) |
+| `fs_journal` | metadata history out of the filesystem journal: prior inode versions, dropped dirents, commit sequence — recent deletes and renames with times | ext4/jbd2 (P4); XFS log is backlog (§11.3) |
 | `backup_root` | previous metadata-tree generations from superblock backup roots — bounded time-travel *beside* snapshots | Btrfs (listed by `identify`) |
 
 How it flows, consistent with everything else in this plan:
@@ -625,9 +646,9 @@ How it flows, consistent with everything else in this plan:
   is the place raw-space scanning already lives.
 
 Phasing: allocation state and the `lost+found`/`orphan_inode`/
-`deleted_dirent` kinds land with the ext4 backend in L2; Btrfs
-`backup_root` listing joins the snapshot work in L3; jbd2 journal decoding
-is L4.
+`deleted_dirent` kinds land with the ext4 backend in P2; Btrfs
+`backup_root` listing joins the snapshot work in P3; jbd2 journal decoding
+is P4.
 
 ### 5.6 Contract and hardening posture
 
@@ -646,7 +667,7 @@ pre-rollback state is seen. The Linux equivalents are enumerated, read, and
 passed through the same verbs, and the parsers stay snapshot-agnostic — they
 just see more inputs, with provenance in the path and the envelope.
 
-### 6.1 Btrfs snapshots (L3)
+### 6.1 Btrfs snapshots (P3)
 
 Snapshots are subvolumes. The Btrfs backend enumerates every subvolume from
 the root tree with its id, path, parent UUID, read-only flag and `otime`; a
@@ -655,19 +676,19 @@ layouts (snapper's `.snapshots/<n>/snapshot`, Timeshift trees, `@`/`@home`)
 need no special-casing — they are subvolumes like any other, and `identify`
 labels the recognisable conventions.
 
-### 6.2 LVM snapshots (L3 classic, L4 thin)
+### 6.2 LVM snapshots (P3 classic, P4 thin)
 
 - **Classic COW snapshots:** the snapshot LV's exception store (chunk-mapped
   COW format) is overlaid on the origin LV read-only — origin plus exceptions
   reconstructs the volume as of snapshot time.
 - **Thin snapshots:** thin LVs and their snapshots share the pool's `tmeta`
   device — a superblock and a two-level B-tree mapping virtual to data
-  blocks. Same seam, more parsing; lands with the thin-pool work in L4.
+  blocks. Same seam, more parsing; lands with the thin-pool work in P4.
 
 ### 6.3 VM-format and ZFS snapshots
 
-qcow2 internal snapshots (the header's snapshot table, each with its own L1
-table) are listed by `identify` and readable best-effort in L3 — checkpoint
+qcow2 internal snapshots (the header's snapshot table, each with its own P1
+table) are listed by `identify` and readable best-effort in P3 — checkpoint
 parity for VM evidence. ZFS is the honest gap: no credible pure-Go reader
 exists and kernel mounts are off the table, so ZFS pools are **detected and
 reported, not read**, with the userspace-OpenZFS (`zdb`-style, declared
@@ -715,14 +736,17 @@ integration additive:
    nothing and that is not an error; on a Linux image `image_export` stages
    nothing. No routing logic — content decides, as everywhere else.
 2. The Linux tools join `dxdfir_godfir_toolz_tools` and batch over the staged
-   tree exactly like the Windows tools; `gomount timeline` output is staged
-   beside them.
+   tree exactly like the Windows tools — **Layer 1 first**: `gohost`,
+   `gousers` and `gonetwork` run before the daemon parsers, and their
+   OUT_DIR is passed to every later run as the read-only `knowledge`
+   mount, so the daemon parsers come out enriched (decision 14).
+   `gomount timeline` output is staged beside them.
 3. `identify` output is captured per image as lane telemetry (and is the
    input for eventually skipping the Plaso export on non-Windows images —
    consumer optimisation, not a correctness need).
 
 Loose/staged Linux evidence (a tarred `/var/log`, a triage collection) needs
-no lane change at all: the tools content-detect under `INPUT_DIR` from L1.
+no lane change at all: the tools content-detect under `INPUT_DIR` from P1.
 Evidence-taxonomy changes: none — Linux disk images are already
 `disk_images`/`vm_files`; loose artefact routing to the catch-all is
 unchanged, and refining it is a consumer follow-up.
@@ -731,7 +755,7 @@ unchanged, and refining it is a consumer follow-up.
 
 The Windows path is untouched at every phase; each Linux capability lands
 producer-first, consumer-switch-second, mirroring the framework's migration
-rules ([§10.4](../framework/10-migration-roadmap.md)). During L2–L5 the Plaso
+rules ([§10.4](../framework/10-migration-roadmap.md)). During P2–P5 the Plaso
 lane keeps running over the Linux corpus as a cross-check: a diff harness
 (conform.sh-style report) compares native output coverage against the
 equivalent Plaso parsers per image — utmp events, syslog line counts,
@@ -764,7 +788,7 @@ parsers owe them):
 
 The `l2t_utmp`, `l2t_utmpx`, `plaso_exec_cron` and `l2t_text`/`l2t_filestat`
 adapters stay for legacy storages and are retired from the *default* Linux
-path once the L5 parity report clears their class. Map authoring happens in
+path once the P5 parity report clears their class. Map authoring happens in
 the byakugan repository; this plan fixes the interface it can rely on: the
 envelope (§3.3), the §4.1 record rules — typed rows, native vocabulary,
 declared field names for `field_provenance`, identity fields for the
@@ -825,15 +849,15 @@ corpus run green; no consumer switch precedes its producer piece.
 
 | Phase | Scope | Lands | Proves |
 |---|---|---|---|
-| **L0** | `pinfo` + pilot | the module (batch port + envelope + tstamp + report), `gowtmp` built on it, conform.sh/module CI, repo-root build shape | the module and build shape work end-to-end on the smallest real parser |
-| **L1** | core parsers | `gojournal`, `goauditd`, `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`; tools join the lane list | staged/loose Linux evidence parses natively — no Plaso in that path |
-| **L2** | image path | gomount: `fsx`, ext4 + XFS + vfat backends, LVM (linear/striped), `identify`, `linux-core` materialise, `timeline` with allocation state; ext4 residue kinds — `lost+found`, orphan inodes, deleted dirents (§5.5); lane adds the native export run | a plain or LVM Linux disk image processes end-to-end with the Plaso image absent, residue included |
-| **L3** | snaps | Btrfs backend + subvolume/snapshot enumeration and `backup_root` residue listing, LVM COW snapshots, `--snap all` + provenance + dedup, qcow2 (+ internal-snapshot listing) | snapshot state reaches every parser with provenance — VSS parity |
-| **L4** | second wave | `gopkg` (the package managers' own logs and state stores; squashfs/snap/flatpak included), `goacct`; LVM thin, mdraid; ext4/jbd2 journal residue | the OS record stream completed; the hard volume layouts; journal-derived history |
-| **L5** | cutover | byakugan direct maps; parity diff harness vs Plaso per class; DX_DFIR retires log2timeline from the default Linux path; `l2t_*` adapters demoted to legacy | the goal state: Linux CAR built entirely from native parser output |
+| **P0** | `pinfo` + pilot | the module (batch port + envelope + tstamp + report), `gowtmp` built on it, conform.sh/module CI, repo-root build shape | the module and build shape work end-to-end on the smallest real parser |
+| **P1** | core parsers | `gojournal`, `goauditd`, `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`; tools join the lane list | staged/loose Linux evidence parses natively — no Plaso in that path |
+| **P2** | image path | gomount: `fsx`, ext4 + XFS + vfat backends, LVM (linear/striped), `identify`, `linux-core` materialise, `timeline` with allocation state; ext4 residue kinds — `lost+found`, orphan inodes, deleted dirents (§5.5); lane adds the native export run | a plain or LVM Linux disk image processes end-to-end with the Plaso image absent, residue included |
+| **P3** | snaps | Btrfs backend + subvolume/snapshot enumeration and `backup_root` residue listing, LVM COW snapshots, `--snap all` + provenance + dedup, qcow2 (+ internal-snapshot listing) | snapshot state reaches every parser with provenance — VSS parity |
+| **P4** | second wave | `gopkg` (the package managers' own logs and state stores; squashfs/snap/flatpak included), `goacct`; LVM thin, mdraid; ext4/jbd2 journal residue | the OS record stream completed; the hard volume layouts; journal-derived history |
+| **P5** | cutover | byakugan direct maps; parity diff harness vs Plaso per class; DX_DFIR retires log2timeline from the default Linux path; `l2t_*` adapters demoted to legacy | the goal state: Linux CAR built entirely from native parser output |
 
 Follow-ups this plan enables but does not schedule: the Windows tools adopt
-`pinfo` (mechanical: delete `batch.go`, import, repo-root context — after L1
+`pinfo` (mechanical: delete `batch.go`, import, repo-root context — after P1
 proves the module); the Windows lane completes the extraction switch gomount
 already started — `image_export` retired in favour of `materialise` over the
 existing Windows sets, which by then is the proven Linux path; and a VSS
@@ -858,6 +882,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 10 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted (never minted), declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
 | 11 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
 | 12 | Records are **JSONL only** — one JSON object per record; CSV is not an output format anywhere in the Linux path and no `<TOOL>_FORMAT` variable exists. A tool that ever needs interim storage beyond streaming (sorting or aggregation past memory) uses a database format (SQLite via the cgo-free driver) in its `WORK_DIR` scratch — never an interchange text format — and the record files stay the JSONL interface |
+| 14 | **Layer 1 and the knowledge store**: `gohost`, `gousers` and `gonetwork` run first and their output trees are the image's knowledge store; the daemon parsers mount it read-only (`<TOOL>_KNOWLEDGE_DIR`) and the `pinfo` runtime + tools enrich from it — the `Host` block on every record, resolved names beside native numeric ids (`UIDName` beside `UID`), the host's zone applied to naive timestamps (the `Host.Timezone` on the record states it). This is the one sanctioned parser-side join, bounded to image-SELF-knowledge, fill-only, never overwriting a native value; correlation, relationships and guids remain byakugan's. Without the store, records are exactly what they were — enrichment absent, never invented |
 | 13 | **The method — everything is a daemon parser**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). Each tool reads one daemon's stream — the core what a daemon writes, the supporting tools what a daemon is told. That core is where depth is added; the told-side tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method. The journal is also the **primary pathway**: the typed event families (sshd, sudo, pam, cron) are defined once in `pinfo/families` and recognised wherever that stream surfaces — the journal first, the flat logs as fallback — so even SSH evidence flows through the journal mechanism, one shape from either source |
 
 ### 11.2 Open questions
@@ -873,12 +898,12 @@ snapshot story. Each is a one-page decision when its time comes.
    if one holds up at pinning time; otherwise clean-room (the format is
    documented). AGPL implementations are references, never dependencies.
 4. **sysstat/atop.** Version-tied binary formats with real forensic value;
-   support matrix and effort unclear — revisit after L4's `goacct`.
-5. **When the Windows tools adopt `pinfo`** — after L1, in parallel with
-   L2–L3, or batched with their eventual materialise switch.
+   support matrix and effort unclear — revisit after P4's `goacct`.
+5. **When the Windows tools adopt `pinfo`** — after P1, in parallel with
+   P2–P3, or batched with their eventual materialise switch.
 6. **gomount inventory status** (framework open question #3) — this plan
    makes gomount load-bearing for Linux; that weighs toward first-class
-   `images.yml` entry and should be settled by L2.
+   `images.yml` entry and should be settled by P2.
 
 ### 11.3 Backlog (recorded, unscheduled)
 

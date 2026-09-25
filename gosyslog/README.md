@@ -48,6 +48,7 @@ onto every record as `Origin`/`Snapshot`/`Residue`.
 |---|---|---|
 | `GOSYSLOG_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOSYSLOG_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOSYSLOG_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOSYSLOG_WORK_DIR` | `/work` | scratch (writable tmpfs); gosyslog needs none but honours it |
 | `GOSYSLOG_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOSYSLOG_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |

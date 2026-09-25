@@ -12,6 +12,7 @@ description: >
 env:
   GONETWORK_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised network-config file is an item'}
   GONETWORK_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
+  GONETWORK_KNOWLEDGE_DIR: {required: false, default: /knowledge, desc: 'the Layer-1 knowledge store (gohost/gousers/gonetwork output trees); when the mount is absent, enrichment is simply absent'}
   GONETWORK_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gonetwork needs none but honours it'}
   GONETWORK_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
   GONETWORK_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
@@ -19,6 +20,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GONETWORK_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: GONETWORK_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: ro, env: GONETWORK_KNOWLEDGE_DIR, required: false}
   - {name: work,   path: /work,   mode: rw, env: GONETWORK_WORK_DIR,  required: false}
 
 network: none
@@ -31,7 +33,7 @@ outputs:
   layout: "<OUT_DIR>/<item>/gonetwork.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
-  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue, Host]
   hosts_entry: {IPAddress: 'address column verbatim', Hostnames: 'the names it resolves', Line: 'source line number'}
   resolv_entry: {Directive: 'nameserver | search | domain | options | ...', Value: 'the rest of the line verbatim', Line: 'source line number'}
   nsswitch_entry: {Database: 'the nss database (passwd, hosts, ...)', Sources: 'source list in order', Line: 'source line number'}

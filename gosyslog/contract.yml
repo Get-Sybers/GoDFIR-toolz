@@ -15,6 +15,7 @@ description: >
 env:
   GOSYSLOG_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised syslog-family file is an item'}
   GOSYSLOG_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per log file'}
+  GOSYSLOG_KNOWLEDGE_DIR: {required: false, default: /knowledge, desc: 'the Layer-1 knowledge store (gohost/gousers/gonetwork output trees); when the mount is absent, enrichment is simply absent'}
   GOSYSLOG_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gosyslog needs none but honours it'}
   GOSYSLOG_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
   GOSYSLOG_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
@@ -22,6 +23,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOSYSLOG_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: GOSYSLOG_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: ro, env: GOSYSLOG_KNOWLEDGE_DIR, required: false}
   - {name: work,   path: /work,   mode: rw, env: GOSYSLOG_WORK_DIR,  required: false}
 
 network: none
@@ -34,7 +36,7 @@ outputs:
   layout: "<OUT_DIR>/<item>/gosyslog.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
-  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue, Host]
   syslog_line: {Host: 'the reporter hostname from the line prefix', Ident: 'syslog tag/program', PID: 'the [pid] suffix when present', Message: 'the message body (or the whole line for a continuation with no prefix)', Line: 'source line number', Raw: 'the whole line, always'}
   sshd_event: {SSHEvent: 'accepted | failed | invalid_user', Method: 'authentication method as logged', Username: 'the account named by the line, verbatim', InvalidUser: 'the line named an unknown account', IPAddress: 'the peer address (the login SOURCE)', Port: 'the peer port', KeyType: 'key type when the line carries one', Fingerprint: 'key fingerprint when the line carries one', Host: 'as syslog_line', Ident: 'as syslog_line', PID: 'as syslog_line', Message: 'as syslog_line', Line: 'as syslog_line', Raw: 'as syslog_line'}
   sudo_event: {Username: 'the invoking account', TargetUser: 'the USER= target', TTY: 'TTY=', PWD: 'PWD=', Command: 'COMMAND= verbatim', Host: 'as syslog_line', Ident: 'as syslog_line', Line: 'as syslog_line', Raw: 'as syslog_line'}

@@ -15,6 +15,7 @@ description: >
 env:
   GOJOURNAL_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every *.journal / *.journal~ file is an item'}
   GOJOURNAL_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per journal file'}
+  GOJOURNAL_KNOWLEDGE_DIR: {required: false, default: /knowledge, desc: 'the Layer-1 knowledge store (gohost/gousers/gonetwork output trees); when the mount is absent, enrichment is simply absent'}
   GOJOURNAL_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gojournal needs none but honours it'}
   GOJOURNAL_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
   GOJOURNAL_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
@@ -22,6 +23,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: GOJOURNAL_INPUT_DIR, required: true}
   - {name: output, path: /output, mode: rw, env: GOJOURNAL_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: ro, env: GOJOURNAL_KNOWLEDGE_DIR, required: false}
   - {name: work,   path: /work,   mode: rw, env: GOJOURNAL_WORK_DIR,  required: false}
 
 network: none
@@ -34,7 +36,7 @@ outputs:
   layout: "<OUT_DIR>/<item>/gojournal.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 records:
-  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue, Host]
   journal_entry:
     MachineID: 'the file header machine id (hex) — identity, with BootID and Seqnum'
     BootID: 'the entry boot id (hex)'
@@ -45,8 +47,10 @@ records:
     Facility: 'SYSLOG_FACILITY verbatim'
     Identifier: 'SYSLOG_IDENTIFIER'
     PID: '_PID, numeric string verbatim'
-    UID: '_UID verbatim (resolution is enrichment, byakugan''s)'
+    UID: '_UID verbatim'
+    UIDName: '_UID resolved against the image''s own passwd (Layer-1 knowledge store, decision 14) — beside the native value'
     GID: '_GID verbatim'
+    GIDName: 'as UIDName, against the image''s group file'
     Comm: '_COMM'
     Exe: '_EXE'
     Cmdline: '_CMDLINE'

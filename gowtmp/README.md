@@ -1,6 +1,6 @@
 # `get-sybers/gowtmp` — Linux login records (utmp/wtmp/btmp/lastlog)
 
-The L0 pilot of the Linux matrix ([docs/linux](../docs/linux/README.md)) and
+The P0 pilot of the Linux matrix ([docs/linux](../docs/linux/README.md)) and
 the first tool on the shared [`pinfo`](../pinfo) module: batch runtime,
 record envelope, and rule-2 provenance stamping come from the module, not a
 copied `batch.go`.
@@ -47,6 +47,7 @@ provenance itself.
 |---|---|---|
 | `GOWTMP_INPUT_DIR` | `/input` | the evidence tree, recursed |
 | `GOWTMP_OUT_DIR` | `/output` | output root, one folder per input file |
+| `GOWTMP_KNOWLEDGE_DIR` | `/knowledge` | the Layer-1 knowledge store (optional ro mount); absent = no enrichment |
 | `GOWTMP_WORK_DIR` | `/work` | scratch (writable tmpfs); gowtmp needs none but honours it |
 | `GOWTMP_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output |
 | `GOWTMP_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only |
