@@ -461,6 +461,83 @@ What is parsed and the known format edges:
   flags) — execution history with timestamps, the closest native thing to
   prefetch. sysstat `sa` and atop raw files are version-tied binary formats:
   deliberately out of v1 (§11.2).
+
+Windows classes with no Linux analogue (registry, ESE, prefetch, shellbags,
+LNK, jump lists) get none; Linux surfaces Windows lacks (journal, auditd,
+package managers) are first-class above. Deferred candidates — web-server
+access logs, XDG `recently-used.xbel`, netplan/nftables field-level
+decoding — are backlog, listed in §11.3 (browser/application data is out
+of the method by decision 13).
+
+## 5. Evidence access: gomount grows Linux filesystems
+
+gomount is already the start of native disk extraction on the Windows side:
+`materialise` with its artefact-set catalogue and `stream` feeding the
+parsers' `--tar` mode exist precisely to displace the Plaso export stage,
+and its internal seams are ready for a second OS — `image` (raw/E01 →
+`io.ReaderAt`) and `partition` (MBR/GPT) are filesystem-agnostic; only the
+`ntfs*` packages are NTFS-specific. The plan continues that line in the same
+tool — same verbs, new backends — rather than introducing a second mount tool
+(§11.1 records the decision):
+
+### 5.1 Filesystem backends
+
+A small `fsx` interface (open a volume `ReaderAt` → enumerate, stat, open
+files; expose all timestamps the filesystem has, owner/mode/inode, link
+targets unfollowed, nlink — plus **allocation state** and a per-backend
+**residue enumeration** seam, §5.5, designed in from the first backend
+rather than bolted on) with backends:
+
+| FS | Detection | Notes | Candidates |
+|---|---|---|---|
+| ext2/3/4 | magic `0xEF53` at sb+56 | crtime from 256-byte inodes; extents and legacy block maps | `masahiro331/go-ext4-filesystem`, `dsoprea/go-ext4` |
+| XFS | `XFSB` at 0 | v5 crtime | `masahiro331/go-xfs-filesystem` |
+| Btrfs | magic at 0x10040 | subvolumes = the snapshot backend (§6.1); no production pure-Go reader exists — **the largest single build item**, clean-room | — |
+| vfat | boot sector | `/boot/efi`, USB media | `diskfs/go-diskfs` |
+| squashfs | `hsqs` | snap packages, live-ISO roots | `CalebQ42/squashfs`, `diskfs/go-diskfs` |
+
+The userspace path stays the default (parse in-process, no privilege, no
+`/dev/fuse`), matching the NTFS backend's philosophy: a malformed filesystem
+is a Go error, not a kernel fault. The FUSE `mount` verb remains
+NTFS-via-ntfs-3g only; Linux filesystems are served userspace-only until a
+concrete need says otherwise.
+
+### 5.2 The volume stack
+
+Linux images are rarely partition→filesystem. Between `partition` and `fsx`
+sits a container-peeling layer, applied repeatedly until a filesystem is
+reached:
+
+```
+image (raw | E01 | qcow2 …)
+  └─ partition (MBR/GPT — exists today)
+       └─ mdraid?  (superblock 1.x; RAID 0/1 assembly)          [L4]
+            └─ LUKS?  (detect always; decrypt only with an
+                       operator-supplied key/passphrase file)    [open §11.2]
+                 └─ LVM2?  (PV label scan → text VG metadata →
+                            LV extent maps: linear, striped;
+                            snapshot-cow §6.2; thin/tmeta L4)    [L2]
+                      └─ filesystem probe → fsx backend
+```
+
+Every verb that names a volume today gains `--lv <vg/lv>` addressing beside
+`--volume N`. A new **`identify`** verb prints the whole resolved stack — image
+format, partitions, RAID/LUKS/LVM findings, per-volume filesystem, OS guess
+(`etc/os-release` vs `Windows/System32`), and the snapshot inventory (§6) — as
+one JSON document. It is the lane's routing and reporting input, and the
+`snaps` listing lives inside it.
+
+### 5.3 Image formats
+
+`image` gains qcow2 (magic `QFI\xfb`, already in the evidence taxonomy;
+candidate `lima-vm/go-qcow2reader`, backing chains followed read-only) beside
+raw/dd and E01/Ex01. VHD/VHDX/VMDK follow as candidates in the same seam
+(Velocidex-ecosystem readers exist) — they serve the VM_files lane and are not
+on the Linux critical path.
+
+### 5.4 `materialise --set linux-core` and `timeline`
+
+
 - **`linux-core`** joins `materialise-sets.yml` (same embedded catalogue, same
   glob + siblings semantics): `var/log/**` (journal, audit, wtmp/btmp,
   lastlog, syslog family, dpkg/apt/pacman logs), `etc/`
