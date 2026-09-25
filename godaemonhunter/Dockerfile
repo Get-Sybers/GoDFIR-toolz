@@ -1,13 +1,15 @@
 # syntax=docker/dockerfile:1
-# get-sybers/godaemonhunter — the Linux matrix as one structured binary: every daemon parser embedded as a sub-tool, plus hunt, the layered Layer-1 → knowledge store → enriched-daemon-parser run.
-# Static Go on the shared pinfo module and all twelve parser modules.
+# get-sybers/godaemonhunter — the Linux matrix as one structured binary: every daemon parser a package of this module and a sub-tool of this binary, plus hunt, the layered Layer-1 → knowledge store → enriched-daemon-parser run.
+# Static Go on the shared pinfo module; the parser packages live in this
+# directory (wtmp/, journal/, auditd/, … — docs/linux decision 16), so
+# there is nothing else to assemble.
 # Self-orchestrating, env-driven, run-once-exit: `hunt` batches the whole
 # matrix over GODAEMONHUNTER_INPUT_DIR into GODAEMONHUNTER_OUT_DIR and prints
 # one aggregate JSON summary line; `<subtool>` runs one parser's ordinary
 # batch mode under its canonical <SUBTOOL>_* block.
 # FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
 #
-# Build from the REPO ROOT (the image copies pinfo/ and every parser module):
+# Build from the REPO ROOT (the image copies the sibling pinfo/ module):
 #   docker build -t get-sybers/godaemonhunter:latest -f godaemonhunter/Dockerfile .
 
 ARG GO_VERSION=1.25
@@ -18,38 +20,11 @@ ARG GODFIR_RELEASE=dev
 FROM golang:${GO_VERSION}-alpine AS build
 ARG TOOL_VERSION
 WORKDIR /src
-# Module graph first: the dispatcher requires every sibling module by
-# replace directive, so each go.mod must exist before the prefetch.
-COPY pinfo/go.mod pinfo/
-COPY gohost/go.mod gohost/
-COPY gousers/go.mod gousers/
-COPY gonetwork/go.mod gonetwork/
-COPY gojournal/go.mod gojournal/go.sum gojournal/
-COPY goauditd/go.mod goauditd/
-COPY gowtmp/go.mod gowtmp/
-COPY gosyslog/go.mod gosyslog/
-COPY gounit/go.mod gounit/
-COPY gocron/go.mod gocron/
-COPY goshell/go.mod goshell/
-COPY gotrash/go.mod gotrash/
-COPY goctl/go.mod goctl/
+COPY pinfo/ pinfo/
 COPY godaemonhunter/go.mod godaemonhunter/go.sum godaemonhunter/
 WORKDIR /src/godaemonhunter
 RUN go mod download
 WORKDIR /src
-COPY pinfo/ pinfo/
-COPY gohost/ gohost/
-COPY gousers/ gousers/
-COPY gonetwork/ gonetwork/
-COPY gojournal/ gojournal/
-COPY goauditd/ goauditd/
-COPY gowtmp/ gowtmp/
-COPY gosyslog/ gosyslog/
-COPY gounit/ gounit/
-COPY gocron/ gocron/
-COPY goshell/ goshell/
-COPY gotrash/ gotrash/
-COPY goctl/ goctl/
 COPY godaemonhunter/ godaemonhunter/
 WORKDIR /src/godaemonhunter
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /godaemonhunter .

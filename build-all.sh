@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Build the hardened DFIR images: the twelve Windows Go parsers
-# (goprefetch/ … gowxt/), the twelve Linux Go parsers (gowtmp/ … goctl/,
-# on the shared pinfo/ module, repo-root build context) plus
-# godaemonhunter/ (the Linux matrix as one multi-tool binary),
+# (goprefetch/ … gowxt/), godaemonhunter/ (the Linux matrix — every daemon
+# parser a package of the one multi-tool binary, on the shared pinfo/
+# module, repo-root build context),
 # one per-tool image per remaining .NET tool (godfir-tool/Dockerfile), and the
 # DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/, anamnesis/).
 #
@@ -99,27 +99,15 @@ build_gowxt() {
   docker build "${STAMP[@]}" -t get-sybers/gowxt:latest -f gowxt/Dockerfile gowxt
 }
 
-# The Linux artefact parsers (docs/linux): static Go on the shared pinfo
-# module, so each builds with the REPO ROOT as context (the image copies the
-# sibling pinfo/ directory).
-build_linux_parser() {
-  local tool="$1" desc="$2"
-  echo "==> get-sybers/${tool} (Go, ${desc})"
-  docker build "${STAMP[@]}" -t "get-sybers/${tool}:latest" -f "${tool}/Dockerfile" .
+# The Linux matrix (docs/linux): ONE multi-tool image — godaemonhunter —
+# with every daemon parser a package of it (wtmp, journal, auditd, syslog,
+# shell, users, cron, unit, trash, host, network, ctl). Static Go on the
+# shared pinfo module, so it builds with the REPO ROOT as context (the
+# image copies the sibling pinfo/ directory).
+build_godaemonhunter() {
+  echo "==> get-sybers/godaemonhunter (Go, the Linux matrix: every daemon parser a sub-tool + the layered hunt run)"
+  docker build "${STAMP[@]}" -t get-sybers/godaemonhunter:latest -f godaemonhunter/Dockerfile .
 }
-build_gowtmp()    { build_linux_parser gowtmp    "Linux logins: utmp/wtmp/btmp/lastlog"; }
-build_gojournal() { build_linux_parser gojournal "systemd journal entries"; }
-build_goauditd()  { build_linux_parser goauditd  "audit.log records coalesced into events"; }
-build_gosyslog()  { build_linux_parser gosyslog  "syslog-family text logs, typed families"; }
-build_goshell()   { build_linux_parser goshell   "shell/REPL histories"; }
-build_gousers()   { build_linux_parser gousers   "accounts, sudoers, SSH access surface"; }
-build_gocron()    { build_linux_parser gocron    "cron/anacron/at scheduled tasks"; }
-build_gounit()    { build_linux_parser gounit    "systemd units and timers"; }
-build_gotrash()   { build_linux_parser gotrash   "XDG Trash"; }
-build_gohost()    { build_linux_parser gohost    "host identity + fstab/crypttab volume mapping"; }
-build_gonetwork() { build_linux_parser gonetwork "network configuration surface"; }
-build_goctl()     { build_linux_parser goctl     "kernel/loader control surface (sysctl, modprobe, ld.so)"; }
-build_godaemonhunter() { build_linux_parser godaemonhunter "the Linux matrix as one multi-tool binary + the layered hunt run"; }
 
 build_anamnesis() {
   # anamnesis (pure-Go memory forensics on MemProcFS — no Volatility, no Python).
@@ -181,19 +169,10 @@ resolve() {
     gole|lecmd) build_gole; return ;;
     gojle|jlecmd) build_gojle; return ;;
     gowxt|wxtcmd) build_gowxt; return ;;
-    gowtmp) build_gowtmp; return ;;
-    gojournal|journald) build_gojournal; return ;;
-    goauditd|auditd) build_goauditd; return ;;
-    gosyslog|syslog) build_gosyslog; return ;;
-    goshell) build_goshell; return ;;
-    gousers) build_gousers; return ;;
-    gocron) build_gocron; return ;;
-    gounit) build_gounit; return ;;
-    gotrash) build_gotrash; return ;;
-    gohost) build_gohost; return ;;
-    gonetwork) build_gonetwork; return ;;
-    goctl|sysctl) build_goctl; return ;;
     godaemonhunter|daemonhunter|hunt) build_godaemonhunter; return ;;
+    gowtmp|gojournal|goauditd|gosyslog|goshell|gousers|gocron|gounit|gotrash|gohost|gonetwork|goctl)
+      echo "note: '$1' is a godaemonhunter sub-tool now (docs/linux decision 16) — building get-sybers/godaemonhunter." >&2
+      build_godaemonhunter; return ;;
     anamnesis|memory) build_anamnesis; return ;;
     byakugan|mitrecar|car) build_byakugan; return ;;
     plaso|log2timeline|psort) build_plaso; return ;;
@@ -211,7 +190,7 @@ resolve() {
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt gowtmp gojournal goauditd gosyslog goshell gousers gocron gounit gotrash gohost gonetwork goctl godaemonhunter anamnesis byakugan plaso signatures zeek" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt godaemonhunter anamnesis byakugan plaso signatures zeek" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -232,18 +211,6 @@ else
   build_gole
   build_gojle
   build_gowxt
-  build_gowtmp
-  build_gojournal
-  build_goauditd
-  build_gosyslog
-  build_goshell
-  build_gousers
-  build_gocron
-  build_gounit
-  build_gotrash
-  build_gohost
-  build_gonetwork
-  build_goctl
   build_godaemonhunter
   build_anamnesis
   build_byakugan

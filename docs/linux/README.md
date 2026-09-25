@@ -25,16 +25,18 @@ has three pillars:
    follow-up phase.
 2. **Fourteen Linux parsers** (`gojournal`, `goauditd`, `gowtmp`,
    `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`,
-   `gohost`, `gonetwork`, `goctl`, `gopkg`, `goacct`) — each a framework-conformant Tier-1 image from its first
-   commit — every one a **daemon parser** (§4): it reads what one daemon
+   `gohost`, `gonetwork`, `goctl`, `gopkg`, `goacct`) — packages of one
+   framework-conformant Tier-1 tool from their first commit — every one a
+   **daemon parser** (§4): it reads what one daemon
    writes or is told — with record schemas designed against the byakugan
    data model
    (§4.1): the parsers extract everything byakugan's CAR maps need — typed
    rows, native vocabulary, identity fields, join keys — and derive nothing
    byakugan owns (relationships, canonicalisation, enrichment). The built
-   matrix also ships as one structured binary, `godaemonhunter`
-   (decision 15): every parser a sub-command, plus `hunt`, the layered
-   Layer-1 → knowledge store → enriched-daemon-parser run.
+   matrix ships as ONE structured binary and image, `godaemonhunter`
+   (decisions 15–16): every parser a package and sub-command of it, plus
+   `hunt`, the layered Layer-1 → knowledge store → enriched-daemon-parser
+   run — there are no standalone per-parser binaries.
 3. **Linux evidence access in gomount** — continuing the native-extraction
    role gomount already started for Windows (`materialise` sets,
    `stream`→`--tar`): ext4/XFS/Btrfs (and vfat, squashfs)
@@ -240,14 +242,15 @@ mandatory.
 ### 3.4 Build shape
 
 Today each Go tool builds with its own directory as context and `COPY *.go`.
-A shared module changes that one line of shape: **parser images build with the
-repo root as context** — the precedent anamnesis, plaso, byakugan and
-signatures already set — and the Dockerfile copies `pinfo/` beside the tool:
+A shared module changes that one line of shape: **the parser image builds
+with the repo root as context** — the precedent anamnesis, plaso, byakugan
+and signatures already set — and the Dockerfile copies `pinfo/` beside the
+tool:
 
 ```dockerfile
 COPY pinfo/ /src/pinfo/
-COPY gojournal/ /src/gojournal/
-WORKDIR /src/gojournal        # go.mod: require …/pinfo v0.0.0 + replace => ../pinfo
+COPY godaemonhunter/ /src/godaemonhunter/
+WORKDIR /src/godaemonhunter   # go.mod: require …/pinfo v0.0.0 + replace => ../pinfo
 ```
 
 The `replace ../pinfo` directive keeps the build hermetic and air-gap-clean:
@@ -307,14 +310,17 @@ numeric ids gain resolved names beside them (`UID` stays `1000`,
 timestamps are interpreted in the host's zone. The plaso preprocessing
 analogue, done by the matrix's own Layer-1 parsers.
 
-The matrix also ships as **one structured binary** — `godaemonhunter`
-(decision 15): every parser embedded as a sub-command, plus `hunt`, the
-layered one-shot that runs Layer 1 into `<OUT_DIR>/knowledge` and then
-every daemon parser with that store mounted — the whole method in one
-run, one output tree, one aggregate summary line. It is the multi-tool
-dispatcher shape of [§4.3](../framework/04-self-orchestration.md) (the
-plaso and signatures precedent), pure packaging: the per-tool images
-remain the pipeline's granular units, and no record shape is its own.
+The matrix ships as **one structured binary** — `godaemonhunter`
+(decisions 15–16): every parser is a package of the godaemonhunter
+module and runs as a sub-command, plus `hunt`, the layered one-shot that
+runs Layer 1 into `<OUT_DIR>/knowledge` and then every daemon parser
+with that store mounted — the whole method in one run, one output tree,
+one aggregate summary line. It is the multi-tool dispatcher shape of
+[§4.3](../framework/04-self-orchestration.md) (the plaso and signatures
+precedent), and it is the **only** shipped shape: there are no
+standalone per-parser binaries or images, the argv debug modes ride the
+dispatcher (`godaemonhunter <subtool> -f …`), and godaemonhunter defines
+no record shape of its own — the packages do.
 
 Every tool is `FROM scratch`, static, `USER 2000:2000`, with a
 `contract.yml`, batch mode on no arguments, argv/`--tar` debug pass-through, JSONL output (the one record
@@ -645,7 +651,7 @@ How it flows, consistent with everything else in this plan:
 - **`materialise --residue`** (and `stream --residue`) pulls recoverable
   *content* into the stage under `residue/<kind>/<id>/…`, manifest rows
   included — so a deleted-then-recovered `auth.log` or shell history is
-  parsed by the same gosyslog/goshell containers as its live sibling, and
+  parsed by the same gosyslog/goshell sub-tools as its live sibling, and
   the signatures lane scans recovered bytes it would otherwise never see.
   The parsers stay residue-agnostic exactly as they are snapshot-agnostic.
 - **Envelope:** a `Residue` object (`Kind`, `Detail`) parallels `Snapshot`
@@ -747,12 +753,12 @@ integration additive:
    root the Plaso `image_export` run uses today. On a Windows image it copies
    nothing and that is not an error; on a Linux image `image_export` stages
    nothing. No routing logic — content decides, as everywhere else.
-2. The Linux tools join `dxdfir_godfir_toolz_tools` and batch over the staged
-   tree exactly like the Windows tools — **Layer 1 first**: `gohost`,
-   `gousers` and `gonetwork` run before the daemon parsers, and their
-   OUT_DIR is passed to every later run as the read-only `knowledge`
-   mount, so the daemon parsers come out enriched (decision 14).
-   `gomount timeline` output is staged beside them.
+2. `godaemonhunter` joins `dxdfir_godfir_toolz_tools` as **one entry**
+   running `hunt` over the staged tree (decisions 15–16): the layering is
+   internal — Layer 1 (`gohost`, `gousers`, `gonetwork`) runs first into
+   `<OUT_DIR>/knowledge` and the daemon parsers come out enriched
+   (decision 14) — so the lane needs no per-parser ordering or knowledge
+   plumbing. `gomount timeline` output is staged beside its tree.
 3. `identify` output is captured per image as lane telemetry (and is the
    input for eventually skipping the Plaso export on non-Windows images —
    consumer optimisation, not a correctness need).
@@ -843,11 +849,13 @@ strategy split by what can be generated unprivileged:
 
 ## 9. Framework conformance
 
-Nothing in this plan is exempt: every parser is a Tier-1 directory per
+Nothing in this plan is exempt: the parsers ship inside `godaemonhunter/`,
+one Tier-1 directory per
 [02](../framework/02-tool-directory-structure.md) (Dockerfile, contract.yml,
-README, tests), hardened per [05](../framework/05-hardening-standard.md)
+README, tests — with a README per parser package under it), hardened per
+[05](../framework/05-hardening-standard.md)
 (`FROM scratch`, static, uid 2000, `/etc/dfir-hardened`, full label set), and
-enters `images.yml` on landing. There is deliberately **no new Tier-2 image**:
+it enters `images.yml` on landing. There is deliberately **no new Tier-2 image**:
 no Python, no shell, no interpreter anywhere in the Linux path — the property
 the Windows matrix had to migrate toward is the Linux matrix's starting
 condition. The one structural novelty a reviewer will meet is the shared
@@ -896,7 +904,8 @@ snapshot story. Each is a one-page decision when its time comes.
 | 12 | Records are **JSONL only** — one JSON object per record; CSV is not an output format anywhere in the Linux path and no `<TOOL>_FORMAT` variable exists. A tool that ever needs interim storage beyond streaming (sorting or aggregation past memory) uses a database format (SQLite via the cgo-free driver) in its `WORK_DIR` scratch — never an interchange text format — and the record files stay the JSONL interface |
 | 14 | **Layer 1 and the knowledge store**: `gohost`, `gousers` and `gonetwork` run first and their output trees are the image's knowledge store; the daemon parsers mount it read-only (`<TOOL>_KNOWLEDGE_DIR`) and the `pinfo` runtime + tools enrich from it — the `Host` block on every record, resolved names beside native numeric ids (`UIDName` beside `UID`), the host's zone applied to naive timestamps (the `Host.Timezone` on the record states it). This is the one sanctioned parser-side join, bounded to image-SELF-knowledge, fill-only, never overwriting a native value; correlation, relationships and guids remain byakugan's. Without the store, records are exactly what they were — enrichment absent, never invented |
 | 13 | **The method — everything is a daemon parser**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). Each tool reads one daemon's stream — the core what a daemon writes, the supporting tools what a daemon is told. That core is where depth is added; the told-side tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method. The journal is also the **primary pathway**: the typed event families (sshd, sudo, pam, cron) are defined once in `pinfo/families` and recognised wherever that stream surfaces — the journal first, the flat logs as fallback — so even SSH evidence flows through the journal mechanism, one shape from either source |
-| 15 | **godaemonhunter — the one structured binary**: the twelve parsers also ship as a single multi-tool image, the [§4.3](../framework/04-self-orchestration.md) dispatcher shape (the plaso/signatures precedent). `godaemonhunter <subtool>` runs one parser's ordinary env-contract batch under its canonical `<SUBTOOL>_*` block; `godaemonhunter hunt` is the layered one-shot — Layer 1 into `<OUT_DIR>/knowledge`, then every daemon parser with the store mounted (decision-14 enrichment), one aggregate JSON summary line with every sub-tool's summary embedded. Pure packaging: the per-tool images remain the lane's granular units, the argv debug modes stay with the standalone binaries, and godaemonhunter defines no record shape of its own |
+| 15 | **godaemonhunter — the one structured binary**: the twelve parsers also ship as a single multi-tool image, the [§4.3](../framework/04-self-orchestration.md) dispatcher shape (the plaso/signatures precedent). `godaemonhunter <subtool>` runs one parser's ordinary env-contract batch under its canonical `<SUBTOOL>_*` block; `godaemonhunter hunt` is the layered one-shot — Layer 1 into `<OUT_DIR>/knowledge`, then every daemon parser with the store mounted (decision-14 enrichment), one aggregate JSON summary line with every sub-tool's summary embedded. godaemonhunter defines no record shape of its own — the parser packages do |
+| 16 | **The parsers live inside godaemonhunter — nothing ships singular**: the parser packages are subdirectories of the godaemonhunter module (`godaemonhunter/wtmp`, `godaemonhunter/journal`, …), documented by per-package READMEs; the standalone per-parser binaries, images, contracts and Dockerfiles are retired (decision 15's "per-tool images remain the granular units" clause is superseded). The argv debug modes ride the dispatcher (`godaemonhunter <subtool> -f FILE \| -d DIR \| --tar`). Tool names, `<SUBTOOL>_*` env blocks, record shapes and the `Tool` field on every record are unchanged — byakugan sees the same records; only the packaging is one |
 
 ### 11.2 Open questions
 

@@ -63,6 +63,12 @@ if [[ "${CONTRACT_LOCAL:-0}" == "1" ]]; then
         GODAEMONHUNTER_WORK_DIR="$scratch" \
         "$work/godaemonhunter" hunt >"$work/stdout" 2>"$work/stderr" || code=$?
     [[ $code -eq 2 ]] || fail "config-error exit $code, want 2"
+
+    # argv debug pass-through (decision 16: the modes ride the dispatcher):
+    # gosyslog -f on the fixture streams records to stdout.
+    "$work/godaemonhunter" gosyslog -f "$in/var/log/syslog" -q \
+        >"$work/argv-out" 2>"$work/stderr" || fail "argv pass-through exit $?"
+    grep -q '"Tool":"gosyslog"' "$work/argv-out" || fail "argv pass-through emitted no gosyslog record"
 fi
 
 echo "godaemonhunter contract smoke: PASS"

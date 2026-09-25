@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 )
 
 func writeFixtures(t *testing.T, in string) {
@@ -52,6 +54,27 @@ func TestSubtoolDispatch(t *testing.T) {
 	json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &sum)
 	if sum["tool"] != "gotrash" || sum["records"] != float64(1) {
 		t.Fatalf("summary: %v", sum)
+	}
+}
+
+// TestEverySubtoolEmptyTree is the batch contract over the whole registry
+// (the per-parser binaries are gone; this is their binary-level test now):
+// an empty evidence tree is exit 1, status "nothing", the tool's own name.
+func TestEverySubtoolEmptyTree(t *testing.T) {
+	for _, s := range subs {
+		pfx := batch.Prefix(s.name)
+		var buf bytes.Buffer
+		code := run([]string{s.name}, env(map[string]string{
+			pfx + "_INPUT_DIR": t.TempDir(), pfx + "_OUT_DIR": t.TempDir(), pfx + "_WORK_DIR": t.TempDir(),
+		}), &buf)
+		if code != 1 {
+			t.Fatalf("%s: empty-tree exit %d: %s", s.name, code, buf.String())
+		}
+		var sum map[string]any
+		json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &sum)
+		if sum["tool"] != s.name || sum["status"] != "nothing" {
+			t.Fatalf("%s: summary %v", s.name, sum)
+		}
 	}
 }
 

@@ -30,38 +30,35 @@ verifies it the same way as for the .NET images.
 - [gojle/](gojle/README.md) — AutomaticDestinations jump lists
 - [gowxt/](gowxt/README.md) — Windows Timeline ActivitiesCache.db
 
-## The Linux Go parsers (docs/linux — the same shape, second OS)
+## The Linux side: godaemonhunter (docs/linux — the same shape, second OS)
 
-Twelve static Go binaries for the Linux artefact classes — **every one a
-daemon parser**: each reads what one daemon writes (journald, the relay
-every other daemon logs through; auditd; the login machinery; the shells)
-or what one daemon is told (systemd's units, crond's tabs, sshd's account
-material, the kernel's sysctl). Built on the shared
+**One structured binary** — [godaemonhunter/](godaemonhunter/README.md) —
+carrying the whole Linux matrix: twelve parser packages, **every one a
+daemon parser** (each reads what one daemon writes — journald, the relay
+every other daemon logs through; auditd; the login machinery; the shells —
+or what one daemon is told: systemd's units, crond's tabs, sshd's account
+material, the kernel's sysctl). Each runs as `godaemonhunter <subtool>`,
+and `godaemonhunter hunt` is the layered one-shot: Layer 1 (gohost,
+gousers, gonetwork) runs first and builds the image's knowledge store,
+then every daemon parser runs enriched by it. Built on the shared
 [`pinfo/`](docs/linux/README.md) module (batch runtime, record envelope,
 provenance stamping, the typed-event families the journal pathway and the
-flat logs share) instead of a copied `batch.go`, and therefore built with
-the **repo root as context**. Same hardening contract: `FROM scratch`,
-one static binary, `USER 2000:2000`.
+flat logs share), and therefore built with the **repo root as context**.
+Same hardening contract: `FROM scratch`, one static binary,
+`USER 2000:2000`.
 
-- [gowtmp/](gowtmp/README.md) — Linux logins: utmp/wtmp/btmp `struct utmp` records + the sparse lastlog table
-- [gojournal/](gojournal/README.md) — systemd journal: binary `.journal` files (dirty/compact included), XZ/LZ4/ZSTD payloads, streamed
-- [goauditd/](goauditd/README.md) — audit.log records coalesced into one record per event, hex fields decoded, execve argv reassembled
-- [gosyslog/](gosyslog/README.md) — syslog-family text logs, three timestamp dialects, sshd/sudo/pam/cron families typed by the parser
-- [goshell/](goshell/README.md) — bash/zsh/fish/sh/python/mysql/psql histories, one record per command
-- [gousers/](gousers/README.md) — passwd/shadow/group, sudoers, sshd_config, authorized_keys, known_hosts as typed records
-- [gocron/](gocron/README.md) — system/user crontabs, cron.d, run-parts, anacrontab, at jobs
-- [gounit/](gounit/README.md) — systemd units, timers and drop-ins, with the vendor/admin/runtime/user scope
-- [gotrash/](gotrash/README.md) — XDG Trash: original path, deletion time, paired content file
-- [gohost/](gohost/README.md) — host identity (os-release, hostname, machine-id, timezone, locale) + fstab/crypttab volume-to-name mapping
-- [gonetwork/](gonetwork/README.md) — hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, persisted firewall state
-- [goctl/](goctl/README.md) — sysctl, module policy (modprobe.d install/blacklist), ld.so.preload and ld.so.conf
-
-All twelve also ship as **one structured binary** —
-[godaemonhunter/](godaemonhunter/README.md): every parser a sub-command,
-plus `hunt`, the layered one-shot that runs Layer 1 (gohost, gousers,
-gonetwork) first, builds the image's knowledge store, then runs every
-daemon parser enriched by it. The per-tool images remain the pipeline's
-granular units.
+- [gowtmp](godaemonhunter/wtmp/README.md) — Linux logins: utmp/wtmp/btmp `struct utmp` records + the sparse lastlog table
+- [gojournal](godaemonhunter/journal/README.md) — systemd journal: binary `.journal` files (dirty/compact included), XZ/LZ4/ZSTD payloads, streamed
+- [goauditd](godaemonhunter/auditd/README.md) — audit.log records coalesced into one record per event, hex fields decoded, execve argv reassembled
+- [gosyslog](godaemonhunter/syslog/README.md) — syslog-family text logs, three timestamp dialects, sshd/sudo/pam/cron families typed by the parser
+- [goshell](godaemonhunter/shell/README.md) — bash/zsh/fish/sh/python/mysql/psql histories, one record per command
+- [gousers](godaemonhunter/users/README.md) — passwd/shadow/group, sudoers, sshd_config, authorized_keys, known_hosts as typed records
+- [gocron](godaemonhunter/cron/README.md) — system/user crontabs, cron.d, run-parts, anacrontab, at jobs
+- [gounit](godaemonhunter/unit/README.md) — systemd units, timers and drop-ins, with the vendor/admin/runtime/user scope
+- [gotrash](godaemonhunter/trash/README.md) — XDG Trash: original path, deletion time, paired content file
+- [gohost](godaemonhunter/host/README.md) — host identity (os-release, hostname, machine-id, timezone, locale) + fstab/crypttab volume-to-name mapping
+- [gonetwork](godaemonhunter/network/README.md) — hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, persisted firewall state
+- [goctl](godaemonhunter/ctl/README.md) — sysctl, module policy (modprobe.d install/blacklist), ld.so.preload and ld.so.conf
 
 The plan they implement — the pinfo module, snapshots, filesystem residue,
 byakugan alignment, the phased sequence — is

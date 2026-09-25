@@ -1,18 +1,20 @@
 // godaemonhunter — the Linux matrix as ONE structured binary
-// (docs/linux §4, decision 15): every daemon parser embedded as a
-// subcommand, plus `hunt`, the layered one-shot — Layer 1 (gohost,
-// gousers, gonetwork) runs first and builds the image's knowledge store,
-// then every daemon parser runs enriched by it. One binary, one run, one
-// structured output tree, one JSON summary line.
+// (docs/linux §4, decisions 15–16): every daemon parser lives here as a
+// package and runs as a subcommand, plus `hunt`, the layered one-shot —
+// Layer 1 (gohost, gousers, gonetwork) runs first and builds the image's
+// knowledge store, then every daemon parser runs enriched by it. One
+// binary, one run, one structured output tree, one JSON summary line.
 //
-//	godaemonhunter hunt          the layered run, GODAEMONHUNTER_* driven
-//	godaemonhunter <subtool>     one parser's env-driven batch mode, under
-//	                             its canonical <SUBTOOL>_* block
+//	godaemonhunter hunt                the layered run, GODAEMONHUNTER_* driven
+//	godaemonhunter <subtool>           one parser's env-driven batch mode,
+//	                                   under its canonical <SUBTOOL>_* block
+//	godaemonhunter <subtool> <args>    that parser's argv debug pass-through
+//	                                   (-f FILE | -d DIR | --tar, -q)
 //	godaemonhunter --version | --print-contract
 //
 // The multi-tool dispatcher shape of docs/framework/04 §4.3 (the plaso
-// and signatures precedent); the per-tool binaries remain the pipeline's
-// granular units and keep the -f/-d argv debug modes.
+// and signatures precedent). There are no standalone per-parser binaries
+// or images: godaemonhunter is the Linux tool.
 package main
 
 import (
@@ -29,19 +31,23 @@ import (
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/goauditd/auditd"
-	"github.com/Get-Sybers/GoDFIR-toolz/gocron/cron"
-	"github.com/Get-Sybers/GoDFIR-toolz/goctl/ctl"
-	"github.com/Get-Sybers/GoDFIR-toolz/gohost/host"
-	"github.com/Get-Sybers/GoDFIR-toolz/gojournal/journal"
-	"github.com/Get-Sybers/GoDFIR-toolz/gonetwork/network"
-	"github.com/Get-Sybers/GoDFIR-toolz/goshell/shell"
-	"github.com/Get-Sybers/GoDFIR-toolz/gosyslog/syslog"
-	"github.com/Get-Sybers/GoDFIR-toolz/gotrash/trash"
-	"github.com/Get-Sybers/GoDFIR-toolz/gounit/unit"
-	"github.com/Get-Sybers/GoDFIR-toolz/gousers/users"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowtmp/wtmp"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/auditd"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/cron"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/ctl"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/host"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/journal"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/network"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/shell"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/syslog"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/trash"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/unit"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/users"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/wtmp"
 )
+
+// argvMain is a parser package's Main: batch.Entry plus the tool's argv
+// debug modes on the global flag set. It never returns on the batch,
+// --version and --print-contract paths, and exits itself on argv errors.
 
 //go:embed contract.yml
 var contractYML string
@@ -55,21 +61,24 @@ type sub struct {
 	name  string
 	layer int
 	tool  batch.Tool
+	main  argvMain
 }
 
+type argvMain func(version, contractYML string)
+
 var subs = []sub{
-	{"gohost", 1, host.Tool},
-	{"gousers", 1, users.Tool},
-	{"gonetwork", 1, network.Tool},
-	{"gojournal", 2, journal.Tool},
-	{"goauditd", 2, auditd.Tool},
-	{"gowtmp", 2, wtmp.Tool},
-	{"gosyslog", 2, syslog.Tool},
-	{"gounit", 2, unit.Tool},
-	{"gocron", 2, cron.Tool},
-	{"goshell", 2, shell.Tool},
-	{"gotrash", 2, trash.Tool},
-	{"goctl", 2, ctl.Tool},
+	{"gohost", 1, host.Tool, host.Main},
+	{"gousers", 1, users.Tool, users.Main},
+	{"gonetwork", 1, network.Tool, network.Main},
+	{"gojournal", 2, journal.Tool, journal.Main},
+	{"goauditd", 2, auditd.Tool, auditd.Main},
+	{"gowtmp", 2, wtmp.Tool, wtmp.Main},
+	{"gosyslog", 2, syslog.Tool, syslog.Main},
+	{"gounit", 2, unit.Tool, unit.Main},
+	{"gocron", 2, cron.Tool, cron.Main},
+	{"goshell", 2, shell.Tool, shell.Main},
+	{"gotrash", 2, trash.Tool, trash.Main},
+	{"goctl", 2, ctl.Tool, ctl.Main},
 }
 
 func main() { os.Exit(run(os.Args[1:], os.Getenv, os.Stdout)) }
@@ -86,17 +95,29 @@ func run(args []string, getenv func(string) string, stdout io.Writer) int {
 			return 0
 		}
 	}
-	if len(args) != 1 {
+	if len(args) == 0 {
 		usage()
 		return 2
 	}
 	if args[0] == "hunt" {
+		if len(args) != 1 {
+			usage()
+			return 2
+		}
 		return runHunt(getenv, stdout)
 	}
 	for _, s := range subs {
-		if s.name == args[0] {
+		if s.name != args[0] {
+			continue
+		}
+		if len(args) == 1 {
 			return batch.Run(s.tool, batch.Options{Version: version, Contract: contractYML}, getenv, stdout)
 		}
+		// argv debug pass-through: hand the rest of the command line to
+		// the parser's own Main, busybox-style. It exits the process.
+		os.Args = append([]string{"godaemonhunter " + s.name}, args[1:]...)
+		s.main(version, contractYML)
+		return 0
 	}
 	fmt.Fprintf(os.Stderr, "godaemonhunter: unknown sub-tool %q\n", args[0])
 	usage()
@@ -110,6 +131,7 @@ func usage() {
 	}
 	fmt.Fprintln(os.Stderr, "usage: godaemonhunter hunt                 (the layered run, GODAEMONHUNTER_* driven)\n"+
 		"       godaemonhunter <subtool>            (one parser's env-driven batch: "+strings.Join(names, " ")+")\n"+
+		"       godaemonhunter <subtool> <args>     (that parser's argv debug pass-through: -f FILE | -d DIR | --tar, -q)\n"+
 		"       godaemonhunter --version | --print-contract")
 }
 

@@ -1,8 +1,8 @@
 # `get-sybers/godaemonhunter` — the Linux matrix as one structured binary
 
 Every daemon parser of the Linux matrix ([docs/linux](../docs/linux/README.md),
-decision 15) embedded as a sub-tool in a single static binary, plus **`hunt`**
-— the layered one-shot:
+decisions 15–16) is a package of this module and a sub-tool of this single
+static binary, plus **`hunt`** — the layered one-shot:
 
 1. **Layer 1** runs first — `gohost`, `gousers`, `gonetwork` — and their
    output *is* the image's knowledge store (identity, naming, layout:
@@ -17,19 +17,40 @@ decision 15) embedded as a sub-tool in a single static binary, plus **`hunt`**
 One binary, one run, one structured output tree, one JSON summary line.
 This is the multi-tool dispatcher shape of
 [docs/framework/04 §4.3](../docs/framework/04-self-orchestration.md)
-(the plaso and signatures precedent); the per-tool images remain the
-pipeline's granular units — godaemonhunter adds the packaging, not a new
-parser.
+(the plaso and signatures precedent) — and per decision 16 it is the
+**only** shipped shape: the parsers live here as packages, and there are
+no standalone per-parser binaries or images. godaemonhunter *is* the
+Linux tool.
 
 ```
-godaemonhunter hunt          the layered run, GODAEMONHUNTER_* driven
-godaemonhunter <subtool>     one parser's env-driven batch mode, under its
-                             canonical <SUBTOOL>_* block
+godaemonhunter hunt                the layered run, GODAEMONHUNTER_* driven
+godaemonhunter <subtool>           one parser's env-driven batch mode, under
+                                   its canonical <SUBTOOL>_* block
+godaemonhunter <subtool> <args>    that parser's argv debug pass-through
 godaemonhunter --version | --print-contract
 ```
 
-Sub-tools: `hunt gohost gousers gonetwork gojournal goauditd gowtmp gosyslog
-gounit gocron goshell gotrash goctl`.
+Sub-tools — each one a package of this module with its own README
+documenting what it parses, its `<SUBTOOL>_*` env block and its record
+shapes:
+
+| Layer 1 — the knowledge builders | |
+|---|---|
+| [`gohost`](host/README.md) | host identity (os-release, hostname, machine-id, timezone, locale) + fstab/crypttab volume mapping |
+| [`gousers`](users/README.md) | passwd/shadow/group, sudoers, SSH access surface |
+| [`gonetwork`](network/README.md) | hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, firewall state |
+
+| Layer 2 — the daemon parsers | |
+|---|---|
+| [`gojournal`](journal/README.md) | systemd journal `*.journal` files, typed families |
+| [`goauditd`](auditd/README.md) | audit.log records coalesced into events |
+| [`gowtmp`](wtmp/README.md) | utmp/wtmp/btmp login records + lastlog |
+| [`gosyslog`](syslog/README.md) | syslog-family text logs, typed families |
+| [`gounit`](unit/README.md) | systemd units, timers, drop-ins |
+| [`gocron`](cron/README.md) | crontabs, cron.d, anacron, at |
+| [`goshell`](shell/README.md) | shell/REPL histories |
+| [`gotrash`](trash/README.md) | XDG Trash |
+| [`goctl`](ctl/README.md) | sysctl, module policy, ld.so preload/conf |
 
 ## Input
 
@@ -53,8 +74,8 @@ the stage, never from the parser.
 
 A single-parser sub-run (`godaemonhunter gowtmp`) ignores the
 `GODAEMONHUNTER_*` block and reads that tool's canonical `<SUBTOOL>_*`
-variables instead, exactly as its own contract declares them
-([gowtmp/contract.yml](../gowtmp/contract.yml) and siblings).
+variables instead (`GOWTMP_INPUT_DIR`, `GOWTMP_OUT_DIR`, …) — each
+parser package's README documents its block.
 
 ## Output
 
@@ -92,13 +113,13 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   get-sybers/godaemonhunter:latest hunt
 ```
 
-(Build from the **repo root**: the image copies the sibling `pinfo/` module
-and all twelve parser modules.)
+(Build from the **repo root**: the image copies the sibling `pinfo/`
+module; the parser packages already live in this directory.)
 
-## argv pass-through
+## argv pass-through (debug only)
 
-`godaemonhunter <subtool>` runs that parser's env-driven batch mode only.
-The per-tool `-f FILE | -d DIR | --tar` argv debug modes stay with the
-standalone binaries (`gowtmp`, `gojournal`, …) — the one binary keeps one
-run shape. `--version` prints the version; `--print-contract` prints
-[`contract.yml`](contract.yml).
+`godaemonhunter <subtool> <args>` hands the rest of the command line to
+that parser's own argv debug mode: `-f FILE | -d DIR | --tar` (a
+`gomount stream` tar on stdin), `-q`; records stream to stdout — see each
+package README for its exact flags. `--version` prints the version;
+`--print-contract` prints [`contract.yml`](contract.yml).
