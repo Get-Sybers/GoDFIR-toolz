@@ -3,11 +3,20 @@ tool: godaemonhunter
 image: get-sybers/godaemonhunter:latest
 entrypoint: multi-tool
 description: >
-  The Linux matrix as one structured binary (docs/linux decision 15): every
-  daemon parser embedded as a sub-tool, plus hunt — the layered one-shot
-  that runs Layer 1 (gohost, gousers, gonetwork) first, builds the image's
-  knowledge store, then runs every daemon parser enriched by it. One
-  binary, one run, one structured output tree, one JSON summary line.
+  The Linux matrix as one structured binary (docs/linux decisions 15–17):
+  every daemon parser a sub-tool of the layered one-shot that runs Layer 1
+  (gohost, gousers, gonetwork) first, builds the image's knowledge store,
+  then runs the daemon parsers enriched by it. The parameter is the STREAM
+  — a byakugan model word scoping the run to the parsers that feed that
+  model; no arguments is every stream, the default. One binary, one run,
+  one structured output tree, one JSON summary line.
+
+# The calling vocabulary (decision 17): every accepted stream word IS a
+# byakugan model (model/car/objects at the BYAKUGAN_REF pin). Bare
+# invocation (or `hunt`) is every stream; stream words scope the Layer-2
+# daemon parsers; Layer 1 is never scoped — it is the knowledge store.
+# Model words nothing here feeds yet (registry, thread, …) are rejected.
+streams: [authentication, user_session, process, service, flow, file, module]
 
 subtools: [hunt, gohost, gousers, gonetwork, gojournal, goauditd, gowtmp, gosyslog, gounit, gocron, goshell, gotrash, goctl]
 
@@ -33,11 +42,12 @@ network: none
 exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
 
 summary_schema:
-  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, knowledge_dir, subtools, exit, started, duration_s]
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, knowledge_dir, streams, subtools, exit, started, duration_s]
   note: >
-    hunt prints ONE aggregate line with every sub-tool's own summary
-    embedded under `subtools`; a single-parser sub-run prints that
-    parser's ordinary summary line.
+    the layered run prints ONE aggregate line with the stream words it ran
+    under `streams` and every sub-tool's own summary embedded under
+    `subtools`; a single-parser sub-run prints that parser's ordinary
+    summary line.
 
 outputs:
   hunt: "<OUT_DIR>/knowledge/<item>/{gohost,gousers,gonetwork}.jsonl (Layer 1, also the store the rest consume) + <OUT_DIR>/<subtool>/<item>/<subtool>.jsonl per daemon parser, records enriched per docs/linux decision 14"

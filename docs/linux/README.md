@@ -311,11 +311,15 @@ timestamps are interpreted in the host's zone. The plaso preprocessing
 analogue, done by the matrix's own Layer-1 parsers.
 
 The matrix ships as **one structured binary** — `godaemonhunter`
-(decisions 15–16): every parser is a package of the godaemonhunter
-module and runs as a sub-command, plus `hunt`, the layered one-shot that
-runs Layer 1 into `<OUT_DIR>/knowledge` and then every daemon parser
-with that store mounted — the whole method in one run, one output tree,
-one aggregate summary line. It is the multi-tool dispatcher shape of
+(decisions 15–17): every parser is a package of the godaemonhunter
+module, run through the layered one-shot that puts Layer 1 into
+`<OUT_DIR>/knowledge` and then runs the daemon parsers with that store
+mounted — the whole method in one run, one output tree, one aggregate
+summary line. **The parameter is the stream** (decision 17): a byakugan
+model word — `authentication`, `user_session`, `process`, `service`,
+`flow`, `file`, `module` — scoping the run to the daemon parsers that
+feed that model; no arguments is every stream, the default. It is the
+multi-tool dispatcher shape of
 [§4.3](../framework/04-self-orchestration.md) (the plaso and signatures
 precedent), and it is the **only** shipped shape: there are no
 standalone per-parser binaries or images, the argv debug modes ride the
@@ -754,11 +758,13 @@ integration additive:
    nothing and that is not an error; on a Linux image `image_export` stages
    nothing. No routing logic — content decides, as everywhere else.
 2. `godaemonhunter` joins `dxdfir_godfir_toolz_tools` as **one entry**
-   running `hunt` over the staged tree (decisions 15–16): the layering is
-   internal — Layer 1 (`gohost`, `gousers`, `gonetwork`) runs first into
-   `<OUT_DIR>/knowledge` and the daemon parsers come out enriched
-   (decision 14) — so the lane needs no per-parser ordering or knowledge
-   plumbing. `gomount timeline` output is staged beside its tree.
+   run bare over the staged tree — every stream, the default (decisions
+   15–17; a lane wanting less passes a byakugan-model stream word). The
+   layering is internal — Layer 1 (`gohost`, `gousers`, `gonetwork`)
+   runs first into `<OUT_DIR>/knowledge` and the daemon parsers come out
+   enriched (decision 14) — so the lane needs no per-parser ordering or
+   knowledge plumbing. `gomount timeline` output is staged beside its
+   tree.
 3. `identify` output is captured per image as lane telemetry (and is the
    input for eventually skipping the Plaso export on non-Windows images —
    consumer optimisation, not a correctness need).
@@ -906,6 +912,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 13 | **The method — everything is a daemon parser**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). Each tool reads one daemon's stream — the core what a daemon writes, the supporting tools what a daemon is told. That core is where depth is added; the told-side tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method. The journal is also the **primary pathway**: the typed event families (sshd, sudo, pam, cron) are defined once in `pinfo/families` and recognised wherever that stream surfaces — the journal first, the flat logs as fallback — so even SSH evidence flows through the journal mechanism, one shape from either source |
 | 15 | **godaemonhunter — the one structured binary**: the twelve parsers also ship as a single multi-tool image, the [§4.3](../framework/04-self-orchestration.md) dispatcher shape (the plaso/signatures precedent). `godaemonhunter <subtool>` runs one parser's ordinary env-contract batch under its canonical `<SUBTOOL>_*` block; `godaemonhunter hunt` is the layered one-shot — Layer 1 into `<OUT_DIR>/knowledge`, then every daemon parser with the store mounted (decision-14 enrichment), one aggregate JSON summary line with every sub-tool's summary embedded. godaemonhunter defines no record shape of its own — the parser packages do |
 | 16 | **The parsers live inside godaemonhunter — nothing ships singular**: the parser packages are subdirectories of the godaemonhunter module (`godaemonhunter/wtmp`, `godaemonhunter/journal`, …), documented by per-package READMEs; the standalone per-parser binaries, images, contracts and Dockerfiles are retired (decision 15's "per-tool images remain the granular units" clause is superseded). The argv debug modes ride the dispatcher (`godaemonhunter <subtool> -f FILE \| -d DIR \| --tar`). Tool names, `<SUBTOOL>_*` env blocks, record shapes and the `Tool` field on every record are unchanged — byakugan sees the same records; only the packaging is one |
+| 17 | **The stream is the parameter**: godaemonhunter is called with a stream word, and every accepted word IS a byakugan model (`model/car/objects` at the `BYAKUGAN_REF` pin) that the matrix feeds — `authentication`, `user_session`, `process`, `service`, `flow`, `file`, `module`. A stream scopes the layered run to the Layer-2 daemon parsers feeding that model's maps (§7.3); **the default — no arguments — is every stream**; Layer 1 is never scoped (it is the knowledge store); model words nothing feeds yet (`registry`, `thread`, …) are rejected with the accepted list, and a word enters the vocabulary only when a parser here feeds it. Sub-tool names stay accepted for granular and argv-debug runs, `hunt` for the explicit default, and the aggregate summary names the streams it ran |
 
 ### 11.2 Open questions
 

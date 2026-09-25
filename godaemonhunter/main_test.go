@@ -83,12 +83,100 @@ func TestUnknownAndUsage(t *testing.T) {
 	if code := run([]string{"gonosuch"}, env(nil), &buf); code != 2 {
 		t.Fatalf("unknown subtool exit %d", code)
 	}
-	if code := run(nil, env(nil), &buf); code != 2 {
-		t.Fatalf("no args exit %d", code)
+	// registry is a byakugan model, but nothing here feeds it — not accepted.
+	if code := run([]string{"registry"}, env(nil), &buf); code != 2 {
+		t.Fatalf("unfed model word exit %d", code)
+	}
+	if code := run([]string{"file", "registry"}, env(nil), &buf); code != 2 {
+		t.Fatalf("mixed valid+invalid streams exit %d", code)
 	}
 	buf.Reset()
 	if code := run([]string{"--version"}, env(nil), &buf); code != 0 || !strings.HasPrefix(buf.String(), "godaemonhunter ") {
 		t.Fatalf("version: %d %q", code, buf.String())
+	}
+}
+
+// TestBareIsAllStreams: no arguments IS the default run — every stream,
+// the layered hunt. (Here /input is absent, so it lands on config_error,
+// but it lands there as a hunt: one summary line naming all streams.)
+func TestBareIsAllStreams(t *testing.T) {
+	var buf bytes.Buffer
+	code := run(nil, env(map[string]string{
+		"GODAEMONHUNTER_INPUT_DIR": filepath.Join(t.TempDir(), "missing"),
+		"GODAEMONHUNTER_OUT_DIR":   t.TempDir(),
+		"GODAEMONHUNTER_WORK_DIR":  t.TempDir(),
+	}), &buf)
+	if code != 2 {
+		t.Fatalf("bare run with missing input: exit %d", code)
+	}
+	var sum huntSummary
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &sum); err != nil {
+		t.Fatalf("bare run printed no summary: %v", err)
+	}
+	if sum.Tool != "godaemonhunter" || len(sum.Streams) != len(streams) {
+		t.Fatalf("bare run is not the all-streams hunt: %+v", sum)
+	}
+}
+
+// TestStreamRegistryConsistent: every stream maps only to registered
+// Layer-2 parsers, and together the streams cover all of Layer 2 — so
+// the default (all streams) is the whole matrix.
+func TestStreamRegistryConsistent(t *testing.T) {
+	l2 := map[string]bool{}
+	for _, s := range subs {
+		if s.layer == 2 {
+			l2[s.name] = false
+		}
+	}
+	for word, names := range streams {
+		for _, n := range names {
+			if _, ok := l2[n]; !ok {
+				t.Fatalf("stream %q names %q, not a Layer-2 parser", word, n)
+			}
+			l2[n] = true
+		}
+	}
+	for n, covered := range l2 {
+		if !covered {
+			t.Fatalf("Layer-2 parser %q feeds no stream", n)
+		}
+	}
+}
+
+// TestStreamScoped: one stream word runs Layer 1 plus exactly that
+// stream's parsers, and the summary names the stream.
+func TestStreamScoped(t *testing.T) {
+	in, out := t.TempDir(), t.TempDir()
+	writeFixtures(t, in)
+
+	var buf bytes.Buffer
+	code := run([]string{"process"}, env(map[string]string{
+		"GODAEMONHUNTER_INPUT_DIR": in, "GODAEMONHUNTER_OUT_DIR": out,
+		"GODAEMONHUNTER_WORK_DIR": t.TempDir(),
+	}), &buf)
+	if code != 0 {
+		t.Fatalf("stream run exit %d: %s", code, buf.String())
+	}
+	var sum huntSummary
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &sum); err != nil {
+		t.Fatal(err)
+	}
+	if len(sum.Streams) != 1 || sum.Streams[0] != "process" {
+		t.Fatalf("streams: %v", sum.Streams)
+	}
+	if want := 3 + len(streams["process"]); len(sum.Subtools) != want {
+		t.Fatalf("subtool count %d, want %d (Layer 1 + the stream): %+v", len(sum.Subtools), want, sum.Streams)
+	}
+	if _, err := os.Stat(filepath.Join(out, "goauditd")); err != nil {
+		t.Fatal("process stream did not run goauditd")
+	}
+	for _, skipped := range []string{"gotrash", "goctl", "gounit"} {
+		if _, err := os.Stat(filepath.Join(out, skipped)); err == nil {
+			t.Fatalf("%s ran outside its stream", skipped)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(out, "knowledge")); err != nil {
+		t.Fatal("Layer 1 did not run")
 	}
 }
 
@@ -114,6 +202,9 @@ func TestHuntLayeredAndEnriched(t *testing.T) {
 	}
 	if sum.Status != "ok" || sum.Tool != "godaemonhunter" || len(sum.Subtools) != len(subs) {
 		t.Fatalf("aggregate: %+v", sum)
+	}
+	if len(sum.Streams) != len(streams) {
+		t.Fatalf("default hunt is not all streams: %v", sum.Streams)
 	}
 
 	// Layer 1 landed in the knowledge dir

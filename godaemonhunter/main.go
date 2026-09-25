@@ -1,20 +1,29 @@
 // godaemonhunter — the Linux matrix as ONE structured binary
-// (docs/linux §4, decisions 15–16): every daemon parser lives here as a
-// package and runs as a subcommand, plus `hunt`, the layered one-shot —
-// Layer 1 (gohost, gousers, gonetwork) runs first and builds the image's
-// knowledge store, then every daemon parser runs enriched by it. One
-// binary, one run, one structured output tree, one JSON summary line.
+// (docs/linux §4, decisions 15–17): every daemon parser lives here as a
+// package and runs inside the layered one-shot — Layer 1 (gohost,
+// gousers, gonetwork) runs first and builds the image's knowledge store,
+// then the daemon parsers run enriched by it. One binary, one run, one
+// structured output tree, one JSON summary line.
 //
-//	godaemonhunter hunt                the layered run, GODAEMONHUNTER_* driven
+// The parameter is the STREAM (decision 17): a byakugan model word that
+// scopes the run to the daemon parsers feeding that model. The default
+// is every stream.
+//
+//	godaemonhunter                     every stream — the default layered
+//	                                   run, GODAEMONHUNTER_* driven
+//	godaemonhunter <stream>...         scope it: authentication,
+//	                                   user_session, process, service,
+//	                                   flow, file, module
 //	godaemonhunter <subtool>           one parser's env-driven batch mode,
 //	                                   under its canonical <SUBTOOL>_* block
 //	godaemonhunter <subtool> <args>    that parser's argv debug pass-through
 //	                                   (-f FILE | -d DIR | --tar, -q)
 //	godaemonhunter --version | --print-contract
 //
-// The multi-tool dispatcher shape of docs/framework/04 §4.3 (the plaso
-// and signatures precedent). There are no standalone per-parser binaries
-// or images: godaemonhunter is the Linux tool.
+// (`hunt` stays accepted as the explicit word for the default run.) The
+// multi-tool dispatcher shape of docs/framework/04 §4.3 (the plaso and
+// signatures precedent). There are no standalone per-parser binaries or
+// images: godaemonhunter is the Linux tool.
 package main
 
 import (
@@ -25,6 +34,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -81,9 +91,25 @@ var subs = []sub{
 	{"goctl", 2, ctl.Tool, ctl.Main},
 }
 
+// streams is the calling vocabulary (decision 17): each accepted word IS a
+// byakugan model (model/car/objects at the BYAKUGAN_REF pin) and selects
+// the Layer-2 daemon parsers whose records feed that model's maps. Layer 1
+// always runs — it is the knowledge store. The other model words (registry,
+// thread, …) are not accepted until a parser here feeds them.
+var streams = map[string][]string{
+	"authentication": {"gojournal", "gosyslog", "gowtmp", "goauditd"},
+	"user_session":   {"gowtmp", "gojournal", "gosyslog", "goauditd"},
+	"process":        {"goauditd", "goshell", "gojournal", "gosyslog"},
+	"service":        {"gounit", "gocron", "gojournal", "gosyslog"},
+	"flow":           {"goauditd"},
+	"file":           {"gotrash"},
+	"module":         {"goctl"},
+}
+
 func main() { os.Exit(run(os.Args[1:], os.Getenv, os.Stdout)) }
 
-// run is main's testable body: dispatch one subtool, or hunt.
+// run is main's testable body: no arguments is every stream (the default),
+// stream words scope the hunt, a subtool name is one parser.
 func run(args []string, getenv func(string) string, stdout io.Writer) int {
 	if len(args) == 1 {
 		switch strings.TrimLeft(args[0], "-") {
@@ -95,16 +121,18 @@ func run(args []string, getenv func(string) string, stdout io.Writer) int {
 			return 0
 		}
 	}
-	if len(args) == 0 {
-		usage()
-		return 2
+	if len(args) == 0 || (len(args) == 1 && args[0] == "hunt") {
+		return runHunt(getenv, stdout, nil)
 	}
-	if args[0] == "hunt" {
-		if len(args) != 1 {
-			usage()
-			return 2
+	if _, isStream := streams[args[0]]; isStream {
+		for _, a := range args {
+			if _, ok := streams[a]; !ok {
+				fmt.Fprintf(os.Stderr, "godaemonhunter: %q is not a stream\n", a)
+				usage()
+				return 2
+			}
 		}
-		return runHunt(getenv, stdout)
+		return runHunt(getenv, stdout, args)
 	}
 	for _, s := range subs {
 		if s.name != args[0] {
@@ -119,7 +147,7 @@ func run(args []string, getenv func(string) string, stdout io.Writer) int {
 		s.main(version, contractYML)
 		return 0
 	}
-	fmt.Fprintf(os.Stderr, "godaemonhunter: unknown sub-tool %q\n", args[0])
+	fmt.Fprintf(os.Stderr, "godaemonhunter: unknown stream or sub-tool %q\n", args[0])
 	usage()
 	return 2
 }
@@ -129,10 +157,21 @@ func usage() {
 	for i, s := range subs {
 		names[i] = s.name
 	}
-	fmt.Fprintln(os.Stderr, "usage: godaemonhunter hunt                 (the layered run, GODAEMONHUNTER_* driven)\n"+
+	fmt.Fprintln(os.Stderr, "usage: godaemonhunter                      (every stream — the default layered run, GODAEMONHUNTER_* driven)\n"+
+		"       godaemonhunter <stream>...          (scope the run to byakugan-model streams: "+strings.Join(streamWords(), " ")+")\n"+
 		"       godaemonhunter <subtool>            (one parser's env-driven batch: "+strings.Join(names, " ")+")\n"+
 		"       godaemonhunter <subtool> <args>     (that parser's argv debug pass-through: -f FILE | -d DIR | --tar, -q)\n"+
 		"       godaemonhunter --version | --print-contract")
+}
+
+// streamWords is the accepted stream vocabulary, sorted.
+func streamWords() []string {
+	w := make([]string, 0, len(streams))
+	for k := range streams {
+		w = append(w, k)
+	}
+	sort.Strings(w)
+	return w
 }
 
 // huntSummary is hunt's single stdout JSON line: the aggregate roll-up
@@ -148,6 +187,7 @@ type huntSummary struct {
 	Failed       int             `json:"failed"`
 	Records      int             `json:"records"`
 	KnowledgeDir string          `json:"knowledge_dir"`
+	Streams      []string        `json:"streams"`
 	Subtools     []batch.Summary `json:"subtools"`
 	Exit         int             `json:"exit"`
 	Started      string          `json:"started"`
@@ -156,8 +196,30 @@ type huntSummary struct {
 
 // runHunt executes the layered pipeline: Layer 1 into the knowledge dir,
 // then Layer 2 with the store mounted, each subtool through the ordinary
-// batch runtime under a shimmed environment.
-func runHunt(getenv func(string) string, stdout io.Writer) int {
+// batch runtime under a shimmed environment. words are the stream words
+// scoping Layer 2 (empty = every stream, the default); Layer 1 is never
+// scoped — it is the knowledge store.
+func runHunt(getenv func(string) string, stdout io.Writer, words []string) int {
+	if len(words) == 0 {
+		words = streamWords()
+	} else {
+		seen := map[string]bool{}
+		uniq := words[:0]
+		for _, w := range words {
+			if !seen[w] {
+				seen[w] = true
+				uniq = append(uniq, w)
+			}
+		}
+		words = uniq
+		sort.Strings(words)
+	}
+	want := map[string]bool{}
+	for _, w := range words {
+		for _, name := range streams[w] {
+			want[name] = true
+		}
+	}
 	get := func(suffix, def string) string {
 		if v := getenv("GODAEMONHUNTER_" + suffix); v != "" {
 			return v
@@ -174,12 +236,15 @@ func runHunt(getenv func(string) string, stdout io.Writer) int {
 	started := time.Now()
 	sum := &huntSummary{
 		Tool: "godaemonhunter", Version: version, Pinfo: pinfo.Version,
-		KnowledgeDir: kdir, Subtools: []batch.Summary{},
+		KnowledgeDir: kdir, Streams: words, Subtools: []batch.Summary{},
 		Started: started.UTC().Format(time.RFC3339),
 	}
 
 	sawOK, sawPartial, sawConfig := false, false, false
 	for _, s := range subs {
+		if s.layer == 2 && !want[s.name] {
+			continue
+		}
 		outDir := kdir
 		if s.layer == 2 {
 			outDir = filepath.Join(out, s.name)

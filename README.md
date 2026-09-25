@@ -37,10 +37,14 @@ carrying the whole Linux matrix: twelve parser packages, **every one a
 daemon parser** (each reads what one daemon writes — journald, the relay
 every other daemon logs through; auditd; the login machinery; the shells —
 or what one daemon is told: systemd's units, crond's tabs, sshd's account
-material, the kernel's sysctl). Each runs as `godaemonhunter <subtool>`,
-and `godaemonhunter hunt` is the layered one-shot: Layer 1 (gohost,
-gousers, gonetwork) runs first and builds the image's knowledge store,
-then every daemon parser runs enriched by it. Built on the shared
+material, the kernel's sysctl). **The parameter is the stream**: called
+with a byakugan-model word (`authentication`, `user_session`, `process`,
+`service`, `flow`, `file`, `module`) it runs the layered one-shot scoped
+to the parsers feeding that model — Layer 1 (gohost, gousers, gonetwork)
+always runs first and builds the image's knowledge store, then the
+selected daemon parsers run enriched by it. **No arguments is every
+stream, the default.** Each parser also runs granularly as
+`godaemonhunter <subtool>`. Built on the shared
 [`pinfo/`](docs/linux/README.md) module (batch runtime, record envelope,
 provenance stamping, the typed-event families the journal pathway and the
 flat logs share), and therefore built with the **repo root as context**.

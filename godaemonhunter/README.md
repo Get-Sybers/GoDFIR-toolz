@@ -1,8 +1,8 @@
 # `get-sybers/godaemonhunter` — the Linux matrix as one structured binary
 
 Every daemon parser of the Linux matrix ([docs/linux](../docs/linux/README.md),
-decisions 15–16) is a package of this module and a sub-tool of this single
-static binary, plus **`hunt`** — the layered one-shot:
+decisions 15–17) is a package of this module and a sub-tool of this single
+static binary, run through the layered one-shot:
 
 1. **Layer 1** runs first — `gohost`, `gousers`, `gonetwork` — and their
    output *is* the image's knowledge store (identity, naming, layout:
@@ -22,13 +22,38 @@ This is the multi-tool dispatcher shape of
 no standalone per-parser binaries or images. godaemonhunter *is* the
 Linux tool.
 
+## The stream is the parameter
+
+The binary is called with a **stream**: a word that is a byakugan model
+([`model/car/objects`](https://github.com/Get-Sybers/Byakugan/tree/main/model/car/objects)
+at the `BYAKUGAN_REF` pin). A stream scopes the layered run to the daemon
+parsers whose records feed that model's maps; **the default — no
+arguments — is every stream**. Layer 1 is never scoped: it is the
+knowledge store.
+
 ```
-godaemonhunter hunt                the layered run, GODAEMONHUNTER_* driven
+godaemonhunter                     every stream (the default layered run)
+godaemonhunter <stream>...         scope it to one or more streams
 godaemonhunter <subtool>           one parser's env-driven batch mode, under
                                    its canonical <SUBTOOL>_* block
 godaemonhunter <subtool> <args>    that parser's argv debug pass-through
 godaemonhunter --version | --print-contract
 ```
+
+| Stream (= byakugan model) | Runs |
+|---|---|
+| `authentication` | gojournal, gosyslog, gowtmp, goauditd |
+| `user_session` | gowtmp, gojournal, gosyslog, goauditd |
+| `process` | goauditd, goshell, gojournal, gosyslog |
+| `service` | gounit, gocron, gojournal, gosyslog |
+| `flow` | goauditd |
+| `file` | gotrash |
+| `module` | goctl |
+
+Model words nothing here feeds yet (`registry`, `thread`, …) are rejected
+with the accepted list. `hunt` stays accepted as the explicit word for
+the default run. The aggregate summary line names the streams it ran
+under `streams`.
 
 Sub-tools — each one a package of this module with its own README
 documenting what it parses, its `<SUBTOOL>_*` env block and its record
@@ -61,7 +86,7 @@ tree, a mounted root filesystem, or any directory laid out like one. A
 every record as `Origin`/`Snapshot`/`Residue` — rule-2 provenance comes from
 the stage, never from the parser.
 
-## Env (`hunt`)
+## Env (the layered run)
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -79,17 +104,19 @@ parser package's README documents its block.
 
 ## Output
 
-`hunt` writes one structured tree under `GODAEMONHUNTER_OUT_DIR`:
+The layered run (bare or stream-scoped) writes one structured tree under
+`GODAEMONHUNTER_OUT_DIR`:
 
 ```
 <OUT_DIR>/knowledge/<item>/{gohost,gousers,gonetwork}.jsonl   Layer 1 = the store
-<OUT_DIR>/<subtool>/<item>/<subtool>.jsonl                    per daemon parser, enriched
+<OUT_DIR>/<subtool>/<item>/<subtool>.jsonl                    per selected daemon parser, enriched
 ```
 
-and prints **one** aggregate JSON summary line with every sub-tool's own
-summary embedded under `subtools` (plus `knowledge_dir`, the roll-up
-counters, `status`, `exit`). A single-parser sub-run prints that parser's
-ordinary summary line and writes as its own contract declares.
+and prints **one** aggregate JSON summary line with the stream words it
+ran under `streams` and every sub-tool's own summary embedded under
+`subtools` (plus `knowledge_dir`, the roll-up counters, `status`,
+`exit`). A single-parser sub-run prints that parser's ordinary summary
+line and writes as its own README declares.
 
 ## Exit codes
 
@@ -110,7 +137,13 @@ docker build -t get-sybers/godaemonhunter:latest -f godaemonhunter/Dockerfile .
 docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
   --read-only --tmpfs /work:rw,nosuid,nodev,uid=2000,gid=2000 \
   -v "$PWD/in:/input:ro" -v "$PWD/out:/output" \
-  get-sybers/godaemonhunter:latest hunt
+  get-sybers/godaemonhunter:latest              # every stream (the default)
+```
+
+Scoped, the stream is the only thing that changes:
+
+```sh
+docker run --rm … get-sybers/godaemonhunter:latest authentication
 ```
 
 (Build from the **repo root**: the image copies the sibling `pinfo/`
