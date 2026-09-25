@@ -45,7 +45,7 @@ always runs first and builds the image's knowledge store, then the
 selected daemon parsers run enriched by it. **No arguments is every
 stream, the default.** Each parser also runs granularly as
 `godaemonhunter <subtool>`. Built on the shared
-[`pinfo/`](docs/linux/README.md) module (batch runtime, record envelope,
+[`pinfo/`](pinfo/) module (batch runtime, record envelope,
 provenance stamping, the typed-event families the journal pathway and the
 flat logs share), and therefore built with the **repo root as context**.
 Same hardening contract: `FROM scratch`, one static binary,

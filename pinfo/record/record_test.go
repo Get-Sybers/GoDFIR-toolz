@@ -66,6 +66,8 @@ func TestManifest(t *testing.T) {
 		`{"path":"\\Users\\Bob\\NTUSER.DAT","size":1,"mtime":"x","mftid":77}`,
 		`{"path":"var/log/audit/audit.log","staged":"residue/orphan-9/var/log/audit/audit.log",` +
 			`"inode":9,"residue":{"kind":"orphan_inode","detail":"inode 9"}}`,
+		// 2^53+1: float64 would round this to ...992 — UseNumber keeps it.
+		`{"path":"var/log/wtmp","inode":9007199254740993}`,
 		"",
 		"not json",
 	}, "\n")
@@ -97,6 +99,11 @@ func TestManifest(t *testing.T) {
 		t.Fatalf("residue row: %+v", r)
 	}
 
+	o, _, _ = m.Stamp("var/log/wtmp")
+	if o == nil || o.Inode != 9007199254740993 {
+		t.Fatalf("64-bit inode lost precision: %+v", o)
+	}
+
 	if o, s, r := m.Stamp("nowhere"); o != nil || s != nil || r != nil {
 		t.Fatal("unknown path must stamp nothing")
 	}
@@ -106,5 +113,29 @@ func TestManifest(t *testing.T) {
 	}
 	if LoadManifest(t.TempDir()) != nil {
 		t.Fatal("missing manifest must load nil")
+	}
+}
+
+// TestWriterCountOnEncodeError pins that Count moves only on a successful
+// encode: a failed record is not reported as written.
+func TestWriterCountOnEncodeError(t *testing.T) {
+	type badRec struct {
+		Envelope
+		C chan int `json:"C"` // json.Encode cannot marshal a channel
+	}
+	var buf bytes.Buffer
+	w := NewWriter(&buf)
+	if err := w.Write(&badRec{C: make(chan int)}); err == nil {
+		t.Fatal("encode of a channel must error")
+	}
+	if w.Count() != 0 {
+		t.Fatalf("failed write counted: %d", w.Count())
+	}
+	r := &rec{V: "ok"}
+	if err := w.Write(r); err != nil {
+		t.Fatal(err)
+	}
+	if w.Count() != 1 {
+		t.Fatalf("count %d", w.Count())
 	}
 }

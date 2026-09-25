@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -154,11 +155,15 @@ func NewWriter(w io.Writer) *Writer {
 // SetStamp installs the per-item stamp the runtime resolved.
 func (rw *Writer) SetStamp(s Stamp) { rw.stamp = s }
 
-// Write stamps and emits one record.
+// Write stamps and emits one record. The count moves only on a
+// successful encode, so Count never over-reports into the summary.
 func (rw *Writer) Write(rec Record) error {
 	rw.stamp.apply(rec.Env())
+	if err := rw.jw.Encode(rec); err != nil {
+		return err
+	}
 	rw.n++
-	return rw.jw.Encode(rec)
+	return nil
 }
 
 // Count is the number of records written.
@@ -210,8 +215,13 @@ func LoadManifest(root string) *Manifest {
 		if line == "" {
 			continue
 		}
+		// UseNumber keeps 64-bit inode/mftid values exact — plain
+		// Unmarshal would coerce them to float64 and lose precision
+		// past 2^53.
+		dec := json.NewDecoder(strings.NewReader(line))
+		dec.UseNumber()
 		var raw map[string]any
-		if json.Unmarshal([]byte(line), &raw) != nil {
+		if dec.Decode(&raw) != nil {
 			continue
 		}
 		m.addRow(raw)
@@ -231,8 +241,15 @@ func (m *Manifest) addRow(raw map[string]any) {
 	}
 	getU := func(keys ...string) uint64 {
 		for _, k := range keys {
-			if v, ok := raw[k].(float64); ok && v > 0 {
-				return uint64(v)
+			switch v := raw[k].(type) {
+			case json.Number: // the LoadManifest path: exact
+				if n, err := strconv.ParseUint(v.String(), 10, 64); err == nil && n > 0 {
+					return n
+				}
+			case float64: // a caller without UseNumber
+				if v > 0 {
+					return uint64(v)
+				}
 			}
 		}
 		return 0

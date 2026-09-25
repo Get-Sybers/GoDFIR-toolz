@@ -17,8 +17,10 @@ func TestTree(t *testing.T) {
 			`{"Tool":"gowtmp","RecordType":"lastlog","Residue":{"Kind":"orphan_inode"}}`+"\n"), 0o644)
 	dir2 := filepath.Join(root, "etc_passwd")
 	os.MkdirAll(dir2, 0o755)
-	os.WriteFile(filepath.Join(dir2, "gousers.csv"),
-		[]byte("RecordType,SourceFilename\naccount,etc/passwd\n"), 0o644)
+	// CSV is the Windows tools' legacy record format — the Linux matrix is
+	// JSONL-only (decision 12), so the CSV fixture wears a Windows name.
+	os.WriteFile(filepath.Join(dir2, "goprefetch.csv"),
+		[]byte("RecordType,SourceFilename\nprefetch,Windows/Prefetch/CMD.EXE-087B4001.pf\n"), 0o644)
 	os.WriteFile(filepath.Join(dir2, "notes.txt"), []byte("ignored"), 0o644)
 
 	items, err := Tree(root)
@@ -29,7 +31,7 @@ func TestTree(t *testing.T) {
 		t.Fatalf("items: %d %v", len(items), items)
 	}
 	csv, jl := items[0], items[1]
-	if csv.Tool != "gousers" || csv.Records != 1 {
+	if csv.Tool != "goprefetch" || csv.Records != 1 {
 		t.Fatalf("csv item: %+v", csv)
 	}
 	if jl.Tool != "gowtmp" || jl.Records != 3 ||
