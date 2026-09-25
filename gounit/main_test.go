@@ -130,3 +130,15 @@ func TestClassify(t *testing.T) {
 		}
 	}
 }
+
+func TestMountUnit(t *testing.T) {
+	m := parse(t, "etc/systemd/system/data.mount",
+		"[Unit]\nDescription=Data volume\n[Mount]\nWhat=/dev/disk/by-uuid/9f8e7d6c-1a2b-3c4d-5e6f-708192a3b4c5\nWhere=/data\nType=ext4\nOptions=noatime\n[Install]\nWantedBy=multi-user.target\n")
+	if m["UnitType"] != "mount" || m["What"] != "/dev/disk/by-uuid/9f8e7d6c-1a2b-3c4d-5e6f-708192a3b4c5" ||
+		m["Where"] != "/data" || m["MountType"] != "ext4" || m["MountOptions"] != "noatime" {
+		t.Fatalf("mount unit: %v", m)
+	}
+	if m["ServiceType"] != nil {
+		t.Fatalf("Type leaked into ServiceType: %v", m)
+	}
+}

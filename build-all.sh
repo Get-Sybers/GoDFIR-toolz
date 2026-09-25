@@ -115,6 +115,7 @@ build_gousers()   { build_linux_parser gousers   "accounts, sudoers, SSH access 
 build_gocron()    { build_linux_parser gocron    "cron/anacron/at scheduled tasks"; }
 build_gounit()    { build_linux_parser gounit    "systemd units and timers"; }
 build_gotrash()   { build_linux_parser gotrash   "XDG Trash"; }
+build_gohost()    { build_linux_parser gohost    "host identity + fstab/crypttab volume mapping"; }
 
 build_anamnesis() {
   # anamnesis (pure-Go memory forensics on MemProcFS — no Volatility, no Python).
@@ -185,6 +186,7 @@ resolve() {
     gocron) build_gocron; return ;;
     gounit) build_gounit; return ;;
     gotrash) build_gotrash; return ;;
+    gohost) build_gohost; return ;;
     anamnesis|memory) build_anamnesis; return ;;
     byakugan|mitrecar|car) build_byakugan; return ;;
     plaso|log2timeline|psort) build_plaso; return ;;
@@ -202,7 +204,7 @@ resolve() {
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt gowtmp gojournal goauditd gosyslog goshell gousers gocron gounit gotrash anamnesis byakugan plaso signatures zeek" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt gowtmp gojournal goauditd gosyslog goshell gousers gocron gounit gotrash gohost anamnesis byakugan plaso signatures zeek" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -232,6 +234,7 @@ else
   build_gocron
   build_gounit
   build_gotrash
+  build_gohost
   build_anamnesis
   build_byakugan
   build_plaso

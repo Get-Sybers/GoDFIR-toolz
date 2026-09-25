@@ -55,6 +55,7 @@ type pathEntry struct {
 type auditEvent struct {
 	record.Envelope
 	AuditID     string            `json:"AuditID"`
+	Node        string            `json:"Node,omitempty"`
 	Types       []string          `json:"Types"`
 	Syscall     string            `json:"Syscall,omitempty"`
 	SyscallName string            `json:"SyscallName,omitempty"`
@@ -97,7 +98,7 @@ var syscallNamesX8664 = map[string]string{
 
 // ---- record parsing --------------------------------------------------------
 
-var headRe = regexp.MustCompile(`^type=(\S+) msg=audit\((\d+)\.(\d{1,3}):(\d+)\):\s*(.*)$`)
+var headRe = regexp.MustCompile(`^(?:node=(\S+) )?type=(\S+) msg=audit\((\d+)\.(\d{1,3}):(\d+)\):\s*(.*)$`)
 
 // parseKV tokenises an audit record body: key=value pairs where value is a
 // 'single-quoted' or "double-quoted" string or a bare token.
@@ -290,21 +291,21 @@ func parseAudit(rd io.Reader, w *record.Writer, warnf func(string, ...interface{
 			unmatched++
 			continue
 		}
-		rtype := m[1]
-		id := m[2] + "." + m[3] + ":" + m[4]
+		node, rtype := m[1], m[2]
+		id := m[3] + "." + m[4] + ":" + m[5]
 		if cur == nil || cur.AuditID != id || len(cur.Types) >= maxTypesPerEvent {
 			if err := flush(); err != nil {
 				return emitted, err
 			}
-			cur = &auditEvent{AuditID: id}
+			cur = &auditEvent{AuditID: id, Node: node}
 			cur.RecordType = "auditd_event"
-			sec, _ := strconv.ParseInt(m[2], 10, 64)
-			ms, _ := strconv.ParseInt(m[3], 10, 64)
+			sec, _ := strconv.ParseInt(m[3], 10, 64)
+			ms, _ := strconv.ParseInt(m[4], 10, 64)
 			cur.EventTime = tstamp.Unix(sec, ms*int64(1e6))
 			cur.TimeKind = "event"
 		}
 		cur.Types = append(cur.Types, rtype)
-		cur.apply(rtype, parseKV(m[5]))
+		cur.apply(rtype, parseKV(m[6]))
 	}
 	if err := sc.Err(); err != nil {
 		return emitted, err

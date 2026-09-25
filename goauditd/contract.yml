@@ -34,6 +34,7 @@ records:
   envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
   auditd_event:
     AuditID: 'the audit(sec.msec:serial) id — the record identity, carried never minted'
+    Node: 'the node= prefix of aggregated (audisp-remote) logs, when present'
     Types: 'the record types coalesced into this event, in order'
     Syscall: 'syscall number verbatim'
     SyscallName: 'rendered name for the x86_64 table; empty otherwise'

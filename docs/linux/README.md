@@ -23,9 +23,9 @@ has three pillars:
    `gomount stream` tar consumer, and run/output introspection. The Linux
    tools are born on it; the Windows tools adopt it in a mechanical
    follow-up phase.
-2. **Twelve Linux parsers** (`gojournal`, `goauditd`, `gowtmp`, `gosyslog`,
-   `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`, `gopkg`, `goacct`,
-   `gosqlite`) — each a framework-conformant Tier-1 image from its first
+2. **Thirteen Linux parsers** (`gojournal`, `goauditd`, `gowtmp`,
+   `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`,
+   `gohost`, `gopkg`, `goacct`, `gosqlite`) — each a framework-conformant Tier-1 image from its first
    commit, with record schemas designed against the byakugan data model
    (§4.1): the parsers extract everything byakugan's CAR maps need — typed
    rows, native vocabulary, identity fields, join keys — and derive nothing
@@ -265,7 +265,7 @@ records still go to files under `OUT_DIR`; exit codes stay `0/1/2/3`
 
 ## 4. The Linux parser set
 
-Twelve tools, one artefact class each, all Tier-1 shape from birth:
+Thirteen tools, one artefact class each, all Tier-1 shape from birth:
 `FROM scratch`, static, `USER 2000:2000`, `contract.yml`, batch mode on no
 arguments, argv/`--tar` debug pass-through, JSONL output (the one record
 format, decision 12). Prior-art libraries are **candidates**: each is license-checked and
@@ -285,6 +285,7 @@ clean-room over an `io.ReaderAt` is how gomount's partition code was built.
 | `gocron` | crontabs, cron.d, anacron, at | Scheduled Tasks via gore | L1 |
 | `gounit` | systemd units/timers + enablement | Services/Run keys via gore | L1 |
 | `gotrash` | XDG Trash | gorb | L1 |
+| `gohost` | host identity + fstab/crypttab volume mapping | registry system hives via gore | L1 |
 | `gopkg` | dpkg/rpm/pacman/apk + snap/flatpak | goamcache/goappcompat | L4 |
 | `goacct` | process accounting `pacct` | goprefetch | L4 |
 | `gosqlite` | profile-driven SQLite dumps | sqlecmd (.NET) | L4 |
@@ -411,6 +412,16 @@ What is parsed and the known format edges:
 - **`gotrash`** — XDG Trash (`.local/share/Trash` and per-volume
   `.Trash-<uid>`): each `info/*.trashinfo` (original path, deletion time)
   joined with its `files/` twin's size — the `$I`/`$R` of Linux.
+- **`gohost`** — the anchoring facts: os-release, hostname, machine-id
+  (joins gojournal's `MachineID`), timezone (`etc/timezone`, and the TZif
+  trailing POSIX rule from a staged `localtime` — the symlink's zone name
+  is lost in staging and honestly absent) and locale — the context
+  byakugan needs to place naive timestamps and name the host; plus the
+  **volume-to-name mapping**, the drive-serial role on Windows: fstab rows
+  (`UUID=`/`LABEL=`/`PARTUUID=` specs split out) tie durable volume
+  identities to mount points, crypttab rows tie encrypted devices to
+  mapper names. Extraction only: applying the zone and joining UUIDs to
+  volumes (`Origin.FSUUID`) stay byakugan-side.
 - **`gopkg`** — software presence and package events. Inventories: dpkg
   `status`, rpmdb (`var/lib/rpm` and `usr/lib/sysimage/rpm`; BerkeleyDB,
   ndb and SQLite backends — candidate `knqyf263/go-rpmdb`, pure Go), pacman
@@ -519,10 +530,13 @@ on the Linux critical path.
   `--max-file-size` guard (journals can be tens of GB); every skip lands in
   the manifest, never silent. The manifest itself becomes the **origin
   record** of rule 2: one row per staged file carrying the full chain —
-  evidence image, volume (partition index or `vg/lv`), snapshot or residue
-  identity, the original volume path, inode, size, mtime — the join the
-  `pinfo` runtime uses to stamp `Origin` onto every parser record (§3.3),
-  the way a dfVFS path spec rides every plaso event.
+  evidence image, volume (partition index or `vg/lv`), the volume's
+  **filesystem UUID and label** (the durable identity fstab and crypttab
+  rows name — `Origin.FSUUID`/`Origin.Label`, the drive-serial role),
+  snapshot or residue identity, the original volume path, inode, size,
+  mtime — the join the `pinfo` runtime uses to stamp `Origin` onto every
+  parser record (§3.3), the way a dfVFS path spec rides every plaso
+  event.
 - **`timeline`** emits one record per **(file, timestamp kind)** — the
   `fs:stat` shape the existing CAR file maps consume, so their
   timestamp-kind → file-action logic (create/modify/read; a kind with no

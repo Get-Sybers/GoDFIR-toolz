@@ -103,3 +103,11 @@ func TestIsAuditFile(t *testing.T) {
 		t.Fatal("non-audit matched")
 	}
 }
+
+func TestNodePrefix(t *testing.T) {
+	recs := parse(t, "node=srv02 type=SYSCALL msg=audit(1767225800.001:44): arch=c000003e syscall=257 success=yes exit=3 pid=99 uid=0 comm=\"cat\" exe=\"/usr/bin/cat\"\nnode=srv02 type=EOE msg=audit(1767225800.001:44):\n")
+	if len(recs) != 1 || recs[0]["Node"] != "srv02" || recs[0]["AuditID"] != "1767225800.001:44" ||
+		recs[0]["SyscallName"] != "openat" {
+		t.Fatalf("node event: %v", recs)
+	}
+}

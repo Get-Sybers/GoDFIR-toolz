@@ -30,6 +30,10 @@ import (
 type Origin struct {
 	Image  string `json:"Image,omitempty"`
 	Volume string `json:"Volume,omitempty"`
+	// FSUUID and Label are the volume's durable identity — the role a drive
+	// serial plays on Windows: what fstab/crypttab rows and mount units name.
+	FSUUID string `json:"FSUUID,omitempty"`
+	Label  string `json:"Label,omitempty"`
 	Path   string `json:"Path,omitempty"`
 	Inode  uint64 `json:"Inode,omitempty"`
 }
@@ -162,6 +166,8 @@ const ManifestName = "materialise.jsonl"
 type Manifest struct {
 	image  string
 	volume string
+	fsuuid string
+	label  string
 	rows   map[string]manifestRow
 }
 
@@ -224,11 +230,19 @@ func (m *Manifest) addRow(raw map[string]any) {
 		if v := get("volume"); v != "" {
 			m.volume = v
 		}
+		if v := get("fsuuid"); v != "" {
+			m.fsuuid = v
+		}
+		if v := get("label"); v != "" {
+			m.label = v
+		}
 		return
 	}
 	row := manifestRow{origin: Origin{
 		Image:  get("image"),
 		Volume: get("volume"),
+		FSUUID: get("fsuuid"),
+		Label:  get("label"),
 		Path:   volumePath(path),
 		Inode:  getU("inode", "mftid"),
 	}}
@@ -285,6 +299,12 @@ func (m *Manifest) Stamp(rel string) (*Origin, *Snapshot, *Residue) {
 	}
 	if o.Volume == "" {
 		o.Volume = m.volume
+	}
+	if o.FSUUID == "" {
+		o.FSUUID = m.fsuuid
+	}
+	if o.Label == "" {
+		o.Label = m.label
 	}
 	return &o, row.snapshot, row.residue
 }

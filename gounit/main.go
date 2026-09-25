@@ -70,6 +70,10 @@ type unitRecord struct {
 	Persistent      string   `json:"Persistent,omitempty"`
 	Unit_           string   `json:"TimerUnit,omitempty"` // a timer's [Timer] Unit=
 	ListenStream    []string `json:"ListenStream,omitempty"`
+	What            string   `json:"What,omitempty"`
+	Where           string   `json:"Where,omitempty"`
+	MountType       string   `json:"MountType,omitempty"`
+	MountOptions    string   `json:"MountOptions,omitempty"`
 	WantedBy        []string `json:"WantedBy,omitempty"`
 	RequiredBy      []string `json:"RequiredBy,omitempty"`
 	Also            []string `json:"Also,omitempty"`
@@ -209,6 +213,12 @@ func (r *unitRecord) apply(section, k, v string) {
 		}
 	case "service", "mount", "swap":
 		switch lk {
+		case "what":
+			r.What = v
+		case "where":
+			r.Where = v
+		case "options":
+			r.MountOptions = v
 		case "execstart":
 			addOrReset(&r.ExecStart, v)
 		case "execstartpre":
@@ -224,7 +234,11 @@ func (r *unitRecord) apply(section, k, v string) {
 		case "execcondition":
 			addOrReset(&r.ExecCondition, v)
 		case "type":
-			r.ServiceType = v
+			if section == "service" {
+				r.ServiceType = v
+			} else {
+				r.MountType = v
+			}
 		case "user":
 			r.User = v
 		case "group":
