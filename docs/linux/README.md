@@ -26,7 +26,9 @@ has three pillars:
 2. **Fourteen Linux parsers** (`gojournal`, `goauditd`, `gowtmp`,
    `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`,
    `gohost`, `gonetwork`, `goctl`, `gopkg`, `goacct`) — each a framework-conformant Tier-1 image from its first
-   commit, with record schemas designed against the byakugan data model
+   commit — every one a **daemon parser** (§4): it reads what one daemon
+   writes or is told — with record schemas designed against the byakugan
+   data model
    (§4.1): the parsers extract everything byakugan's CAR maps need — typed
    rows, native vocabulary, identity fields, join keys — and derive nothing
    byakugan owns (relationships, canonicalisation, enrichment).
@@ -270,14 +272,16 @@ records still go to files under `OUT_DIR`; exit codes stay `0/1/2/3`
 ## 4. The Linux parser set
 
 Fourteen tools, one artefact class each, all Tier-1 shape from birth —
-and the set is **capped by the method** (decision 13): the core is the
-OS's own record-keeping — the journal, systemd, and the logs the system
-produces (`gojournal`, `gounit`, `goauditd`, `gosyslog`, `gowtmp`, with
-`gopkg`'s package-manager logs and `goacct`'s kernel accounting in the
-same stream) — and the remaining tools are the one-pass supporting
-context those records need (who the host is, how volumes map, what was
-scheduled, configured or thrown away). Growth happens by deepening the
-core, never by adding more configuration-surface parsers.
+and one organising principle (decision 13): **everything is a daemon
+parser**. Each tool reads one daemon's records: the core parses what a
+daemon *writes* (journald — the relay every other daemon logs through —
+auditd, the login machinery, the syslog daemons, the shells, the package
+managers, the kernel's own accounting), and the supporting tools parse
+what a daemon *is told* (sshd's and PAM's account material, crond's
+tabs, systemd's units, the kernel's sysctl and module policy, the
+network daemons' profiles, the mount generators' fstab). The set is
+capped by that principle: growth happens by deepening the daemons'
+record streams, never by adding parsers for things no daemon owns.
 
 Every tool is `FROM scratch`, static, `USER 2000:2000`, with a
 `contract.yml`, batch mode on no arguments, argv/`--tar` debug pass-through, JSONL output (the one record
@@ -287,22 +291,26 @@ implementation time; where no permissive pure-Go library holds up, the format
 is clean-roomed from its documentation — these are documented formats, and
 clean-room over an `io.ReaderAt` is how gomount's partition code was built.
 
-| Tool | Artefacts | Windows analogue | Phase |
-|---|---|---|---|
-| `gojournal` | systemd journal `*.journal` files | goevtx | L1 |
-| `goauditd` | auditd `audit.log*` | goevtx (Security) | L1 |
-| `gowtmp` | wtmp/utmp/btmp, lastlog, wtmpdb | goevtx logon events | L0 (pilot) |
-| `gosyslog` | syslog-family text logs | — (text logs) | L1 |
-| `goshell` | shell/REPL histories | — (closest: console artefacts) | L1 |
-| `gousers` | passwd/shadow/group, sudoers, SSH material | SAM via gore | L1 |
-| `gocron` | crontabs, cron.d, anacron, at | Scheduled Tasks via gore | L1 |
-| `gounit` | systemd units/timers + enablement | Services/Run keys via gore | L1 |
-| `gotrash` | XDG Trash | gorb | L1 |
-| `gohost` | host identity + fstab/crypttab volume mapping | registry system hives via gore | L1 |
-| `gonetwork` | network configuration surface | network registry keys via gore | L1 |
-| `goctl` | kernel/loader control surface (sysctl, modprobe, ld.so) | Run keys / IFEO via gore | L1 |
-| `gopkg` | dpkg/rpm/pacman/apk + snap/flatpak | goamcache/goappcompat | L4 |
-| `goacct` | process accounting `pacct` | goprefetch | L4 |
+| Tool | Daemon | Reads | Artefacts | Phase |
+|---|---|---|---|---|
+| `gojournal` | systemd-journald — the relay every daemon logs through | writes | systemd journal `*.journal` files | L1 |
+| `goauditd` | auditd / kauditd | writes | auditd `audit.log*` | L1 |
+| `gowtmp` | the login machinery (login, sshd, systemd-logind) | writes | wtmp/utmp/btmp, lastlog, wtmpdb | L0 (pilot) |
+| `gosyslog` | rsyslog / syslog-ng — the fallback relay | writes | syslog-family text logs | L1 |
+| `goshell` | the user's shells and REPLs | writes | shell/REPL histories | L1 |
+| `gousers` | sshd, PAM and the account machinery | is told | passwd/shadow/group, sudoers, SSH material | L1 |
+| `gocron` | crond / anacron / atd | is told | crontabs, cron.d, anacron, at | L1 |
+| `gounit` | systemd (pid 1) itself | is told | units/timers + enablement | L1 |
+| `gotrash` | the desktop's trash machinery (gvfsd-trash) | writes | XDG Trash | L1 |
+| `gohost` | systemd-hostnamed/timedated + the mount generators | is told | host identity + fstab/crypttab volume mapping | L1 |
+| `gonetwork` | NetworkManager / systemd-networkd / the resolver / netfilter | is told | network configuration surface | L1 |
+| `goctl` | the kernel and the dynamic loader | is told | sysctl, modprobe, ld.so | L1 |
+| `gopkg` | dpkg/rpm/pacman/apk and snapd | writes | package logs, state stores, snap/flatpak | L4 |
+| `goacct` | the kernel's process accounting | writes | `pacct` | L4 |
+
+(The Windows analogues the earlier revisions tabulated — goevtx for the
+record streams, gore's registry surfaces for the told-side — hold
+unchanged; the daemon column is the organising principle.)
 
 ### 4.1 Records are designed against the byakugan data model
 
@@ -850,7 +858,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 10 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted (never minted), declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
 | 11 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
 | 12 | Records are **JSONL only** — one JSON object per record; CSV is not an output format anywhere in the Linux path and no `<TOOL>_FORMAT` variable exists. A tool that ever needs interim storage beyond streaming (sorting or aggregation past memory) uses a database format (SQLite via the cgo-free driver) in its `WORK_DIR` scratch — never an interchange text format — and the record files stay the JSONL interface |
-| 13 | **The method**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). That core is where depth is added; the configuration-surface tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method. The journal is also the **primary pathway**: the typed event families (sshd, sudo, pam, cron) are defined once in `pinfo/families` and recognised wherever that stream surfaces — the journal first, the flat logs as fallback — so even SSH evidence flows through the journal mechanism, one shape from either source |
+| 13 | **The method — everything is a daemon parser**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). Each tool reads one daemon's stream — the core what a daemon writes, the supporting tools what a daemon is told. That core is where depth is added; the told-side tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method. The journal is also the **primary pathway**: the typed event families (sshd, sudo, pam, cron) are defined once in `pinfo/families` and recognised wherever that stream surfaces — the journal first, the flat logs as fallback — so even SSH evidence flows through the journal mechanism, one shape from either source |
 
 ### 11.2 Open questions
 

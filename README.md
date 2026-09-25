@@ -32,10 +32,15 @@ verifies it the same way as for the .NET images.
 
 ## The Linux Go parsers (docs/linux — the same shape, second OS)
 
-Twelve static Go binaries for the Linux artefact classes, built on the shared
+Twelve static Go binaries for the Linux artefact classes — **every one a
+daemon parser**: each reads what one daemon writes (journald, the relay
+every other daemon logs through; auditd; the login machinery; the shells)
+or what one daemon is told (systemd's units, crond's tabs, sshd's account
+material, the kernel's sysctl). Built on the shared
 [`pinfo/`](docs/linux/README.md) module (batch runtime, record envelope,
-provenance stamping) instead of a copied `batch.go`, and therefore built
-with the **repo root as context**. Same hardening contract: `FROM scratch`,
+provenance stamping, the typed-event families the journal pathway and the
+flat logs share) instead of a copied `batch.go`, and therefore built with
+the **repo root as context**. Same hardening contract: `FROM scratch`,
 one static binary, `USER 2000:2000`.
 
 - [gowtmp/](gowtmp/README.md) — Linux logins: utmp/wtmp/btmp `struct utmp` records + the sparse lastlog table
