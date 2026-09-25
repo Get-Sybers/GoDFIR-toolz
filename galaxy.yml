@@ -1,0 +1,50 @@
+# ==============================================================================
+# galaxy.yml — GoDFIR-toolz as an installable Ansible collection.
+#
+# The plug-and-play contract: this repository SUPPLIES the get-sybers/* image
+# inventory (images.yml) and every build context, and a consumer plugs it in
+# one of two ways:
+#
+#   A. direct reference — a git submodule (or checkout) pinned by the consumer;
+#      DX_DFIR consumes this way (docker/GoDFIR-toolz at its gitlink pin).
+#   B. ansible-galaxy — install straight from git, no submodule:
+#        ansible-galaxy collection install \
+#          'git+https://github.com/Get-Sybers/GoDFIR-toolz.git'
+#      The collection lands with images.yml and the build contexts intact under
+#      ansible_collections/get_sybers/godfir_toolz/ for the consumer's build
+#      role to read. Publishing to galaxy.ansible.com is the release step on
+#      top of this same file.
+#
+# Both modes read the SAME files, so the inventory cannot fork between them.
+# ==============================================================================
+namespace: get_sybers
+name: godfir_toolz
+version: 0.1.0
+readme: README.md
+authors:
+  - Get-Sybers
+description: >-
+  The hardened get-sybers/* DFIR tool-image BUILD galaxy: the canonical image
+  inventory (images.yml), every image's build context and contract.yml, the
+  shared hardening playbook (hardening/harden.yml), the conformance tooling
+  (conform.sh), and the godfir_build role + build_images playbook that build
+  and hardening-verify every image from the manifest — Windows Go parsers,
+  the Linux daemon matrix, gomount, the .NET tool recipe, and the pipeline
+  images (byakugan, plaso, signatures, zeek, anamnesis).
+license:
+  - Apache-2.0
+dependencies:
+  # godfir_build drives docker through these modules; consumers that pin an
+  # exact version (DX_DFIR's requirements.yml) satisfy this range.
+  community.docker: ">=3.10.3,<5.0.0"
+tags:
+  - dfir
+  - forensics
+  - docker
+  - security
+  - tools
+repository: https://github.com/Get-Sybers/GoDFIR-toolz
+issues: https://github.com/Get-Sybers/GoDFIR-toolz/issues
+build_ignore:
+  - .gitignore
+  - "*/.conform-build.log"

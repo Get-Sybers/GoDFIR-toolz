@@ -1,0 +1,85 @@
+---
+# godfir_build: gather the build facts (manifest, tree, stamps), resolve the
+# requested set, then build + verify each image. Ansible tasks end to end —
+# the launcher scripts only invoke the playbook that runs this role.
+
+- name: "godfir-build | assert the manifest loaded"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_manifest.images | default([]) | length > 0
+    fail_msg: >-
+      {{ godfir_build_root }}/images.yml is missing or empty — the image
+      inventory ships at the collection/repo root (a consumer whose submodule
+      checkout skipped it has no inventory and no build contexts).
+    quiet: true
+
+- name: "godfir-build | docker daemon reachable"
+  ansible.builtin.command: docker version
+  register: godfir_build_docker
+  changed_when: false
+
+# The hardening playbook has ONE canonical home: hardening/harden.yml at the
+# root. Every repo-root-context Dockerfile COPYs it directly — nothing is
+# synced or generated. A tree without it is not a build tree — fail early.
+- name: "godfir-build | stat the canonical hardening playbook"
+  ansible.builtin.stat:
+    path: "{{ godfir_build_root }}/hardening/harden.yml"
+  register: godfir_build_harden_stat
+
+- name: "godfir-build | the build tree is complete"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_harden_stat.stat.exists
+    fail_msg: >-
+      {{ godfir_build_root }}/hardening/harden.yml is missing — the build tree
+      is incomplete (a partial checkout, or a consumer whose GoDFIR-toolz
+      submodule is not initialised: git submodule update --init --recursive).
+    quiet: true
+
+# The source identity to stamp (com.get-sybers.src) and the release tag: an
+# explicit var wins; a git checkout answers next; an installed collection has
+# no .git, so its MANIFEST.json version stands in; 'unknown'/'dev' close the
+# chain so the build never blocks on identity.
+- name: "godfir-build | resolve the checkout revision"
+  # noqa: command-instead-of-module — read-only rev-parse; the git module clones.
+  ansible.builtin.command:
+    argv: [git, -C, "{{ godfir_build_root }}", rev-parse, HEAD]
+  register: godfir_build_git_head
+  changed_when: false
+  failed_when: false
+  when: godfir_build_src_sha | length == 0
+
+- name: "godfir-build | resolve the release tag"
+  # noqa: command-instead-of-module — read-only describe; the git module clones.
+  ansible.builtin.command:
+    argv: [git, -C, "{{ godfir_build_root }}", describe, --tags, --always]
+  register: godfir_build_git_describe
+  changed_when: false
+  failed_when: false
+  when: godfir_build_release | length == 0
+
+- name: "godfir-build | keep the stamps as facts"
+  vars:
+    _collection_version: >-
+      {{ ((lookup('file', godfir_build_root ~ '/MANIFEST.json', errors='ignore')
+           | default('', true) | from_json) or {}).collection_info.version | default('') }}
+  ansible.builtin.set_fact:
+    godfir_build_src: >-
+      {{ godfir_build_src_sha
+         if godfir_build_src_sha | length > 0
+         else (((godfir_build_git_head.stdout | default('')) | trim)
+               or _collection_version or 'unknown') }}
+    godfir_build_rel: >-
+      {{ godfir_build_release
+         if godfir_build_release | length > 0
+         else (((godfir_build_git_describe.stdout | default('')) | trim)
+               or _collection_version or 'dev') }}
+
+- name: "godfir-build | resolve the requested set against the manifest"
+  ansible.builtin.include_tasks: resolve.yml
+
+- name: "godfir-build | build + verify each image"
+  ansible.builtin.include_tasks: build_one.yml
+  loop: "{{ godfir_build_resolved }}"
+  loop_control:
+    loop_var: godfir_build_name

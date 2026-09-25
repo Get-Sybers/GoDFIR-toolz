@@ -1,0 +1,52 @@
+---
+argument_specs:
+  main:
+    short_description: Build get-sybers/* images from images.yml and verify the hardening contract on each
+    description:
+      - Builds the requested manifest images (or all of them) with BuildKit,
+        stamps each with the source revision (com.get-sybers.src) so a source
+        bump replaces stale images without force, and verifies every result -
+        the static contract (fixed non-root USER, com.get-sybers.hardened
+        label), a shell-free docker-export filesystem scan for the removed
+        surface, and the image's own /etc/dfir-hardened posture declaration
+        (shell=false / python=false are held to the actual filesystem).
+      - The role groups; the caller decides. build-all.sh launches the
+        collection playbook, DX_DFIR's dxdfir_images delegates here at its
+        submodule pin, and a galaxy install exposes the same role as
+        get_sybers.godfir_toolz.godfir_build.
+    options:
+      godfir_build_set:
+        type: list
+        elements: str
+        default: []
+        description: "Image names or aliases from images.yml, case-insensitive; empty builds every manifest image in order."
+      godfir_build_force:
+        type: bool
+        default: false
+        description: "Rebuild even when an image's source stamp is current (docker build cache still applies)."
+      godfir_build_uid:
+        type: str
+        default: "2000"
+        description: "Run-as uid baked into every image's USER (DFIR_UID build arg) and asserted on the result."
+      godfir_build_gid:
+        type: str
+        default: "the uid"
+        description: "Run-as gid; follows godfir_build_uid unless set."
+      godfir_build_src_sha:
+        type: str
+        default: ""
+        description:
+          - "The source identity to stamp (com.get-sybers.src). Empty resolves
+            git HEAD of the checkout, else the installed collection's version;
+            a consumer that knows its pin may pass it."
+      godfir_build_release:
+        type: str
+        default: ""
+        description: "The release tag passed as the GODFIR_RELEASE build arg. Empty resolves git describe, else the collection version."
+      godfir_build_root:
+        type: str
+        default: "two directories above the role"
+        description:
+          - "The collection/repo root: where images.yml, the build contexts
+            and hardening/harden.yml live. The default resolves in a source
+            checkout and an installed collection alike."

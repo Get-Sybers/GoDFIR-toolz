@@ -1,2 +1,5 @@
 *.zip
 __pycache__/
+
+# ansible-lint / ansible-galaxy local caches
+.ansible/

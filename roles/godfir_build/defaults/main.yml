@@ -1,0 +1,64 @@
+---
+# godfir_build — the build galaxy's one role: build get-sybers/* images from
+# images.yml (the root inventory) and VERIFY the hardening contract on each.
+# The role groups; the caller decides (godfir_build_set / force / uid). It is
+# consumed three ways over the SAME tasks: build-all.sh launches the
+# collection playbook, DX_DFIR's dxdfir_images delegates here at its submodule
+# pin, and a galaxy install exposes it as get_sybers.godfir_toolz.godfir_build.
+
+# The collection/repo root — roles/godfir_build sits two levels below it in
+# the source checkout AND in an installed collection alike, so the manifest
+# and every build context resolve identically in both consumption modes.
+godfir_build_root: "{{ role_path | dirname | dirname }}"
+
+# The image inventory — images.yml at the root, THE single source of truth
+# (names, contexts, dockerfiles, args, aliases, the unbuildable map).
+godfir_build_manifest: >-
+  {{ (lookup('file', godfir_build_root ~ '/images.yml', errors='ignore') | default('', true) | from_yaml) or {} }}
+godfir_build_namespace: "{{ godfir_build_manifest.namespace | default('get-sybers') }}"
+
+# What to build: image names OR aliases from the manifest, case-insensitive;
+# empty = every image, in manifest order.
+godfir_build_set: []
+
+# Rebuild even when an image's source stamp is current (docker build cache
+# still applies).
+godfir_build_force: false
+
+# Run-as uid/gid baked into every image's USER (the DFIR_UID/DFIR_GID build
+# args) and asserted on the result.
+godfir_build_uid: 2000
+# gid follows the uid unless explicitly set, so overriding only the uid still
+# yields a matched USER <uid>:<uid>.
+godfir_build_gid: "{{ godfir_build_uid }}"
+
+# The source identity every image is stamped with (com.get-sybers.src): the
+# revision the build contexts come from. Empty = resolved in main.yml (git
+# HEAD of the checkout, else the installed collection's version). A build
+# replaces any image whose stamp no longer matches, so a source bump lands
+# without --force. A consumer that already knows its pin may pass it.
+godfir_build_src_sha: ""
+# The release tag stamped through the Dockerfiles' GODFIR_RELEASE arg.
+# Empty = resolved in main.yml (git describe, else the collection version).
+godfir_build_release: ""
+
+# alias -> canonical image name, computed from the manifest (aliases and
+# subtool_aliases alike); resolve.yml maps every request through it.
+godfir_build_alias_map: >-
+  {%- set m = {} -%}
+  {%- for e in godfir_build_manifest.images | default([]) -%}
+    {%- set _ = m.update({e.name | lower: e.name}) -%}
+    {%- for a in e.aliases | default([]) -%}
+      {%- set _ = m.update({a | lower: e.name}) -%}
+    {%- endfor -%}
+    {%- for a in e.subtool_aliases | default([]) -%}
+      {%- set _ = m.update({a | lower: e.name}) -%}
+    {%- endfor -%}
+  {%- endfor -%}
+  {{ m }}
+# The sub-tool aliases (they resolve to their parent image with a note — the
+# parser is a package of the parent binary now).
+godfir_build_subtool_aliases: >-
+  {{ godfir_build_manifest.images | default([])
+     | map(attribute='subtool_aliases', default=[]) | flatten
+     | map('lower') | list }}

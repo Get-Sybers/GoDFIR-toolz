@@ -35,6 +35,9 @@ recursively (symlinks ignored); every file matched by extension `.raw .mem
 | `ANAMNESIS_PLUGINS` | *(empty)* | comma-separated collector names; empty = the default CAR set |
 | `ANAMNESIS_FORCE` | `0` | `1/true/yes/on`: rerun collectors that already have valid output |
 | `ANAMNESIS_SEED_DIR` | `/opt/anamnesis/seed-offsets` | read-only build-time offset-store seeds; read after the mounted cache and `/tmp`, never written |
+| `ANAMNESIS_SIG_DIR` | `/opt/anamnesis/seed-signatures` | read-only build-time fingerprint signatures; masked patterns that locate non-exported kernel globals, applied only after the runtime self-test passes |
+| `ANAMNESIS_STALL_TIMEOUT` | `5m` | per-collector stall watchdog, a Go duration (`0` disables); a collector blocked in the native engine past it is recorded in `plugins/<plugin>.stalled` and the batch re-execs itself to resume — after two stalls the collector is skipped as failed |
+| `ANAMNESIS_POOLSCAN` | *(empty)* | opt-in (`1/true/yes/on`) DKOM-resistant pool-tag scan for process objects, cross-checked against the enumerated set and typed via the recovered `ObHeaderCookie`; off by default because the underlying pool map can deadlock on some crash-dump images |
 
 There is no symbol variable: the engine is **always offline** and never
 touches the network. The PDB symbol cache lives in a persistent host
