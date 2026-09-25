@@ -29,6 +29,14 @@ hardened tool images:
   manifest image present + hardened, no unexpected namespace image; allow-list
   = the manifest + `non_tool_repos`) — the ansible successors of DX_DFIR's
   retired python guard.
+- **molecule coverage** — `roles/godfir_build/molecule/default` runs the whole
+  gate matrix offline against a committed FROM-scratch fixture (`molecule
+  test`): the build with stamps and env pins, molecule's own idempotence
+  gate, staleness replacement, alias/subtool resolution, the four build
+  negatives (unknown, unbuildable, declared-shell violation, missing
+  declaration), the runtime verify gate (pass / unknown / digest pin /
+  wrong uid) and the audit (clean + aggregated violations with the
+  `non_tool_repos` exemption honoured).
 - **`galaxy.yml`** — the repo installs as the `get_sybers.godfir_toolz`
   collection (`ansible-galaxy collection install git+https://github.com/Get-Sybers/GoDFIR-toolz.git`),
   carrying the manifest, the build role and every build context.

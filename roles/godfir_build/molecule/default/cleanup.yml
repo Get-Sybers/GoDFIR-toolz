@@ -1,0 +1,19 @@
+---
+# Remove everything the scenario created or tagged, so the host daemon holds
+# no fixture residue after a run (pass or fail alike).
+- name: Cleanup
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "cleanup | remove the fixture images"
+      community.docker.docker_image:
+        name: "{{ item }}"
+        state: absent
+        force_absent: true
+      loop:
+        - get-sybers/standin:latest
+        - get-sybers/rootctx:latest
+        - get-sybers/badshell:latest
+        - get-sybers/nodecl:latest
+        - get-sybers/evil:latest
+        - get-sybers/friendly:latest

@@ -194,7 +194,10 @@ Per tool, `conform.sh <tool>` checks the layout, the Dockerfile standards,
 `contract.yml` and the README against the white paper (`--build` also builds
 the image and cross-checks the built artifact), and `<tool>/test/contract_test.sh`
 runs the image over `test/fixtures/` in batch mode and asserts the summary
-line, the exit code, idempotency and the config-error exit. The `godfir_build`
+line, the exit code, idempotency and the config-error exit. The build galaxy
+itself is molecule-tested (`roles/godfir_build/molecule/default` — `molecule
+test` runs the whole gate matrix, negatives included, offline against a
+committed fixture). The `godfir_build`
 role stamps every image with the checkout revision and the release tag, and
 replaces any image whose `com.get-sybers.src` stamp went stale.
 

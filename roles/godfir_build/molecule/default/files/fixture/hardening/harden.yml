@@ -1,0 +1,3 @@
+---
+# fixture stand-in for the canonical hardening playbook: the role only
+# presence-checks it (hardening/harden.yml at the root proves the tree).

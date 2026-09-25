@@ -1,0 +1,284 @@
+---
+# The full gate matrix over the committed fixture — every case ansible tasks,
+# no shell: stamps and env pins, staleness replacement, alias resolution, the
+# four build negatives, the runtime verify gate (pass / unknown / digest /
+# wrong uid) and the audit (clean + aggregated violations with the non_tool
+# exemption). Every negative runs the role inside a block and asserts the
+# rescue caught the EXPECTED refusal — passing when it should fail, or
+# failing for the wrong reason, fails the scenario.
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    # ---- the converged image carries the contract, the stamp and the env pin
+    - name: "verify | inspect standin"
+      community.docker.docker_image_info:
+        name: get-sybers/standin:latest
+      register: godfir_build_mol_standin
+
+    - name: "verify | standin is hardened, stamped and env-pinned"
+      vars:
+        godfir_build_mol_cfg: "{{ godfir_build_mol_standin.images[0].Config }}"
+      ansible.builtin.assert:
+        that:
+          - godfir_build_mol_standin.images | length == 1
+          - godfir_build_mol_cfg.User == '2000:2000'
+          - godfir_build_mol_cfg.Labels['com.get-sybers.hardened'] == 'true'
+          - godfir_build_mol_cfg.Labels['com.get-sybers.src'] == godfir_molecule_src
+          - godfir_build_mol_cfg.Labels['testpin'] == 'pin123'
+          - godfir_build_mol_cfg.Labels['rel'] == 'molecule'
+        quiet: true
+
+    # ---- staleness: a new source revision replaces the image without force
+    - name: "verify | rebuild standin at a NEW source revision"
+      ansible.builtin.include_role:
+        name: godfir_build
+      vars:
+        godfir_build_root: "{{ godfir_molecule_root }}"
+        godfir_build_set: [standin]
+        godfir_build_src_sha: molecule-src-b
+        godfir_build_release: molecule
+
+    - name: "verify | inspect the replaced standin"
+      community.docker.docker_image_info:
+        name: get-sybers/standin:latest
+      register: godfir_build_mol_standin_b
+
+    - name: "verify | count dangling images"
+      community.docker.docker_host_info:
+        images: true
+        images_filters:
+          dangling: true
+      register: godfir_build_mol_dangling
+
+    - name: "verify | the stamp moved and the replaced image is gone"
+      ansible.builtin.assert:
+        that:
+          - godfir_build_mol_standin_b.images[0].Config.Labels['com.get-sybers.src'] == 'molecule-src-b'
+          - godfir_build_mol_standin_b.images[0].Id != godfir_build_mol_standin.images[0].Id
+          - godfir_build_mol_dangling.images | length == 0
+        quiet: true
+
+    # ---- aliases resolve (stalias -> standin; subx -> rootctx with the note)
+    - name: "verify | aliases and subtool aliases resolve"
+      ansible.builtin.include_role:
+        name: godfir_build
+      vars:
+        godfir_build_root: "{{ godfir_molecule_root }}"
+        godfir_build_set: [stalias, subx]
+        godfir_build_src_sha: molecule-src-b
+        godfir_build_release: molecule
+
+    # ---- build negatives ----------------------------------------------------
+    - name: "verify | an unknown tool is refused before anything builds"
+      block:
+        - name: "verify | build nosuch (must fail)"
+          ansible.builtin.include_role:
+            name: godfir_build
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_set: [nosuch]
+        - name: "verify | nosuch built — the resolve gate did not bite"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | the refusal names the unknown tool"
+          ansible.builtin.assert:
+            that:
+              - "'unknown tool' in (ansible_failed_result | to_json)"
+            quiet: true
+
+    - name: "verify | an unbuildable tool is refused with its reason"
+      block:
+        - name: "verify | build vscmount (must fail)"
+          ansible.builtin.include_role:
+            name: godfir_build
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_set: [vscmount]
+        - name: "verify | vscmount built — the unbuildable gate did not bite"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | the refusal carries the manifest's message"
+          ansible.builtin.assert:
+            that:
+              - "'no container for this fixture tool' in (ansible_failed_result | to_json)"
+            quiet: true
+
+    - name: "verify | a declared shell=false image shipping a shell fails the scan"
+      block:
+        - name: "verify | build badshell (must fail)"
+          ansible.builtin.include_role:
+            name: godfir_build
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_set: [badshell]
+            godfir_build_src_sha: molecule-src-b
+            godfir_build_release: molecule
+        - name: "verify | badshell passed — the declaration gate did not bite"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | the failure names the shell violation"
+          ansible.builtin.assert:
+            that:
+              - "'a shell is present' in (ansible_failed_result | to_json)"
+            quiet: true
+
+    - name: "verify | an image without /etc/dfir-hardened fails the posture gate"
+      block:
+        - name: "verify | build nodecl (must fail)"
+          ansible.builtin.include_role:
+            name: godfir_build
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_set: [nodecl]
+            godfir_build_src_sha: molecule-src-b
+            godfir_build_release: molecule
+        - name: "verify | nodecl passed — the declaration gate did not bite"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | the failure names the missing declaration"
+          ansible.builtin.assert:
+            that:
+              - "'ships no /etc/dfir-hardened declaration' in (ansible_failed_result | to_json)"
+            quiet: true
+
+    # ---- the runtime verify gate -------------------------------------------
+    - name: "verify | the gate passes a manifest image and ignores a foreign one"
+      ansible.builtin.include_role:
+        name: godfir_build
+        tasks_from: verify
+      vars:
+        godfir_build_root: "{{ godfir_molecule_root }}"
+        godfir_build_verify_images:
+          - get-sybers/standin:latest
+          - docker.elastic.co/kibana/kibana:9.0.0
+
+    - name: "verify | the gate refuses a namespace ref outside the manifest"
+      block:
+        - name: "verify | gate evil (must fail)"
+          ansible.builtin.include_role:
+            name: godfir_build
+            tasks_from: verify
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_verify_images: [get-sybers/evil:latest]
+        - name: "verify | evil passed the gate"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | the refusal is a membership refusal"
+          ansible.builtin.assert:
+            that:
+              - "'not a known' in (ansible_failed_result | to_json)"
+            quiet: true
+
+    - name: "verify | a digest pin of a KNOWN repo passes membership, fails presence"
+      block:
+        - name: "verify | gate a local-only digest pin (must fail at presence)"
+          ansible.builtin.include_role:
+            name: godfir_build
+            tasks_from: verify
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_verify_images:
+              - "get-sybers/standin@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        - name: "verify | the digest pin passed"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | membership held; presence failed"
+          ansible.builtin.assert:
+            that:
+              - "'image not present' in (ansible_failed_result | to_json)"
+              - "'not a known' not in (ansible_failed_result | to_json)"
+            quiet: true
+
+    - name: "verify | overwrite the rootctx tag with a wrong-uid build"
+      community.docker.docker_image_build:
+        name: get-sybers/rootctx
+        tag: latest
+        rebuild: always
+        path: "{{ godfir_molecule_root }}/standin"
+        dockerfile: Dockerfile
+        args:
+          DFIR_UID: "1234"
+          DFIR_GID: "1234"
+
+    - name: "verify | the gate refuses the wrong-uid image"
+      block:
+        - name: "verify | gate the wrong-uid rootctx (must fail)"
+          ansible.builtin.include_role:
+            name: godfir_build
+            tasks_from: verify
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_verify_images: [get-sybers/rootctx:latest]
+        - name: "verify | the wrong-uid image passed the gate"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | the refusal names the uid"
+          ansible.builtin.assert:
+            that:
+              - "'runs as 1234:1234' in (ansible_failed_result | to_json)"
+            quiet: true
+
+    - name: "verify | restore the proper rootctx through the role"
+      ansible.builtin.include_role:
+        name: godfir_build
+      vars:
+        godfir_build_root: "{{ godfir_molecule_root }}"
+        godfir_build_set: [rootctx]
+        godfir_build_force: true
+        godfir_build_src_sha: molecule-src-b
+        godfir_build_release: molecule
+
+    # ---- the audit ----------------------------------------------------------
+    # badshell and nodecl exist as images (their builds succeeded; the gates
+    # failed AFTER), and they carry USER + label — so the audit's runtime
+    # contract sees all four manifest images present and hardened.
+    - name: "verify | the audit is clean with all four present"
+      ansible.builtin.include_role:
+        name: godfir_build
+        tasks_from: audit
+      vars:
+        godfir_build_root: "{{ godfir_molecule_root }}"
+
+    - name: "verify | remove an expected image"
+      community.docker.docker_image:
+        name: get-sybers/nodecl:latest
+        state: absent
+        force_absent: true
+
+    - name: "verify | tag an unexpected namespace image and an allowed non-tool"
+      community.docker.docker_image:
+        name: get-sybers/standin:latest
+        repository: "{{ item }}"
+        source: local
+      loop:
+        - get-sybers/evil:latest
+        - get-sybers/friendly:latest
+
+    - name: "verify | the audit aggregates the violations and honours the exemption"
+      block:
+        - name: "verify | audit the broken inventory (must fail)"
+          ansible.builtin.include_role:
+            name: godfir_build
+            tasks_from: audit
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+        - name: "verify | the broken inventory audited clean"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | both violations named, the non-tool exempt"
+          ansible.builtin.assert:
+            that:
+              - "'get-sybers/nodecl:latest: image not present' in (ansible_failed_result | to_json)"
+              - "'get-sybers/evil:latest: unexpected' in (ansible_failed_result | to_json)"
+              - "'friendly' not in (ansible_failed_result | to_json)"
+            quiet: true
