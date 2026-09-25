@@ -103,7 +103,9 @@
       set -o pipefail
       cid=$(docker create {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}:latest __export_only__)
       docker export "$cid" | tar -t
+      rc=$?
       docker rm -f "$cid" >/dev/null
+      exit "$rc"
   args:
     executable: /bin/bash
   register: godfir_build_fs
@@ -147,7 +149,9 @@
       set -o pipefail
       cid=$(docker create {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}:latest __export_only__)
       docker export "$cid" | tar -xO etc/dfir-hardened
+      rc=$?
       docker rm -f "$cid" >/dev/null
+      exit "$rc"
   args:
     executable: /bin/bash
   register: godfir_build_decl

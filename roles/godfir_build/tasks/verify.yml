@@ -12,9 +12,15 @@
 #       godfir_build_verify_images: ["get-sybers/goevtx:latest", ...]
 #
 # Refs outside the namespace (a documented operator-supplied image) are out
-# of scope and pass untouched. A digest-pinned override of a known repo
-# (get-sybers/goevtx@sha256:...) is gated exactly like its tag: the digest is
-# stripped for the MEMBERSHIP check, and the ref is inspected as given.
+# of scope and pass untouched — but a REGISTRY-QUALIFIED namespace ref
+# (docker.io/<ns>/tool, ghcr.io/<ns>/tool, reg:5000/<ns>/tool) is IN scope:
+# the registry segment (docker's own heuristic — a first path component with
+# a dot or colon, or `localhost`) is normalized away for the membership
+# check, so prefixing a registry can never smuggle a ref past the gate. A
+# digest-pinned override of a known repo (get-sybers/goevtx@sha256:...) is
+# gated exactly like its tag: the digest is stripped for MEMBERSHIP, and the
+# ref is inspected AS GIVEN — so a registry-qualified ref must itself exist
+# locally and carry the contract.
 
 - name: "godfir-verify | assert the root inventory contract"
   ansible.builtin.include_tasks: inventory.yml
@@ -23,20 +29,23 @@
   ansible.builtin.set_fact:
     godfir_build_verify_scope: >-
       {{ godfir_build_verify_images
-         | select('match', '^' ~ (godfir_build_namespace | regex_escape) ~ '/')
+         | select('match', '^((localhost|[^/]*[.:][^/]*)/)?'
+                           ~ (godfir_build_namespace | regex_escape) ~ '/')
          | list }}
     # The manifest repos — the ONLY namespace repos allowed to run.
     godfir_build_verify_known: >-
       {{ godfir_build_manifest.images | map(attribute='name')
          | map('regex_replace', '^', godfir_build_namespace ~ '/') | list }}
 
-# Membership first, on the normalized repo: an @sha256 digest is dropped, and
-# a trailing :tag is dropped only when the colon comes after the last slash
-# (a colon before that is a registry port and stays).
+# Membership on the fully normalized repo: an optional registry segment is
+# dropped first, then an @sha256 digest, then a trailing :tag — the tag colon
+# only when it comes after the last slash (a colon before that is a registry
+# port, already handled by the first strip).
 - name: "godfir-verify | refuse namespace refs the manifest does not know"
   vars:
     godfir_build_verify_unknown: >-
       {{ godfir_build_verify_scope
+         | map('regex_replace', '^(localhost|[^/]*[.:][^/]*)/', '')
          | map('regex_replace', '@.*$', '')
          | map('regex_replace', ':[^/]+$', '')
          | reject('in', godfir_build_verify_known) | list }}

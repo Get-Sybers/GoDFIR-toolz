@@ -147,7 +147,7 @@
             quiet: true
 
     # ---- the runtime verify gate -------------------------------------------
-    - name: "verify | the gate passes a manifest image and ignores a foreign one"
+    - name: "verify | the gate passes a manifest image (registry-qualified too) and ignores a foreign one"
       ansible.builtin.include_role:
         name: godfir_build
         tasks_from: verify
@@ -155,6 +155,9 @@
         godfir_build_root: "{{ godfir_molecule_root }}"
         godfir_build_verify_images:
           - get-sybers/standin:latest
+          # the docker.io prefix is the same hub image: in scope, membership
+          # holds after registry normalization, and the local inspect resolves
+          - docker.io/get-sybers/standin:latest
           - docker.elastic.co/kibana/kibana:9.0.0
 
     - name: "verify | the gate refuses a namespace ref outside the manifest"
@@ -171,6 +174,25 @@
             msg: unexpected-pass
       rescue:
         - name: "verify | the refusal is a membership refusal"
+          ansible.builtin.assert:
+            that:
+              - "'not a known' in (ansible_failed_result | to_json)"
+            quiet: true
+
+    - name: "verify | a registry prefix can not smuggle a ref past the gate"
+      block:
+        - name: "verify | gate ghcr.io/get-sybers/evil (must fail membership)"
+          ansible.builtin.include_role:
+            name: godfir_build
+            tasks_from: verify
+          vars:
+            godfir_build_root: "{{ godfir_molecule_root }}"
+            godfir_build_verify_images: [ghcr.io/get-sybers/evil:latest]
+        - name: "verify | the registry-prefixed ref bypassed the gate"
+          ansible.builtin.fail:
+            msg: unexpected-pass
+      rescue:
+        - name: "verify | the registry segment was normalized away for membership"
           ansible.builtin.assert:
             that:
               - "'not a known' in (ansible_failed_result | to_json)"
@@ -254,13 +276,14 @@
         state: absent
         force_absent: true
 
-    - name: "verify | tag an unexpected namespace image and an allowed non-tool"
+    - name: "verify | tag an unexpected namespace image (bare AND registry-prefixed) and an allowed non-tool"
       community.docker.docker_image:
         name: get-sybers/standin:latest
         repository: "{{ item }}"
         source: local
       loop:
         - get-sybers/evil:latest
+        - ghcr.io/get-sybers/evil:latest
         - get-sybers/friendly:latest
 
     - name: "verify | the audit aggregates the violations and honours the exemption"
@@ -275,10 +298,11 @@
           ansible.builtin.fail:
             msg: unexpected-pass
       rescue:
-        - name: "verify | both violations named, the non-tool exempt"
+        - name: "verify | all violations named (registry prefix included), the non-tool exempt"
           ansible.builtin.assert:
             that:
               - "'get-sybers/nodecl:latest: image not present' in (ansible_failed_result | to_json)"
               - "'get-sybers/evil:latest: unexpected' in (ansible_failed_result | to_json)"
+              - "'ghcr.io/get-sybers/evil:latest: unexpected' in (ansible_failed_result | to_json)"
               - "'friendly' not in (ansible_failed_result | to_json)"
             quiet: true

@@ -55,14 +55,21 @@
           {%- endif -%}
         {%- endif -%}
       {%- endfor -%}
+      {#- The namespace sweep covers REGISTRY-QUALIFIED tags too: an optional
+          registry segment (a first path component with a dot or colon, or
+          localhost) is normalized away before comparing, so
+          ghcr.io/<ns>/evil can not hide from the audit behind its prefix.
+          The violation names the tag AS TAGGED. -#}
       {%- set ns_tags = godfir_build_audit_host.images | default([])
             | map(attribute='RepoTags') | select('sequence') | flatten
             | select('string')
-            | select('match', '^' ~ (godfir_build_namespace | regex_escape) ~ '/')
+            | select('match', '^((localhost|[^/]*[.:][^/]*)/)?'
+                              ~ (godfir_build_namespace | regex_escape) ~ '/')
             | reject('search', '<none>') | list -%}
       {%- for tag in ns_tags -%}
-        {%- set repo = tag | regex_replace('@.*$', '') | regex_replace(':[^/]+$', '') -%}
-        {%- if tag not in godfir_build_audit_expected and repo not in godfir_build_audit_allowed_repos -%}
+        {%- set bare = tag | regex_replace('^(localhost|[^/]*[.:][^/]*)/', '') -%}
+        {%- set repo = bare | regex_replace('@.*$', '') | regex_replace(':[^/]+$', '') -%}
+        {%- if bare not in godfir_build_audit_expected and repo not in godfir_build_audit_allowed_repos -%}
           {%- set _ = v.append(tag ~ ': unexpected ' ~ godfir_build_namespace
                 ~ '/* image — not a known manifest image (something was added'
                 ~ ' to the namespace that should not be)') -%}

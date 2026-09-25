@@ -26,7 +26,15 @@ command -v ansible-playbook >/dev/null 2>&1 \
 
 EXTRA=()
 if [ "$#" -gt 0 ]; then
-    names=$(printf '"%s",' "$@")
+    # JSON-escape each name (backslash, then double quote) so a quoted or
+    # malformed argument can neither break the extra-vars JSON nor smuggle
+    # extra keys into it — the role then judges the NAME, never the syntax.
+    names=""
+    for _name in "$@"; do
+        _esc=${_name//\\/\\\\}
+        _esc=${_esc//\"/\\\"}
+        names+="\"${_esc}\","
+    done
     EXTRA+=(-e "{\"godfir_build_set\": [${names%,}]}")
 fi
 [ -n "${GODFIR_REVISION:-}" ] && EXTRA+=(-e "godfir_build_src_sha=${GODFIR_REVISION}")
