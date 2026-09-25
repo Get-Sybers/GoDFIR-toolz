@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #
-# Build the hardened DFIR images: the twelve Go parsers (goprefetch/ … gowxt/),
+# Build the hardened DFIR images: the twelve Windows Go parsers
+# (goprefetch/ … gowxt/), godaemonhunter/ (the Linux matrix — every daemon
+# parser a package of the one multi-tool binary, on the shared pinfo/
+# module, repo-root build context),
 # one per-tool image per remaining .NET tool (godfir-tool/Dockerfile), and the
 # DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/, anamnesis/).
 #
@@ -96,6 +99,16 @@ build_gowxt() {
   docker build "${STAMP[@]}" -t get-sybers/gowxt:latest -f gowxt/Dockerfile gowxt
 }
 
+# The Linux matrix (docs/linux): ONE multi-tool image — godaemonhunter —
+# with every daemon parser a package of it (wtmp, journal, auditd, syslog,
+# shell, users, cron, unit, trash, host, network, ctl). Static Go on the
+# shared pinfo module, so it builds with the REPO ROOT as context (the
+# image copies the sibling pinfo/ directory).
+build_godaemonhunter() {
+  echo "==> get-sybers/godaemonhunter (Go, the Linux matrix: every daemon parser a sub-tool + the layered hunt run)"
+  docker build "${STAMP[@]}" -t get-sybers/godaemonhunter:latest -f godaemonhunter/Dockerfile .
+}
+
 build_anamnesis() {
   # anamnesis (pure-Go memory forensics on MemProcFS — no Volatility, no Python).
   # Context is the repo root so hardening/harden.yml is in reach; the source is
@@ -156,6 +169,10 @@ resolve() {
     gole|lecmd) build_gole; return ;;
     gojle|jlecmd) build_gojle; return ;;
     gowxt|wxtcmd) build_gowxt; return ;;
+    godaemonhunter|daemonhunter|hunt) build_godaemonhunter; return ;;
+    gowtmp|gojournal|goauditd|gosyslog|goshell|gousers|gocron|gounit|gotrash|gohost|gonetwork|goctl)
+      echo "note: '$1' is a godaemonhunter sub-tool now (docs/linux decision 16) — building get-sybers/godaemonhunter." >&2
+      build_godaemonhunter; return ;;
     anamnesis|memory) build_anamnesis; return ;;
     byakugan|mitrecar|car) build_byakugan; return ;;
     plaso|log2timeline|psort) build_plaso; return ;;
@@ -173,7 +190,7 @@ resolve() {
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt anamnesis byakugan plaso signatures zeek" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt godaemonhunter anamnesis byakugan plaso signatures zeek" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -194,6 +211,7 @@ else
   build_gole
   build_gojle
   build_gowxt
+  build_godaemonhunter
   build_anamnesis
   build_byakugan
   build_plaso
