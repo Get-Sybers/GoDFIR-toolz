@@ -107,4 +107,14 @@ mcopy -i fat32.img "$tree/big.bin" ::BIG.BIN
 mcopy -i fat32.img "$tree/etc/hostname" "::nested name with spaces.txt"
 gzip -9 -f fat32.img
 
+# ---- lvm: MBR + two PVs, a linear lv holding a REAL ext4, a striped lv ------
+rm -f lvm.img
+truncate -s 6m "$work/lvroot.img"
+mkdir -p "$work/lvtree"
+printf 'hello from inside the lv\n' > "$work/lvtree/inside-lv.txt"
+mke2fs -q -F -t ext4 -b 1024 -I 256 -L lvroot \
+  -U 44444444-2222-3333-4444-555555555555 -d "$work/lvtree" "$work/lvroot.img"
+go run gen-lvm.go lvm.img "$work/lvroot.img"
+gzip -9 -f lvm.img
+
 ls -la *.img.gz

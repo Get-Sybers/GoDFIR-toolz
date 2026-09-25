@@ -82,7 +82,8 @@ func (m *multiFlag) Set(v string) error {
 
 func runMaterialise(argv []string) int {
 	fs := flag.NewFlagSet("materialise", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	out := fs.String("out", "", "output directory for the pulled artefacts (required, writable)")
 	siblings := fs.Bool("siblings", true, "also pull each artefact's named siblings (transaction logs, WAL/SHM)")
 	manifest := fs.Bool("manifest", false, "write <out>/materialise.jsonl listing every pulled file")
@@ -127,7 +128,7 @@ func runMaterialise(argv []string) int {
 		}
 	}
 
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1

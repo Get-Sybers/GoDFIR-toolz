@@ -2,21 +2,17 @@
 // volumeFS / fileEntry contract) to the concrete ntfsfs backend. Keeping the
 // ntfsfs coupling in one file means the operator/tool logic and its stub tests
 // do not move when the ntfsfs.Entry struct or method set changes — only the thin
-// conversion here does. It also runs the shared open pipeline: image.OpenImage
-// -> partition.Partitions/SelectNTFSVolume -> ntfsvol geometry + bounded volume
-// reader -> ntfsfs over that volume, all O_RDONLY.
+// conversion here does. The shared open pipeline lives in volumes.go
+// (resolveVolumes/openVolumeFS): it peels image -> partitions -> LVM ->
+// filesystem and hands NTFS volumes to this adapter, all O_RDONLY.
 package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
 	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfsfs"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfsvol"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/partition"
 )
 
 // ntfsFS adapts *ntfsfs.FS to the userspace volumeFS contract.
@@ -78,45 +74,4 @@ func (a ntfsFS) Walk(fn func(e fileEntry, open func() (io.ReadCloser, error)) er
 		return &walkPartial{count: we.Count, msg: we.Error()}
 	}
 	return err
-}
-
-// openVolumeFS runs the shared pipeline — open the image O_RDONLY, pick the NTFS
-// volume, bound it, parse it — and returns the filesystem plus a closer that
-// releases the parser and the image. volume is the 1-based CLI value (0 = auto).
-func openVolumeFS(imgPath string, volume int) (volumeFS, func() error, error) {
-	prefer := -1
-	if volume > 0 {
-		prefer = volume - 1
-	}
-	ra, size, closeImage, err := image.OpenImage(imgPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open image: %w", err)
-	}
-	parts, err := partition.Partitions(ra, size)
-	if err != nil {
-		closeImage()
-		return nil, nil, fmt.Errorf("read partitions: %w", err)
-	}
-	sel, _, err := partition.SelectNTFSVolume(parts, prefer)
-	if err != nil {
-		closeImage()
-		return nil, nil, fmt.Errorf("select NTFS volume: %w", err)
-	}
-	geom, err := ntfsvol.ReadNTFSGeometry(ra, sel.Offset, sel.Size)
-	if err != nil {
-		closeImage()
-		return nil, nil, fmt.Errorf("read NTFS geometry: %w", err)
-	}
-	// VolumeReader is already bounded to the volume, so its byte 0 is the boot
-	// sector: ntfsfs opens it at offset 0.
-	fsys, err := ntfsfs.Open(ntfsvol.VolumeReader(ra, sel.Offset, geom), 0)
-	if err != nil {
-		closeImage()
-		return nil, nil, err
-	}
-	closer := func() error {
-		fsys.Close()
-		return closeImage()
-	}
-	return ntfsFS{fs: fsys}, closer, nil
 }

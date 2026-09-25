@@ -133,7 +133,7 @@ func matRun(t *testing.T, name string, args ...string) {
 // verb uses) and returns the volumeFS over the seeded image.
 func openMatFS(t *testing.T, img string) (volumeFS, func() error) {
 	t.Helper()
-	fsys, closer, err := openVolumeFS(img, 0)
+	fsys, closer, err := openVolumeFS(img, 0, "")
 	if err != nil {
 		t.Fatalf("openVolumeFS: %v", err)
 	}

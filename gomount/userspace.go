@@ -26,22 +26,33 @@ import (
 	"time"
 )
 
-// fileEntry is the CLI's view of one NTFS entry, decoupled from the concrete
-// ntfsfs.Entry. A named alternate data stream is carried in Streams (and read as
-// "file:stream"). Times are the $STANDARD_INFORMATION (0x10) MACB stamps.
+// fileEntry is the CLI's view of one volume entry, decoupled from the
+// concrete backends (ntfsfs on the Windows side, the fsx backends on the
+// Linux side). A named alternate data stream is carried in Streams (and
+// read as "file:stream"); the POSIX identity fields stay zero on NTFS,
+// and Streams stays empty on the Linux filesystems — honest nulls both
+// ways.
 type fileEntry struct {
 	Name    string   // leaf name (long name preferred over the 8.3 short name)
 	Path    string   // full "/"-separated path from the volume root
 	IsDir   bool     // a directory
-	Size    int64    // logical byte length of the default unnamed $DATA stream
-	MFTID   string   // MFT identity, rendered so the CLI is agnostic to its form
+	Size    int64    // logical byte length of the default (unnamed) content
+	MFTID   string   // MFT/inode identity, rendered so the CLI is agnostic to its form
 	Deleted bool     // an unallocated (unlinked/deleted) entry
 	Streams []string // named alternate data streams on this file, if any
 
-	Btime time.Time // created
+	Btime time.Time // created (crtime)
 	Mtime time.Time // file-altered (modified)
-	Ctime time.Time // MFT-altered (metadata changed)
+	Ctime time.Time // metadata changed
 	Atime time.Time // file-accessed
+
+	// the POSIX side (fsx backends; zero on NTFS)
+	UID        uint32
+	GID        uint32
+	Mode       uint32
+	Inode      uint64
+	Nlink      uint32
+	LinkTarget string // symlink target, unfollowed
 }
 
 // volumeFS is the read-only NTFS contract the userspace verbs consume. The
@@ -69,7 +80,8 @@ func (w *walkPartial) Error() string { return w.msg }
 
 func runLs(argv []string) int {
 	fs := flag.NewFlagSet("ls", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	long := fs.Bool("l", false, "long listing: type, size, mtime, name")
 	deleted := fs.Bool("deleted", false, "also list unallocated (deleted) entries")
 	fs.Usage = usage
@@ -82,7 +94,7 @@ func runLs(argv []string) int {
 	if fs.NArg() == 2 {
 		dir = fs.Arg(1)
 	}
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1
@@ -133,14 +145,15 @@ func lsLines(w io.Writer, e fileEntry, long bool) {
 
 func runCat(argv []string) int {
 	fs := flag.NewFlagSet("cat", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	fs.Usage = usage
 	_ = fs.Parse(argv)
 	if fs.NArg() != 2 {
 		fmt.Fprintln(os.Stderr, "gomount cat: usage: cat [--volume N] <image> <path[:stream]>")
 		return 1
 	}
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1
@@ -169,14 +182,15 @@ func catFile(w io.Writer, fsys volumeFS, p string) error {
 
 func runStat(argv []string) int {
 	fs := flag.NewFlagSet("stat", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	fs.Usage = usage
 	_ = fs.Parse(argv)
 	if fs.NArg() != 2 {
 		fmt.Fprintln(os.Stderr, "gomount stat: usage: stat [--volume N] <image> <path>")
 		return 1
 	}
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1
@@ -218,7 +232,8 @@ func printStat(w io.Writer, e fileEntry) {
 
 func runTree(argv []string) int {
 	fs := flag.NewFlagSet("tree", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	depth := fs.Int("depth", -1, "maximum recursion depth (default -1 = unlimited)")
 	fs.Usage = usage
 	_ = fs.Parse(argv)
@@ -230,7 +245,7 @@ func runTree(argv []string) int {
 	if fs.NArg() == 2 {
 		dir = fs.Arg(1)
 	}
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1
@@ -271,14 +286,15 @@ func treeDir(w io.Writer, fsys volumeFS, dir string, depth, maxDepth int, prefix
 
 func runBrowse(argv []string) int {
 	fs := flag.NewFlagSet("browse", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	fs.Usage = usage
 	_ = fs.Parse(argv)
 	if fs.NArg() != 1 {
 		fmt.Fprintln(os.Stderr, "gomount browse: usage: browse [--volume N] <image>")
 		return 1
 	}
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1
@@ -433,7 +449,8 @@ type streamSummary struct {
 
 func runStream(argv []string) int {
 	fs := flag.NewFlagSet("stream", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	filter := fs.String("filter", "", "glob over the base name, or over the path when it contains '/' (default: all files)")
 	jsonl := fs.Bool("jsonl", false, "emit one JSON object per file instead of a tar stream")
 	fs.Usage = usage
@@ -446,7 +463,7 @@ func runStream(argv []string) int {
 		fmt.Fprintf(os.Stderr, "gomount stream: invalid --filter pattern %q: %v\n", *filter, err)
 		return 1
 	}
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1

@@ -86,7 +86,7 @@ var (
 	beta   = seed{dest: "beta.bin", data: pattern(5000)}
 	gamma  = seed{dest: "gamma.dat", data: pattern(200000)} // non-resident
 	nested = seed{dest: "$Extend/nested.bin", data: pattern(1234)}
-	hostBS = seed{dest: "host.txt", data: []byte("base-content")}                     // 12
+	hostBS = seed{dest: "host.txt", data: []byte("base-content")}                    // 12
 	hostAD = seed{dest: "host.txt", attr: "secret", data: []byte("ADS-SECRET-DATA")} // 15
 )
 
