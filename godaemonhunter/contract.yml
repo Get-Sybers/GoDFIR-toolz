@@ -1,0 +1,48 @@
+# godaemonhunter/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: godaemonhunter
+image: get-sybers/godaemonhunter:latest
+entrypoint: multi-tool
+description: >
+  The Linux matrix as one structured binary (docs/linux decision 15): every
+  daemon parser embedded as a sub-tool, plus hunt — the layered one-shot
+  that runs Layer 1 (gohost, gousers, gonetwork) first, builds the image's
+  knowledge store, then runs every daemon parser enriched by it. One
+  binary, one run, one structured output tree, one JSON summary line.
+
+subtools: [hunt, gohost, gousers, gonetwork, gojournal, goauditd, gowtmp, gosyslog, gounit, gocron, goshell, gotrash, goctl]
+
+# hunt's own block. A parser sub-tool run (`godaemonhunter gowtmp`) reads
+# that tool's canonical <SUBTOOL>_* block instead — exactly as its own
+# contract.yml declares it (gowtmp/contract.yml and siblings).
+env:
+  GODAEMONHUNTER_INPUT_DIR:     {required: false, default: /input,  desc: 'evidence tree, recursed read-only, shared by every sub-run'}
+  GODAEMONHUNTER_OUT_DIR:       {required: false, default: /output, desc: 'output root: knowledge/ (Layer 1) + one <subtool>/ tree per daemon parser'}
+  GODAEMONHUNTER_KNOWLEDGE_DIR: {required: false, default: "",      desc: 'override the knowledge store location; empty = <OUT_DIR>/knowledge, built by Layer 1 in the same run'}
+  GODAEMONHUNTER_WORK_DIR:      {required: false, default: /work,   desc: 'scratch (writable tmpfs), shared by every sub-run'}
+  GODAEMONHUNTER_FORCE:         {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output, in every sub-run'}
+  GODAEMONHUNTER_LOG_LEVEL:     {required: false, default: info,    desc: 'error|warn|info|debug, stderr only, applied to every sub-run'}
+
+mounts:
+  - {name: input,     path: /input,     mode: ro, env: GODAEMONHUNTER_INPUT_DIR, required: true}
+  - {name: output,    path: /output,    mode: rw, env: GODAEMONHUNTER_OUT_DIR,   required: true}
+  - {name: knowledge, path: /knowledge, mode: rw, env: GODAEMONHUNTER_KNOWLEDGE_DIR, required: false}
+  - {name: work,      path: /work,      mode: rw, env: GODAEMONHUNTER_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, knowledge_dir, subtools, exit, started, duration_s]
+  note: >
+    hunt prints ONE aggregate line with every sub-tool's own summary
+    embedded under `subtools`; a single-parser sub-run prints that
+    parser's ordinary summary line.
+
+outputs:
+  hunt: "<OUT_DIR>/knowledge/<item>/{gohost,gousers,gonetwork}.jsonl (Layer 1, also the store the rest consume) + <OUT_DIR>/<subtool>/<item>/<subtool>.jsonl per daemon parser, records enriched per docs/linux decision 14"
+  subtool: "as that parser's own contract.yml declares (one folder per item under its OUT_DIR)"
+
+argv_passthrough: >
+  `godaemonhunter <subtool>` runs that parser's env-driven batch mode under
+  its canonical <SUBTOOL>_* block. The per-tool -f/-d/--tar argv debug
+  modes stay with the standalone binaries.

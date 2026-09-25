@@ -3,7 +3,7 @@
 // Clean-room from the documented format (systemd's journal-file layout doc);
 // every offset and size is bounds-checked so a dirty or truncated journal
 // yields what is readable, never a fault.
-package main
+package journal
 
 import (
 	"bytes"

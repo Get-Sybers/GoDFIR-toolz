@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gowtmp/go.mod gowtmp/
 WORKDIR /src/gowtmp
 RUN go mod download
-COPY gowtmp/*.go gowtmp/contract.yml ./
+COPY gowtmp/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gowtmp .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gowtmp --version

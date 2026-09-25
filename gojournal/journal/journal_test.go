@@ -1,4 +1,4 @@
-package main
+package journal
 
 // journal_test.go builds tiny synthetic journal files in memory — regular
 // and compact layouts, uncompressed and XZ/LZ4/ZSTD payloads — and proves

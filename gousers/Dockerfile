@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gousers/go.mod gousers/
 WORKDIR /src/gousers
 RUN go mod download
-COPY gousers/*.go gousers/contract.yml ./
+COPY gousers/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gousers .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gousers --version

@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gosyslog/go.mod gosyslog/
 WORKDIR /src/gosyslog
 RUN go mod download
-COPY gosyslog/*.go gosyslog/contract.yml ./
+COPY gosyslog/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gosyslog .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gosyslog --version

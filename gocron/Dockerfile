@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gocron/go.mod gocron/
 WORKDIR /src/gocron
 RUN go mod download
-COPY gocron/*.go gocron/contract.yml ./
+COPY gocron/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gocron .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gocron --version

@@ -31,7 +31,10 @@ has three pillars:
    data model
    (§4.1): the parsers extract everything byakugan's CAR maps need — typed
    rows, native vocabulary, identity fields, join keys — and derive nothing
-   byakugan owns (relationships, canonicalisation, enrichment).
+   byakugan owns (relationships, canonicalisation, enrichment). The built
+   matrix also ships as one structured binary, `godaemonhunter`
+   (decision 15): every parser a sub-command, plus `hunt`, the layered
+   Layer-1 → knowledge store → enriched-daemon-parser run.
 3. **Linux evidence access in gomount** — continuing the native-extraction
    role gomount already started for Windows (`materialise` sets,
    `stream`→`--tar`): ext4/XFS/Btrfs (and vfat, squashfs)
@@ -303,6 +306,15 @@ numeric ids gain resolved names beside them (`UID` stays `1000`,
 `UIDName` says `alice` — per this image's own passwd), and naive
 timestamps are interpreted in the host's zone. The plaso preprocessing
 analogue, done by the matrix's own Layer-1 parsers.
+
+The matrix also ships as **one structured binary** — `godaemonhunter`
+(decision 15): every parser embedded as a sub-command, plus `hunt`, the
+layered one-shot that runs Layer 1 into `<OUT_DIR>/knowledge` and then
+every daemon parser with that store mounted — the whole method in one
+run, one output tree, one aggregate summary line. It is the multi-tool
+dispatcher shape of [§4.3](../framework/04-self-orchestration.md) (the
+plaso and signatures precedent), pure packaging: the per-tool images
+remain the pipeline's granular units, and no record shape is its own.
 
 Every tool is `FROM scratch`, static, `USER 2000:2000`, with a
 `contract.yml`, batch mode on no arguments, argv/`--tar` debug pass-through, JSONL output (the one record
@@ -884,6 +896,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 12 | Records are **JSONL only** — one JSON object per record; CSV is not an output format anywhere in the Linux path and no `<TOOL>_FORMAT` variable exists. A tool that ever needs interim storage beyond streaming (sorting or aggregation past memory) uses a database format (SQLite via the cgo-free driver) in its `WORK_DIR` scratch — never an interchange text format — and the record files stay the JSONL interface |
 | 14 | **Layer 1 and the knowledge store**: `gohost`, `gousers` and `gonetwork` run first and their output trees are the image's knowledge store; the daemon parsers mount it read-only (`<TOOL>_KNOWLEDGE_DIR`) and the `pinfo` runtime + tools enrich from it — the `Host` block on every record, resolved names beside native numeric ids (`UIDName` beside `UID`), the host's zone applied to naive timestamps (the `Host.Timezone` on the record states it). This is the one sanctioned parser-side join, bounded to image-SELF-knowledge, fill-only, never overwriting a native value; correlation, relationships and guids remain byakugan's. Without the store, records are exactly what they were — enrichment absent, never invented |
 | 13 | **The method — everything is a daemon parser**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). Each tool reads one daemon's stream — the core what a daemon writes, the supporting tools what a daemon is told. That core is where depth is added; the told-side tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method. The journal is also the **primary pathway**: the typed event families (sshd, sudo, pam, cron) are defined once in `pinfo/families` and recognised wherever that stream surfaces — the journal first, the flat logs as fallback — so even SSH evidence flows through the journal mechanism, one shape from either source |
+| 15 | **godaemonhunter — the one structured binary**: the twelve parsers also ship as a single multi-tool image, the [§4.3](../framework/04-self-orchestration.md) dispatcher shape (the plaso/signatures precedent). `godaemonhunter <subtool>` runs one parser's ordinary env-contract batch under its canonical `<SUBTOOL>_*` block; `godaemonhunter hunt` is the layered one-shot — Layer 1 into `<OUT_DIR>/knowledge`, then every daemon parser with the store mounted (decision-14 enrichment), one aggregate JSON summary line with every sub-tool's summary embedded. Pure packaging: the per-tool images remain the lane's granular units, the argv debug modes stay with the standalone binaries, and godaemonhunter defines no record shape of its own |
 
 ### 11.2 Open questions
 

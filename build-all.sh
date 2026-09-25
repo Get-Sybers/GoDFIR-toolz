@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # Build the hardened DFIR images: the twelve Windows Go parsers
-# (goprefetch/ … gowxt/), the nine Linux Go parsers (gowtmp/ … gotrash/,
-# on the shared pinfo/ module, repo-root build context),
+# (goprefetch/ … gowxt/), the twelve Linux Go parsers (gowtmp/ … goctl/,
+# on the shared pinfo/ module, repo-root build context) plus
+# godaemonhunter/ (the Linux matrix as one multi-tool binary),
 # one per-tool image per remaining .NET tool (godfir-tool/Dockerfile), and the
 # DX_DFIR pipeline images (byakugan/, plaso/, signatures/, zeek/, anamnesis/).
 #
@@ -118,6 +119,7 @@ build_gotrash()   { build_linux_parser gotrash   "XDG Trash"; }
 build_gohost()    { build_linux_parser gohost    "host identity + fstab/crypttab volume mapping"; }
 build_gonetwork() { build_linux_parser gonetwork "network configuration surface"; }
 build_goctl()     { build_linux_parser goctl     "kernel/loader control surface (sysctl, modprobe, ld.so)"; }
+build_godaemonhunter() { build_linux_parser godaemonhunter "the Linux matrix as one multi-tool binary + the layered hunt run"; }
 
 build_anamnesis() {
   # anamnesis (pure-Go memory forensics on MemProcFS — no Volatility, no Python).
@@ -191,6 +193,7 @@ resolve() {
     gohost) build_gohost; return ;;
     gonetwork) build_gonetwork; return ;;
     goctl|sysctl) build_goctl; return ;;
+    godaemonhunter|daemonhunter|hunt) build_godaemonhunter; return ;;
     anamnesis|memory) build_anamnesis; return ;;
     byakugan|mitrecar|car) build_byakugan; return ;;
     plaso|log2timeline|psort) build_plaso; return ;;
@@ -208,7 +211,7 @@ resolve() {
       return
     fi
   done
-  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt gowtmp gojournal goauditd gosyslog goshell gousers gocron gounit gotrash gohost gonetwork goctl anamnesis byakugan plaso signatures zeek" >&2
+  echo "unknown tool '$1' — valid: ${LINUX_TOOLS[*]} goprefetch goese gorb gomft goamcache goappcompat goevtx gore gosbe gole gojle gowxt gowtmp gojournal goauditd gosyslog goshell gousers gocron gounit gotrash gohost gonetwork goctl godaemonhunter anamnesis byakugan plaso signatures zeek" >&2
   echo "  (the substituted EZ-tool names also work: pecmd, srumecmd/sumecmd, rbcmd, mftecmd, amcacheparser, appcompatcacheparser, evtxecmd, recmd, sbecmd, lecmd, jlecmd, wxtcmd)" >&2
   exit 1
 }
@@ -241,6 +244,7 @@ else
   build_gohost
   build_gonetwork
   build_goctl
+  build_godaemonhunter
   build_anamnesis
   build_byakugan
   build_plaso

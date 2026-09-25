@@ -56,6 +56,13 @@ one static binary, `USER 2000:2000`.
 - [gonetwork/](gonetwork/README.md) — hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, persisted firewall state
 - [goctl/](goctl/README.md) — sysctl, module policy (modprobe.d install/blacklist), ld.so.preload and ld.so.conf
 
+All twelve also ship as **one structured binary** —
+[godaemonhunter/](godaemonhunter/README.md): every parser a sub-command,
+plus `hunt`, the layered one-shot that runs Layer 1 (gohost, gousers,
+gonetwork) first, builds the image's knowledge store, then runs every
+daemon parser enriched by it. The per-tool images remain the pipeline's
+granular units.
+
 The plan they implement — the pinfo module, snapshots, filesystem residue,
 byakugan alignment, the phased sequence — is
 [docs/linux/README.md](docs/linux/README.md).

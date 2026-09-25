@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gounit/go.mod gounit/
 WORKDIR /src/gounit
 RUN go mod download
-COPY gounit/*.go gounit/contract.yml ./
+COPY gounit/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gounit .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gounit --version

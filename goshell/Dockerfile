@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY goshell/go.mod goshell/
 WORKDIR /src/goshell
 RUN go mod download
-COPY goshell/*.go goshell/contract.yml ./
+COPY goshell/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /goshell .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /goshell --version

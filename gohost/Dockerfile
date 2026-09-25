@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gohost/go.mod gohost/
 WORKDIR /src/gohost
 RUN go mod download
-COPY gohost/*.go gohost/contract.yml ./
+COPY gohost/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gohost .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gohost --version

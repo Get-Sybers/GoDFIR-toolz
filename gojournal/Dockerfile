@@ -18,10 +18,10 @@ FROM golang:${GO_VERSION}-alpine AS build
 ARG TOOL_VERSION
 WORKDIR /src
 COPY pinfo/ pinfo/
-COPY gojournal/go.mod goauditd/go.sum gojournal/
+COPY gojournal/go.mod gojournal/go.sum gojournal/
 WORKDIR /src/gojournal
 RUN go mod download
-COPY gojournal/*.go gojournal/contract.yml ./
+COPY gojournal/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gojournal .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gojournal --version

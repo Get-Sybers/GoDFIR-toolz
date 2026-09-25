@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gotrash/go.mod gotrash/
 WORKDIR /src/gotrash
 RUN go mod download
-COPY gotrash/*.go gotrash/contract.yml ./
+COPY gotrash/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gotrash .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gotrash --version

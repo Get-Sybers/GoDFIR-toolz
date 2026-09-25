@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY goctl/go.mod goctl/
 WORKDIR /src/goctl
 RUN go mod download
-COPY goctl/*.go goctl/contract.yml ./
+COPY goctl/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /goctl .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /goctl --version

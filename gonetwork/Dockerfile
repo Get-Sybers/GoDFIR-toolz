@@ -21,7 +21,7 @@ COPY pinfo/ pinfo/
 COPY gonetwork/go.mod gonetwork/
 WORKDIR /src/gonetwork
 RUN go mod download
-COPY gonetwork/*.go gonetwork/contract.yml ./
+COPY gonetwork/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gonetwork .
 # Build-stage sanity gate: the binary runs and prints its version.
 RUN /gonetwork --version
