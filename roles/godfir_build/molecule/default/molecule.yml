@@ -1,0 +1,38 @@
+---
+# The scenario fetches nothing: community.docker (the collection's declared
+# dependency) is the RUNNER's install — galaxy.yml declares it, a consumer
+# pins it — so the dependency step is off, molecule's prerun (which would
+# ansible-galaxy-install the enclosing collection, deps and all) is off, and
+# the scenario runs offline; ANSIBLE_ROLES_PATH below resolves the role.
+prerun: false
+dependency:
+  name: galaxy
+  enabled: false
+driver:
+  name: default            # delegated — the role drives the host docker daemon itself
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  env:
+    # resolve the role under test from the collection's roles/ dir (molecule no
+    # longer adds the role's parent to the roles path by itself)
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/..
+    # env_args proof: the fixture standin declares TESTPIN overridable from
+    # the environment; verify.yml asserts the label it stamps.
+    TESTPIN: pin123
+  inventory:
+    host_vars:
+      localhost:
+        ansible_connection: local
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+        # every play resolves the committed fixture root the same way
+        godfir_molecule_root: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/fixture"
+        godfir_molecule_src: molecule-src-a
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+    cleanup: cleanup.yml
+verifier:
+  name: ansible

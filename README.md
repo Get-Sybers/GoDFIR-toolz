@@ -94,11 +94,39 @@ the canonical `hardening/harden.yml` directly — no synced copy.
   remaining `.NET`-based per-tool images (`sqlecmd`, `bstrings`,
   `iisgeolocate`, `recentfilecacheparser`, `rla`)
 
+## The image inventory
+
+**`images.yml`** at the repo root is the single source of truth for every
+image this repository builds — name, build context, dockerfile, build args,
+aliases and the engine-pin markers — plus the `get-sybers/*` namespace's
+known non-tool repos. `conform.sh` checks each tool directory against it, and
+the **`godfir_build` role** — the collection's build engine (ansible tasks end
+to end) — builds and hardening-verifies every entry from it.
+`build-all.sh` exists solely so this repo works **standalone** (cloned on its
+own, no consumer around): a thin launcher of the collection playbook
+(`playbooks/build_images.yml`), nothing more — an integrating consumer uses
+the role, never the script. A consumer plugs this repo in one of two
+ways, both reading the same files:
+
+- **Direct reference** — pin the repo (submodule or checkout) and read
+  `images.yml` at the pin. DX_DFIR consumes this way: its `dxdfir_images`
+  role builds every entry (CI included) and its runtime guard allow-lists
+  exactly these images from the same manifest.
+- **Ansible Galaxy** — the repo installs as the `get_sybers.godfir_toolz`
+  collection (`galaxy.yml`), carrying the manifest and every build context:
+
+  ```sh
+  ansible-galaxy collection install 'git+https://github.com/Get-Sybers/GoDFIR-toolz.git'
+  ```
+
+No image list exists anywhere else — a new tool is added in `images.yml`
+(and its own directory), in one place.
+
 ## Building
 
 ```sh
-./build-all.sh                              # every image: .NET per-tool + Go parsers + pipeline images
-./build-all.sh gore gomft                   # a subset (names case-insensitive)
+./build-all.sh                              # everything in images.yml, in manifest order
+./build-all.sh gore gomft                   # a subset (names case-insensitive; the EZ-tool aliases resolve)
 ./build-all.sh byakugan plaso signatures zeek
 ```
 
@@ -166,8 +194,12 @@ Per tool, `conform.sh <tool>` checks the layout, the Dockerfile standards,
 `contract.yml` and the README against the white paper (`--build` also builds
 the image and cross-checks the built artifact), and `<tool>/test/contract_test.sh`
 runs the image over `test/fixtures/` in batch mode and asserts the summary
-line, the exit code, idempotency and the config-error exit. `build-all.sh`
-stamps every image with the checkout revision and the release tag.
+line, the exit code, idempotency and the config-error exit. The build galaxy
+itself is molecule-tested (`roles/godfir_build/molecule/default` — `molecule
+test` runs the whole gate matrix, negatives included, offline against a
+committed fixture). The `godfir_build`
+role stamps every image with the checkout revision and the release tag, and
+replaces any image whose `com.get-sybers.src` stamp went stale.
 
 ## The hardening contract
 

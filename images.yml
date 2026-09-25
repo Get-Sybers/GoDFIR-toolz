@@ -1,0 +1,169 @@
+# ==============================================================================
+# images.yml — the GoDFIR-toolz image inventory: the ONE source of truth for
+# every image this repository builds, and for the whole get-sybers/* docker
+# namespace. conform.sh checks each tool directory against it, and this repo
+# is plug-and-play: a consumer takes THIS manifest and has the complete build
+# surface — no consumer-side image list to drift.
+#
+# Known consumers:
+#   - conform.sh    — name/engine-ref consistency for each tool directory
+#                     (--images-yml defaults to this file).
+#   - build-all.sh  — the STANDALONE-ONLY launcher (this repo cloned on its
+#                     own) resolves its whole build set, aliases included,
+#                     from here; integrating consumers use the godfir_build
+#                     role, never the script.
+#   - DX_DFIR       — references this file directly at its submodule pin: the
+#                     dxdfir_images role builds every entry (CI included) and
+#                     the get_sybers_dxdfir.images runtime guard allow-lists
+#                     exactly these images.
+#   - ansible-galaxy — the repo installs as the get_sybers.godfir_toolz
+#                     collection (galaxy.yml), carrying this manifest and every
+#                     build context with it.
+#
+# Per image:
+#   name        the image identity — get-sybers/<name>:latest — and, for the
+#               single-tool directories, the tool directory name.
+#   context     build context relative to THIS repository's root (default: "."
+#               — the repo root, which keeps hardening/harden.yml and the
+#               shared entry scripts in reach of the Dockerfiles that COPY
+#               them).
+#   dockerfile  Dockerfile path relative to the context (default:
+#               <name>/Dockerfile — right for the repo-root context).
+#   args        --build-arg map baked into the build (a consumer's run-as
+#               DFIR_UID/DFIR_GID args are combined on top and win).
+#   env_args    ARG names a launcher passes through from the environment when
+#               set (build-time pin overrides). The default pin VALUES live in
+#               the Dockerfiles as ARG defaults — never here — so each pin
+#               exists in exactly one place.
+#   engine_ref  the ARG carrying a clone-at-build engine pin; marks the entry
+#               as an engine image (conform.sh then requires the
+#               com.get-sybers.engine-ref label).
+#   aliases     alternate names build-all.sh accepts for this image (the
+#               substituted EZ-tool names among them).
+#   subtool_aliases  names that resolve to this image with a "that's a
+#               sub-tool now" note (godaemonhunter's daemon parsers).
+#   tool        false = not a tool container — exempt from the hardened-tool
+#               contract (default: true).
+#
+# Every image self-declares its hardening posture in /etc/dfir-hardened
+# (schema=1: static_binary / shell / python / pkg_mgr) and the build gates
+# verify the declaration against the actual filesystem — posture is never
+# listed here, so it cannot drift from the images either.
+# ==============================================================================
+namespace: get-sybers
+
+images:
+  # ---- pipeline images (repo-root context) -----------------------------------
+  - name: signatures        # the whole detection lane: yara + suricata + hayabusa
+    aliases: [yara, suricata, hayabusa]
+  - name: byakugan          # external MITRE CAR engine, cloned + built at its Dockerfile's BYAKUGAN_REF pin
+    engine_ref: BYAKUGAN_REF
+    env_args: [BYAKUGAN_REF]
+    aliases: [mitrecar, car]
+  - name: zeek              # Zeek LTS, offline capture parsing
+  - name: anamnesis         # pure-Go memory forensics on MemProcFS — self-orchestrating, env-driven; ANAMNESIS_REF + MemProcFS pins in the Dockerfile
+    engine_ref: ANAMNESIS_REF
+    env_args: [ANAMNESIS_REF, MEMPROCFS_VERSION, MEMPROCFS_SHA256]
+    aliases: [memory]
+  - name: plaso             # pinned-PyPI Plaso + psort wrapper
+    aliases: [log2timeline, psort]
+
+  # ---- the Windows Go parsers — each FROM scratch, its own subdir the context
+  - name: goprefetch        # prefetch         (XP->Win11 .pf, MAM-compressed)
+    context: goprefetch
+    dockerfile: Dockerfile
+    aliases: [prefetch, pecmd]
+  - name: goese             # ESE databases    (SRUDB.dat / SUM Current.mdb)
+    context: goese
+    dockerfile: Dockerfile
+    aliases: [esedump, srum, srumecmd, sumecmd]
+  - name: gorb              # Recycle Bin      ($I records)
+    context: gorb
+    dockerfile: Dockerfile
+    aliases: [rbcmd]
+  - name: gomft             # $MFT             (go-ntfs)
+    context: gomft
+    dockerfile: Dockerfile
+    aliases: [mftecmd]
+  - name: goevtx            # event logs       (.evtx, go-evtx)
+    context: goevtx
+    dockerfile: Dockerfile
+    aliases: [evtxecmd]
+  - name: goamcache         # Amcache          (regparser)
+    context: goamcache
+    dockerfile: Dockerfile
+    aliases: [amcacheparser]
+  - name: goappcompat       # AppCompatCache   (regparser)
+    context: goappcompat
+    dockerfile: Dockerfile
+    aliases: [appcompatcacheparser]
+  - name: gore              # registry batch   (regparser, dirty-hive .LOG replay)
+    context: gore
+    dockerfile: Dockerfile
+    aliases: [recmd]
+  - name: gosbe             # ShellBags        (regparser)
+    context: gosbe
+    dockerfile: Dockerfile
+    aliases: [sbecmd]
+  - name: gole              # .lnk             (golnk)
+    context: gole
+    dockerfile: Dockerfile
+    aliases: [lecmd]
+  - name: gojle             # jump lists       (mscfb)
+    context: gojle
+    dockerfile: Dockerfile
+    aliases: [jlecmd]
+  - name: gowxt             # Windows Timeline (ActivitiesCache.db, modernc sqlite)
+    context: gowxt
+    dockerfile: Dockerfile
+    aliases: [wxtcmd]
+
+  # ---- the Linux matrix ------------------------------------------------------
+  # Every daemon parser (journal, auditd, wtmp, syslog, units, cron, shells,
+  # trash, sysctl + the Layer-1 knowledge builders) a sub-tool of ONE binary;
+  # `hunt` is the layered all-streams run. Builds from the REPO ROOT (the image
+  # copies the sibling pinfo/ module) — exactly the defaults.
+  - name: godaemonhunter
+    aliases: [daemonhunter, hunt]
+    subtool_aliases: [gowtmp, gojournal, goauditd, gosyslog, goshell, gousers,
+                      gocron, gounit, gotrash, gohost, gonetwork, goctl]
+  # One-volume disk-image reader/mounter (NTFS + the Linux filesystems),
+  # unprivileged, argv-driven; the same binary is baked into signatures for its
+  # scan sub-tool — this is the standalone image.
+  - name: gomount
+    context: gomount
+    dockerfile: Dockerfile
+
+  # ---- the remaining .NET tools — one image per tool from the parameterized
+  # godfir-tool/Dockerfile (published release fetched at build; the GODFIR_TOOL
+  # casing is the zip basename on download.ericzimmermanstools.com, so keep it
+  # exactly as published) -----------------------------------------------------
+  - name: sqlecmd
+    dockerfile: godfir-tool/Dockerfile
+    args: {GODFIR_TOOL: SQLECmd}
+  - name: bstrings
+    dockerfile: godfir-tool/Dockerfile
+    args: {GODFIR_TOOL: bstrings}
+  - name: iisgeolocate
+    dockerfile: godfir-tool/Dockerfile
+    args: {GODFIR_TOOL: iisGeolocate}
+  - name: recentfilecacheparser
+    dockerfile: godfir-tool/Dockerfile
+    args: {GODFIR_TOOL: RecentFileCacheParser}
+  - name: rla
+    dockerfile: godfir-tool/Dockerfile
+    args: {GODFIR_TOOL: rla}
+
+# Tools people ask for that deliberately have NO image — the build role
+# refuses them with the reason instead of "unknown tool".
+unbuildable:
+  vscmount: >-
+    VSCMount manipulates the Windows VSS device namespace and has no Linux
+    container; use libvshadow (vshadowinfo/vshadowmount) on the host.
+
+# get-sybers/* repos that legitimately exist but are NOT tool containers —
+# exempt from the hardened-tool contract, allow-listed so a namespace audit
+# (DX_DFIR's verify-images) ignores them instead of flagging a supply-chain
+# red flag.
+non_tool_repos:
+  - get-sybers/molecule

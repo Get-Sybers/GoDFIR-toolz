@@ -1,0 +1,50 @@
+---
+# Resolve godfir_build_set (names or aliases, case-insensitive) against the
+# manifest. Everything is validated BEFORE any image builds; an empty set
+# means every manifest image, in order.
+
+- name: "godfir-resolve | refuse the tools the manifest declares unbuildable"
+  vars:
+    _refused: >-
+      {{ godfir_build_set | map('lower')
+         | select('in', godfir_build_manifest.unbuildable | default({}) | list)
+         | list }}
+  ansible.builtin.assert:
+    that:
+      - _refused | length == 0
+    fail_msg: >-
+      {{ _refused
+         | map('extract', godfir_build_manifest.unbuildable | default({}))
+         | join(' ') }}
+    quiet: true
+
+- name: "godfir-resolve | fail on names the manifest does not know"
+  vars:
+    _unknown: >-
+      {{ godfir_build_set | map('lower')
+         | reject('in', godfir_build_alias_map) | list }}
+  ansible.builtin.assert:
+    that:
+      - _unknown | length == 0
+    fail_msg: >-
+      unknown tool(s): {{ _unknown | join(', ') }} — valid:
+      {{ godfir_build_manifest.images | map(attribute='name') | join(' ') }}
+      (the aliases in images.yml also resolve — the substituted EZ-tool names
+      among them).
+    quiet: true
+
+- name: "godfir-resolve | note the sub-tool aliases"
+  ansible.builtin.debug:
+    msg: >-
+      '{{ item }}' is a {{ godfir_build_alias_map[item] }} sub-tool now
+      (docs/linux decision 16) — building
+      {{ godfir_build_namespace }}/{{ godfir_build_alias_map[item] }}.
+  loop: "{{ godfir_build_set | map('lower') | select('in', godfir_build_subtool_aliases) | list }}"
+
+- name: "godfir-resolve | the resolved build set"
+  ansible.builtin.set_fact:
+    godfir_build_resolved: >-
+      {{ (godfir_build_manifest.images | map(attribute='name') | list)
+         if godfir_build_set | length == 0
+         else (godfir_build_set | map('lower')
+               | map('extract', godfir_build_alias_map) | list | unique) }}

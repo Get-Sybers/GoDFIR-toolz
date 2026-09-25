@@ -1,0 +1,26 @@
+# The molecule fixture inventory — four FROM-scratch stand-ins exercising
+# every gate of the role offline: a good subdir-context image (env_args +
+# aliases), a good root-context image (subtool aliases), a declared-posture
+# violation (badshell ships bin/sh while declaring shell=false), and a
+# missing declaration (nodecl). Shaped exactly like the real root manifest.
+namespace: get-sybers
+images:
+  - name: standin
+    context: standin
+    dockerfile: Dockerfile
+    aliases: [stalias]
+    env_args: [TESTPIN]
+  - name: rootctx
+    subtool_aliases: [subx]
+  - name: badshell
+    context: badshell
+    dockerfile: Dockerfile
+  - name: nodecl
+    context: nodecl
+    dockerfile: Dockerfile
+unbuildable:
+  vscmount: >-
+    no container for this fixture tool — the real manifest carries the real
+    refusal.
+non_tool_repos:
+  - get-sybers/friendly

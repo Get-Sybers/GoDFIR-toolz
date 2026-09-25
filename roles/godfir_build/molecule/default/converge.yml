@@ -1,0 +1,17 @@
+---
+# Build the two GOOD fixture images through the role — the build gates run
+# for real (BuildKit, FROM scratch, offline-safe: nothing is pulled).
+# Molecule's idempotence step reruns this and expects ZERO changes: the
+# source stamp is pinned, so the role's staleness logic must no-op.
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "converge | build standin + rootctx through godfir_build"
+      ansible.builtin.include_role:
+        name: godfir_build
+      vars:
+        godfir_build_root: "{{ godfir_molecule_root }}"
+        godfir_build_set: [standin, rootctx]
+        godfir_build_src_sha: "{{ godfir_molecule_src }}"
+        godfir_build_release: molecule
