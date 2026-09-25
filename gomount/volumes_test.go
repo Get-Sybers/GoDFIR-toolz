@@ -106,7 +106,7 @@ func TestResolveVolumesStack(t *testing.T) {
 		t.Fatal("out-of-range volume accepted")
 	}
 	// a PV itself is not openable, with a pointed error
-	if _, _, err := openRef(vols[0]); err == nil {
+	if _, _, _, err := openRef(vols[0]); err == nil {
 		t.Fatal("opening a bare PV must fail")
 	}
 }

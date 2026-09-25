@@ -155,12 +155,18 @@ func openVolume(imgPath string, volume int, lvName string) (volumeFS, fsx.FS, vo
 		closeImage()
 		return nil, nil, volumeRef{}, nil, err
 	}
-	fsys, raw, err := openRef(sel)
+	fsys, raw, release, err := openRef(sel)
 	if err != nil {
 		closeImage()
 		return nil, nil, volumeRef{}, nil, fmt.Errorf("open %s (%s): %w", sel.Source, sel.FSType, err)
 	}
-	return fsys, raw, sel, closeImage, nil
+	closer := func() error {
+		if release != nil {
+			release()
+		}
+		return closeImage()
+	}
+	return fsys, raw, sel, closer, nil
 }
 
 // selectVolume applies the addressing rules over the resolved list.
@@ -217,28 +223,30 @@ func selectVolume(vols []volumeRef, volume int, lvName string) (volumeRef, error
 
 // openRef opens one resolved volume with its backend. The second return
 // is the raw fsx.FS for the Linux backends (nil for NTFS): the residue
-// seam and the volume's UUID/label live there.
-func openRef(v volumeRef) (volumeFS, fsx.FS, error) {
+// seam and the volume's UUID/label live there. The third is the
+// backend's release hook (the NTFS parser holds caches its Close must
+// free; the fsx backends hold none).
+func openRef(v volumeRef) (volumeFS, fsx.FS, func(), error) {
 	switch v.FSType {
 	case "":
-		return nil, nil, fmt.Errorf("no recognised filesystem")
+		return nil, nil, nil, fmt.Errorf("no recognised filesystem")
 	case "lvm2-pv":
-		return nil, nil, fmt.Errorf("an LVM2 PV holds no filesystem itself — address its LVs with --lv vg/lv")
+		return nil, nil, nil, fmt.Errorf("an LVM2 PV holds no filesystem itself — address its LVs with --lv vg/lv")
 	case "ntfs":
 		geom, err := ntfsvol.ReadNTFSGeometry(v.ra, 0, v.Size)
 		if err != nil {
-			return nil, nil, fmt.Errorf("read NTFS geometry: %w", err)
+			return nil, nil, nil, fmt.Errorf("read NTFS geometry: %w", err)
 		}
 		fsys, err := ntfsfs.Open(ntfsvol.VolumeReader(v.ra, 0, geom), 0)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		return ntfsFS{fs: fsys}, nil, nil
+		return ntfsFS{fs: fsys}, nil, fsys.Close, nil
 	default:
 		fsys, err := fsx.Open(v.ra, v.Size)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		return fsxFS{fs: fsys}, fsys, nil
+		return fsxFS{fs: fsys}, fsys, nil, nil
 	}
 }

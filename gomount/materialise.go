@@ -312,7 +312,7 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 	}
 	comps := strings.Split(norm, "/")
 	var out []fileEntry
-	var walk func(dir string, idx int)
+	var walk func(dir string, idx, depth int)
 	var collectAll func(dir string, depth int)
 	collectAll = func(dir string, depth int) {
 		if depth > 64 {
@@ -333,7 +333,10 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 			}
 		}
 	}
-	walk = func(dir string, idx int) {
+	walk = func(dir string, idx, depth int) {
+		if depth > 64 { // the collectAll bound: a crafted tree stops here
+			return
+		}
 		comp := comps[idx]
 		last := idx == len(comps)-1
 		if comp == "**" {
@@ -341,14 +344,14 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 				collectAll(dir, 0)
 				return
 			}
-			walk(dir, idx+1) // ** matches zero levels
+			walk(dir, idx+1, depth) // ** matches zero levels
 			entries, err := fsys.ReadDir(dir)
 			if err != nil {
 				return
 			}
 			for _, e := range entries {
 				if e.IsDir {
-					walk(path.Join(dir, e.Name), idx) // and one more level
+					walk(path.Join(dir, e.Name), idx, depth+1) // and one more level
 				}
 			}
 			return
@@ -361,7 +364,7 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 				}
 				return
 			}
-			walk(child, idx+1)
+			walk(child, idx+1, depth)
 			return
 		}
 		entries, err := fsys.ReadDir(dir)
@@ -381,11 +384,11 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 				continue
 			}
 			if e.IsDir {
-				walk(path.Join(dir, e.Name), idx+1)
+				walk(path.Join(dir, e.Name), idx+1, depth+1)
 			}
 		}
 	}
-	walk("/", 0)
+	walk("/", 0, 0)
 	return out
 }
 
@@ -508,10 +511,12 @@ func sanitizeComponent(s string) string {
 			out[i] = '_'
 		}
 	}
-	if len(out) == 0 {
-		return "_"
+	// "." and ".." pass the character filter but are path syntax, not
+	// names: path.Join would collapse them out of residue/<kind>/<id>/.
+	if s := string(out); s != "" && s != "." && s != ".." {
+		return s
 	}
-	return string(out)
+	return "_"
 }
 
 // ensureDirBeneath creates dir and any missing parents under base, refusing to
