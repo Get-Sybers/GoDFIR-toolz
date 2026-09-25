@@ -261,3 +261,28 @@ func TestExtentReaderHoles(t *testing.T) {
 		}
 	}
 }
+
+// TestInlineDataPrefix pins the PR #70 review point: an inline-data
+// inode whose recorded size exceeds the in-inode capacity serves its
+// addressable 60-byte prefix as the reader's length, so reads succeed
+// over exactly what exists (Stat keeps reporting the true size).
+func TestInlineDataPrefix(t *testing.T) {
+	in := &inode{size: 70, flags: flagInline}
+	for i := range in.blocks {
+		in.blocks[i] = byte('a' + i%26)
+	}
+	ra, size, err := (&FS{}).blockReader(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size != 60 {
+		t.Fatalf("inline readable length = %d, want 60", size)
+	}
+	b := make([]byte, size)
+	if _, err := io.ReadFull(io.NewSectionReader(ra, 0, size), b); err != nil {
+		t.Fatalf("prefix read: %v", err)
+	}
+	if b[0] != 'a' || b[59] != byte('a'+59%26) {
+		t.Fatalf("prefix content: %q", b)
+	}
+}

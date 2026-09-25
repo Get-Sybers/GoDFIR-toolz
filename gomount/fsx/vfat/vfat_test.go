@@ -140,3 +140,17 @@ func TestFAT32(t *testing.T) {
 		t.Fatalf("fat32 lfn: %v", err)
 	}
 }
+
+// TestDirRegionCap pins the PR #70 review hardening: a crafted directory
+// chain claiming an implausible size errors instead of allocating it.
+func TestDirRegionCap(t *testing.T) {
+	f := &FS{secPerCluster: 1, bytesPerSec: 512}
+	long := region{chain: make([]uint32, (maxDirRegion/512)+2)}
+	if _, err := f.regionBytes(long); err == nil {
+		t.Fatal("oversized directory chain must error")
+	}
+	wide := region{fixedLen: maxDirRegion + 1}
+	if _, err := f.regionBytes(wide); err == nil {
+		t.Fatal("oversized fixed root region must error")
+	}
+}

@@ -252,12 +252,24 @@ func (f *FS) rootRegion() region {
 	return region{fixedOff: f.rootOffset, fixedLen: int64(f.rootEntries) * 32}
 }
 
+// maxDirRegion bounds a directory's byte size: FAT directories are entry
+// tables, and a chain claiming more than this is a crafted or corrupt
+// filesystem, not a bigger directory.
+const maxDirRegion = 16 << 20
+
 func (f *FS) regionBytes(r region) ([]byte, error) {
 	if r.chain == nil {
+		if r.fixedLen > maxDirRegion {
+			return nil, fmt.Errorf("vfat: directory region %d bytes over cap", r.fixedLen)
+		}
 		return fsx.ReadFull(f.ra, r.fixedOff, int(r.fixedLen))
 	}
 	cs := f.secPerCluster * f.bytesPerSec
-	out := make([]byte, 0, int64(len(r.chain))*cs)
+	total := int64(len(r.chain)) * cs
+	if total > maxDirRegion {
+		return nil, fmt.Errorf("vfat: directory chain %d bytes over cap", total)
+	}
+	out := make([]byte, 0, total)
 	for _, c := range r.chain {
 		b, err := fsx.ReadFull(f.ra, f.clusterOffset(c), int(cs))
 		if err != nil {

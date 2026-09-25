@@ -291,12 +291,14 @@ func (f *FS) blockReader(in *inode) (io.ReaderAt, int64, error) {
 	if in.flags&flagInline != 0 {
 		// Inline data: the first 60 bytes live in i_block; a tail past 60
 		// bytes would live in the xattr area — out of scope, so the
-		// addressable prefix is what we honestly serve.
+		// addressable prefix is what we honestly serve, and the returned
+		// length is the PREFIX's, so reads succeed over exactly what
+		// exists (Stat still reports the inode's true size).
 		n := in.size
 		if n > 60 {
 			n = 60
 		}
-		return bytes.NewReader(in.blocks[:n]), in.size, nil
+		return bytes.NewReader(in.blocks[:n]), n, nil
 	}
 	var extents []extent
 	var err error
