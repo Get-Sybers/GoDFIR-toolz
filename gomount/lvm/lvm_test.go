@@ -1,6 +1,7 @@
 package lvm
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -139,5 +140,42 @@ func TestMissingPV(t *testing.T) {
 	// the linear lv lives wholly on pv0 and still assembles
 	if _, _, err := vg.Reader(vg.LVs[0]); err != nil {
 		t.Fatalf("linear lv should still read: %v", err)
+	}
+}
+
+// TestBuildVGCorruptMetadata pins the PR #70 review fix: metadata missing
+// a byte-placing field (pv id, pe_start, segment geometry) fails fast
+// instead of assembling zero-value mappings that would read the wrong
+// offsets.
+func TestBuildVGCorruptMetadata(t *testing.T) {
+	base := `vg0 {
+id = "V"
+seqno = 1
+extent_size = 2048
+physical_volumes { pv0 { %s } }
+logical_volumes { root { id = "L"
+%s
+} }
+}`
+	cases := map[string][2]string{
+		"pv missing id":        {`pe_start = 2048 pe_count = 4`, `segment_count = 1 segment1 { start_extent = 0 extent_count = 1 type = "striped" stripe_count = 1 stripes = [ "pv0", 0 ] }`},
+		"pv missing pe_start":  {`id = "AAAAAA-1111-2222-3333-4444-5555-66666B"`, `segment_count = 1 segment1 { start_extent = 0 extent_count = 1 type = "striped" stripe_count = 1 stripes = [ "pv0", 0 ] }`},
+		"lv no segment_count":  {`id = "AAAAAA-1111-2222-3333-4444-5555-66666B" pe_start = 2048`, `segment1 { start_extent = 0 extent_count = 1 type = "striped" stripes = [ "pv0", 0 ] }`},
+		"segment no extents":   {`id = "AAAAAA-1111-2222-3333-4444-5555-66666B" pe_start = 2048`, `segment_count = 1 segment1 { start_extent = 0 type = "striped" stripes = [ "pv0", 0 ] }`},
+		"segment missing type": {`id = "AAAAAA-1111-2222-3333-4444-5555-66666B" pe_start = 2048`, `segment_count = 1 segment1 { start_extent = 0 extent_count = 1 stripes = [ "pv0", 0 ] }`},
+	}
+	for name, c := range cases {
+		text := fmt.Sprintf(base, c[0], c[1])
+		if _, err := buildVG("vg0", text, nil); err == nil {
+			t.Fatalf("%s: corrupt metadata assembled without error", name)
+		}
+	}
+	// the well-formed control still assembles
+	good := fmt.Sprintf(base,
+		`id = "AAAAAA-1111-2222-3333-4444-5555-66666B" pe_start = 2048 pe_count = 4`,
+		`segment_count = 1 segment1 { start_extent = 0 extent_count = 1 type = "striped" stripe_count = 1 stripes = [ "pv0", 0 ] }`)
+	vg, err := buildVG("vg0", good, nil)
+	if err != nil || len(vg.LVs) != 1 || len(vg.Missing) != 1 {
+		t.Fatalf("control: %+v %v", vg, err)
 	}
 }

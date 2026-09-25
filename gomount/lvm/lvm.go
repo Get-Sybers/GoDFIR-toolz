@@ -237,8 +237,16 @@ func buildVG(name, text string, found []*PV) (*VG, error) {
 	}
 	for _, pvName := range pvsSec.subsections() {
 		ps := pvsSec.section(pvName)
-		id, _ := ps.str("id")
-		peStart, _ := ps.int("pe_start") // sectors
+		// The fields that place bytes fail FAST: a zero-value fallback here
+		// would silently assemble the wrong offsets on corrupt metadata.
+		id, ok := ps.str("id")
+		if !ok || id == "" {
+			return nil, fmt.Errorf("pv %s: metadata lacks its id", pvName)
+		}
+		peStart, err := ps.int("pe_start") // sectors
+		if err != nil || peStart < 0 {
+			return nil, fmt.Errorf("pv %s: bad pe_start in metadata", pvName)
+		}
 		pv := byUUID[strings.ReplaceAll(id, "-", "")]
 		if pv == nil {
 			vg.Missing = append(vg.Missing, pvName)
@@ -254,18 +262,29 @@ func buildVG(name, text string, found []*PV) (*VG, error) {
 	for _, lvName := range lvsSec.subsections() {
 		ls := lvsSec.section(lvName)
 		lv := LV{Name: lvName}
-		lv.UUID, _ = ls.str("id")
-		nSegs, _ := ls.int("segment_count")
+		lv.UUID, _ = ls.str("id") // cosmetic: identify output only
+		nSegs, err := ls.int("segment_count")
+		if err != nil || nSegs <= 0 {
+			return nil, fmt.Errorf("lv %s: bad segment_count in metadata", lvName)
+		}
 		for i := int64(1); i <= nSegs; i++ {
 			ss := ls.section(fmt.Sprintf("segment%d", i))
 			if ss == nil {
 				return nil, fmt.Errorf("lv %s missing segment%d", lvName, i)
 			}
+			// Byte-placing fields again: fail fast, never map from zeros.
 			seg := Segment{}
-			seg.StartExtent, _ = ss.int("start_extent")
-			seg.ExtentCount, _ = ss.int("extent_count")
-			seg.Type, _ = ss.str("type")
-			stripeSectors, _ := ss.int("stripe_size")
+			if seg.StartExtent, err = ss.int("start_extent"); err != nil || seg.StartExtent < 0 {
+				return nil, fmt.Errorf("lv %s segment%d: bad start_extent", lvName, i)
+			}
+			if seg.ExtentCount, err = ss.int("extent_count"); err != nil || seg.ExtentCount <= 0 {
+				return nil, fmt.Errorf("lv %s segment%d: bad extent_count", lvName, i)
+			}
+			var ok bool
+			if seg.Type, ok = ss.str("type"); !ok || seg.Type == "" {
+				return nil, fmt.Errorf("lv %s segment%d: missing type", lvName, i)
+			}
+			stripeSectors, _ := ss.int("stripe_size") // Reader validates it where striping needs it
 			seg.StripeSize = stripeSectors * sector
 			stripes, err := ss.stripes()
 			if err != nil {
