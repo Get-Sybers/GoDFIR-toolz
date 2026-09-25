@@ -23,9 +23,9 @@ has three pillars:
    `gomount stream` tar consumer, and run/output introspection. The Linux
    tools are born on it; the Windows tools adopt it in a mechanical
    follow-up phase.
-2. **Fifteen Linux parsers** (`gojournal`, `goauditd`, `gowtmp`,
+2. **Fourteen Linux parsers** (`gojournal`, `goauditd`, `gowtmp`,
    `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`,
-   `gohost`, `gonetwork`, `goctl`, `gopkg`, `goacct`, `gosqlite`) — each a framework-conformant Tier-1 image from its first
+   `gohost`, `gonetwork`, `goctl`, `gopkg`, `goacct`) — each a framework-conformant Tier-1 image from its first
    commit, with record schemas designed against the byakugan data model
    (§4.1): the parsers extract everything byakugan's CAR maps need — typed
    rows, native vocabulary, identity fields, join keys — and derive nothing
@@ -269,9 +269,18 @@ records still go to files under `OUT_DIR`; exit codes stay `0/1/2/3`
 
 ## 4. The Linux parser set
 
-Fifteen tools, one artefact class each, all Tier-1 shape from birth:
-`FROM scratch`, static, `USER 2000:2000`, `contract.yml`, batch mode on no
-arguments, argv/`--tar` debug pass-through, JSONL output (the one record
+Fourteen tools, one artefact class each, all Tier-1 shape from birth —
+and the set is **capped by the method** (decision 13): the core is the
+OS's own record-keeping — the journal, systemd, and the logs the system
+produces (`gojournal`, `gounit`, `goauditd`, `gosyslog`, `gowtmp`, with
+`gopkg`'s package-manager logs and `goacct`'s kernel accounting in the
+same stream) — and the remaining tools are the one-pass supporting
+context those records need (who the host is, how volumes map, what was
+scheduled, configured or thrown away). Growth happens by deepening the
+core, never by adding more configuration-surface parsers.
+
+Every tool is `FROM scratch`, static, `USER 2000:2000`, with a
+`contract.yml`, batch mode on no arguments, argv/`--tar` debug pass-through, JSONL output (the one record
 format, decision 12). Prior-art libraries are **candidates**: each is license-checked and
 pinned per [07](../framework/07-supply-chain-and-versioning.md) at
 implementation time; where no permissive pure-Go library holds up, the format
@@ -294,7 +303,6 @@ clean-room over an `io.ReaderAt` is how gomount's partition code was built.
 | `goctl` | kernel/loader control surface (sysctl, modprobe, ld.so) | Run keys / IFEO via gore | L1 |
 | `gopkg` | dpkg/rpm/pacman/apk + snap/flatpak | goamcache/goappcompat | L4 |
 | `goacct` | process accounting `pacct` | goprefetch | L4 |
-| `gosqlite` | profile-driven SQLite dumps | sqlecmd (.NET) | L4 |
 
 ### 4.1 Records are designed against the byakugan data model
 
@@ -384,7 +392,7 @@ What is parsed and the known format edges:
   immediate CAR value. Classic glibc `struct utmp` (384-byte LE records) for
   wtmp/utmp/btmp including rotated `wtmp.1(.gz)`; `lastlog` (292-byte
   per-UID sparse records, UID from offset); the wtmpdb SQLite successor via
-  the same pure-Go driver gosqlite uses. Record-size sanity checks guard
+  the cgo-free SQLite driver (decision 12's interim-storage driver). Record-size sanity checks guard
   against non-glibc layouts rather than misparsing them.
 - **`gosyslog`** — syslog-shaped text logs (`syslog`, `messages`, `auth.log`,
   `secure`, `kern.log`, `cron`, `daemon.log`, mail logs, …) plus their
@@ -453,87 +461,6 @@ What is parsed and the known format edges:
   flags) — execution history with timestamps, the closest native thing to
   prefetch. sysstat `sa` and atop raw files are version-tied binary formats:
   deliberately out of v1 (§11.2).
-- **`gosqlite`** — the sqlecmd role in pure Go (`modernc.org/sqlite`, cgo-free
-  → `FROM scratch` holds): batch-drives embedded, versioned **profiles**
-  (a data file, like `materialise-sets.yml`) that map a recognised database —
-  Firefox `places.sqlite`, Chromium `History` (WebKit-epoch conversion),
-  wtmpdb, and future profiles — to named queries emitting flat records.
-  `-wal`/`-shm` siblings ride along under the existing sibling rule.
-
-Windows classes with no Linux analogue (registry, ESE, prefetch, shellbags,
-LNK, jump lists) get none; Linux surfaces Windows lacks (journal, auditd,
-package managers) are first-class above. Deferred candidates — web-server
-access logs, XDG `recently-used.xbel`, network configuration, browser
-profiles beyond the gosqlite profiles — are backlog, listed in §11.3.
-
-## 5. Evidence access: gomount grows Linux filesystems
-
-gomount is already the start of native disk extraction on the Windows side:
-`materialise` with its artefact-set catalogue and `stream` feeding the
-parsers' `--tar` mode exist precisely to displace the Plaso export stage,
-and its internal seams are ready for a second OS — `image` (raw/E01 →
-`io.ReaderAt`) and `partition` (MBR/GPT) are filesystem-agnostic; only the
-`ntfs*` packages are NTFS-specific. The plan continues that line in the same
-tool — same verbs, new backends — rather than introducing a second mount tool
-(§11.1 records the decision):
-
-### 5.1 Filesystem backends
-
-A small `fsx` interface (open a volume `ReaderAt` → enumerate, stat, open
-files; expose all timestamps the filesystem has, owner/mode/inode, link
-targets unfollowed, nlink — plus **allocation state** and a per-backend
-**residue enumeration** seam, §5.5, designed in from the first backend
-rather than bolted on) with backends:
-
-| FS | Detection | Notes | Candidates |
-|---|---|---|---|
-| ext2/3/4 | magic `0xEF53` at sb+56 | crtime from 256-byte inodes; extents and legacy block maps | `masahiro331/go-ext4-filesystem`, `dsoprea/go-ext4` |
-| XFS | `XFSB` at 0 | v5 crtime | `masahiro331/go-xfs-filesystem` |
-| Btrfs | magic at 0x10040 | subvolumes = the snapshot backend (§6.1); no production pure-Go reader exists — **the largest single build item**, clean-room | — |
-| vfat | boot sector | `/boot/efi`, USB media | `diskfs/go-diskfs` |
-| squashfs | `hsqs` | snap packages, live-ISO roots | `CalebQ42/squashfs`, `diskfs/go-diskfs` |
-
-The userspace path stays the default (parse in-process, no privilege, no
-`/dev/fuse`), matching the NTFS backend's philosophy: a malformed filesystem
-is a Go error, not a kernel fault. The FUSE `mount` verb remains
-NTFS-via-ntfs-3g only; Linux filesystems are served userspace-only until a
-concrete need says otherwise.
-
-### 5.2 The volume stack
-
-Linux images are rarely partition→filesystem. Between `partition` and `fsx`
-sits a container-peeling layer, applied repeatedly until a filesystem is
-reached:
-
-```
-image (raw | E01 | qcow2 …)
-  └─ partition (MBR/GPT — exists today)
-       └─ mdraid?  (superblock 1.x; RAID 0/1 assembly)          [L4]
-            └─ LUKS?  (detect always; decrypt only with an
-                       operator-supplied key/passphrase file)    [open §11.2]
-                 └─ LVM2?  (PV label scan → text VG metadata →
-                            LV extent maps: linear, striped;
-                            snapshot-cow §6.2; thin/tmeta L4)    [L2]
-                      └─ filesystem probe → fsx backend
-```
-
-Every verb that names a volume today gains `--lv <vg/lv>` addressing beside
-`--volume N`. A new **`identify`** verb prints the whole resolved stack — image
-format, partitions, RAID/LUKS/LVM findings, per-volume filesystem, OS guess
-(`etc/os-release` vs `Windows/System32`), and the snapshot inventory (§6) — as
-one JSON document. It is the lane's routing and reporting input, and the
-`snaps` listing lives inside it.
-
-### 5.3 Image formats
-
-`image` gains qcow2 (magic `QFI\xfb`, already in the evidence taxonomy;
-candidate `lima-vm/go-qcow2reader`, backing chains followed read-only) beside
-raw/dd and E01/Ex01. VHD/VHDX/VMDK follow as candidates in the same seam
-(Velocidex-ecosystem readers exist) — they serve the VM_files lane and are not
-on the Linux critical path.
-
-### 5.4 `materialise --set linux-core` and `timeline`
-
 - **`linux-core`** joins `materialise-sets.yml` (same embedded catalogue, same
   glob + siblings semantics): `var/log/**` (journal, audit, wtmp/btmp,
   lastlog, syslog family, dpkg/apt/pacman logs), `etc/`
@@ -815,7 +742,7 @@ corpus run green; no consumer switch precedes its producer piece.
 | **L1** | core parsers | `gojournal`, `goauditd`, `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`; tools join the lane list | staged/loose Linux evidence parses natively — no Plaso in that path |
 | **L2** | image path | gomount: `fsx`, ext4 + XFS + vfat backends, LVM (linear/striped), `identify`, `linux-core` materialise, `timeline` with allocation state; ext4 residue kinds — `lost+found`, orphan inodes, deleted dirents (§5.5); lane adds the native export run | a plain or LVM Linux disk image processes end-to-end with the Plaso image absent, residue included |
 | **L3** | snaps | Btrfs backend + subvolume/snapshot enumeration and `backup_root` residue listing, LVM COW snapshots, `--snap all` + provenance + dedup, qcow2 (+ internal-snapshot listing) | snapshot state reaches every parser with provenance — VSS parity |
-| **L4** | second wave | `gopkg` (squashfs/snap/flatpak included), `goacct`, `gosqlite` + profiles; LVM thin, mdraid; ext4/jbd2 journal residue | software/execution history classes; the hard volume layouts; journal-derived history |
+| **L4** | second wave | `gopkg` (the package managers' own logs and state stores; squashfs/snap/flatpak included), `goacct`; LVM thin, mdraid; ext4/jbd2 journal residue | the OS record stream completed; the hard volume layouts; journal-derived history |
 | **L5** | cutover | byakugan direct maps; parity diff harness vs Plaso per class; DX_DFIR retires log2timeline from the default Linux path; `l2t_*` adapters demoted to legacy | the goal state: Linux CAR built entirely from native parser output |
 
 Follow-ups this plan enables but does not schedule: the Windows tools adopt
@@ -844,6 +771,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 10 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted (never minted), declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
 | 11 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
 | 12 | Records are **JSONL only** — one JSON object per record; CSV is not an output format anywhere in the Linux path and no `<TOOL>_FORMAT` variable exists. A tool that ever needs interim storage beyond streaming (sorting or aggregation past memory) uses a database format (SQLite via the cgo-free driver) in its `WORK_DIR` scratch — never an interchange text format — and the record files stay the JSONL interface |
+| 13 | **The method**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). That core is where depth is added; the configuration-surface tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method |
 
 ### 11.2 Open questions
 
@@ -869,8 +797,8 @@ snapshot story. Each is a one-page decision when its time comes.
 
 Web-server access/error logs (`goweb`); XDG `recently-used.xbel` and desktop
 artefacts; netplan/nftables field-level decoding (gonetwork captures them
-verbatim today); browser-profile coverage beyond gosqlite's first
-profiles; XFS log decoding as a `fs_journal` residue backend (§5.5 covers
+verbatim today); generic/browser SQLite parsing (`gosqlite` — out of
+the method by decision 13, revisit only on explicit demand); XFS log decoding as a `fs_journal` residue backend (§5.5 covers
 ext4/jbd2); content carving over unallocated space (out of the residue
 surface by decision 11 — if it ever lands, it is the signatures lane's
 business); VHD/VHDX/VMDK image formats. A persistence-sweep view across
