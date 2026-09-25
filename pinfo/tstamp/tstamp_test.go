@@ -69,3 +69,23 @@ func TestFlexible(t *testing.T) {
 		t.Fatal("yearless form must not be Flexible")
 	}
 }
+
+// TestSyslog3164InNewYearOffsets pins the PR #69 review fix: the inferred
+// year is the reference instant's year on the HOST's calendar (ref.In(loc)),
+// not in UTC. A +14:00 host is already in the new year while UTC is not;
+// a -11:00 host is still in the old one.
+func TestSyslog3164InNewYearOffsets(t *testing.T) {
+	east := time.FixedZone("+14", 14*3600)
+	ref := time.Date(2025, 12, 31, 23, 0, 0, 0, time.UTC) // host local: 2026-01-01T13:00+14
+	got, ok := Syslog3164In("Jan  1 13:00:00", ref, east)
+	if !ok || ISO8601(got) != "2025-12-31T23:00:00.000000Z" {
+		t.Fatalf("+14 new-year line: %v %v", ok, ISO8601(got))
+	}
+
+	west := time.FixedZone("-11", -11*3600)
+	ref = time.Date(2026, 1, 1, 5, 0, 0, 0, time.UTC) // host local: 2025-12-31T18:00-11
+	got, ok = Syslog3164In("Dec 31 18:00:00", ref, west)
+	if !ok || ISO8601(got) != "2026-01-01T05:00:00.000000Z" {
+		t.Fatalf("-11 old-year line: %v %v", ok, ISO8601(got))
+	}
+}

@@ -74,9 +74,13 @@ func Syslog3164In(s string, ref time.Time, loc *time.Location) (time.Time, bool)
 		return time.Time{}, false
 	}
 	if ref.IsZero() {
-		ref = time.Now().UTC()
+		ref = time.Now()
 	}
-	ref = ref.UTC()
+	// The wall clock in s belongs to the host's calendar, so the inferred
+	// year is ref's year IN loc — ref.UTC().Year() would be a year off
+	// around New Year for large offsets (a +14:00 host is already in the
+	// new year while UTC is not).
+	ref = ref.In(loc)
 	t = time.Date(ref.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, loc)
 	if t.After(ref.Add(48 * time.Hour)) {
 		t = t.AddDate(-1, 0, 0)
