@@ -80,7 +80,10 @@ proto="$work/proto"
   for i in $(seq -w 1 300); do printf 'leaf-%s.txt ---644 0 0 %s\n' "$i" "$tree/etc/hostname"; done
   printf '$\n$\n'
 } > "$proto"
-mkfs.xfs -q -f -L xfsroot -p "$proto" xfs.img
+# nrext64=0 keeps the classic inode extent counters; bigtime/ftype/crc
+# stay at the v5 defaults the backend implements.
+mkfs.xfs -q -f -L xfsroot -m uuid=33333333-2222-3333-4444-555555555555 \
+  -i nrext64=0 -p "$proto" xfs.img
 gzip -9 -f xfs.img
 
 # ---- vfat: FAT12 (small) and FAT32, LFN names, one deleted entry ------------
@@ -91,8 +94,11 @@ mcopy -i fat12.img "$tree/etc/hostname" ::HOSTNAME.TXT
 mcopy -i fat12.img "$tree/var/log/syslog" "::A Long File Name.log"
 mmd   -i fat12.img ::EFI
 mcopy -i fat12.img "$tree/etc/os-release" "::EFI/grub configuration.cfg"
+# deletions LAST: a later mcopy would reuse the freed slots
 mcopy -i fat12.img "$tree/etc/os-release" ::DELETEME.TXT
+mcopy -i fat12.img "$tree/var/log/syslog" "::deleted long name.txt"
 mdel  -i fat12.img ::DELETEME.TXT
+mdel  -i fat12.img "::deleted long name.txt"
 gzip -9 -f fat12.img
 
 truncate -s 36m fat32.img
