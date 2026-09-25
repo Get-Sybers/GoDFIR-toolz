@@ -3,28 +3,8 @@
 # requested set, then build + verify each image. Ansible tasks end to end —
 # the launcher scripts only invoke the playbook that runs this role.
 
-# images.yml lives at the repo/collection ROOT — that is the contract every
-# consumer (conform.sh, build-all.sh, DX_DFIR, a galaxy install) relies on,
-# so the role holds itself to it: stat that exact path and stop with the real
-# reason before anything else runs. The conditions evaluate in order, so the
-# manifest itself (a STRICT lookup — see defaults) is only parsed once the
-# file is known to exist.
-- name: "godfir-build | stat the root inventory (images.yml)"
-  ansible.builtin.stat:
-    path: "{{ godfir_build_root }}/images.yml"
-  register: godfir_build_manifest_stat
-
-- name: "godfir-build | the inventory is at the root and declares images"
-  ansible.builtin.assert:
-    that:
-      - godfir_build_manifest_stat.stat.exists
-      - godfir_build_manifest.images | default([]) | length > 0
-    fail_msg: >-
-      {{ godfir_build_root }}/images.yml
-      {{ 'declares no images' if godfir_build_manifest_stat.stat.exists
-         else 'does not exist' }} — the inventory lives at the repo root by
-      contract, so this root is wrong or the checkout is incomplete.
-    quiet: true
+- name: "godfir-build | assert the root inventory contract"
+  ansible.builtin.include_tasks: inventory.yml
 
 - name: "godfir-build | docker daemon reachable"
   ansible.builtin.command: docker version

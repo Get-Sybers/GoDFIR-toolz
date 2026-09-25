@@ -50,3 +50,51 @@ argument_specs:
           - "The collection/repo root: where images.yml, the build contexts
             and hardening/harden.yml live. The default resolves in a source
             checkout and an installed collection alike."
+  verify:
+    short_description: The runtime supply-chain gate over the manifest
+    description:
+      - Refuse to run anything but the manifest's hardened images - every
+        namespace ref in godfir_build_verify_images must be a manifest image
+        (membership on the digest/tag-normalized repo) and must still carry
+        the hardened contract on this host (fixed non-root USER +
+        com.get-sybers.hardened label). Refs outside the namespace pass
+        untouched. The ansible successor of the retired python guard's
+        --require.
+    options:
+      godfir_build_verify_images:
+        type: list
+        elements: str
+        default: []
+        description: "The image refs the caller is about to run."
+      godfir_build_root:
+        type: str
+        default: "two directories above the role"
+        description: "The collection/repo root carrying images.yml."
+      godfir_build_uid:
+        type: str
+        default: "2000"
+        description: "The run-as uid the contract asserts (USER uid:gid)."
+      godfir_build_gid:
+        type: str
+        default: "the uid"
+        description: "The run-as gid; follows godfir_build_uid unless set."
+  audit:
+    short_description: The full namespace inventory audit
+    description:
+      - Every manifest tool image must be present and still hardened on this
+        host, and no unexpected namespace image may exist (allow-list = the
+        manifest images + non_tool_repos). One aggregated violations report.
+        The ansible successor of the retired python guard's --audit.
+    options:
+      godfir_build_root:
+        type: str
+        default: "two directories above the role"
+        description: "The collection/repo root carrying images.yml."
+      godfir_build_uid:
+        type: str
+        default: "2000"
+        description: "The run-as uid the contract asserts (USER uid:gid)."
+      godfir_build_gid:
+        type: str
+        default: "the uid"
+        description: "The run-as gid; follows godfir_build_uid unless set."

@@ -20,7 +20,15 @@ hardened tool images:
   contract, shell-free filesystem scan, and each image's own
   `/etc/dfir-hardened` posture declaration held to the actual filesystem).
 - **`build-all.sh`** — now a thin launcher of the collection playbook: no
-  image list, no logic.
+  image list, no logic. It exists solely for standalone use of this repo;
+  integrating consumers use the role.
+- **`godfir_build` runtime entries** — `tasks_from: verify` (the supply-chain
+  gate: every namespace ref a caller is about to run must be a manifest image
+  still carrying the hardened contract on the host; digest pins normalize for
+  membership, non-namespace refs pass) and `tasks_from: audit` (every
+  manifest image present + hardened, no unexpected namespace image; allow-list
+  = the manifest + `non_tool_repos`) — the ansible successors of DX_DFIR's
+  retired python guard.
 - **`galaxy.yml`** — the repo installs as the `get_sybers.godfir_toolz`
   collection (`ansible-galaxy collection install git+https://github.com/Get-Sybers/GoDFIR-toolz.git`),
   carrying the manifest, the build role and every build context.

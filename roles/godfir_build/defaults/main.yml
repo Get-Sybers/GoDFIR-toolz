@@ -23,6 +23,11 @@ godfir_build_namespace: "{{ godfir_build_manifest.namespace | default('get-syber
 # empty = every image, in manifest order.
 godfir_build_set: []
 
+# The runtime gate's input (tasks_from: verify): the image REFS the caller is
+# about to run. Namespace refs must be manifest images still carrying the
+# hardened contract; refs outside the namespace pass untouched.
+godfir_build_verify_images: []
+
 # Rebuild even when an image's source stamp is current (docker build cache
 # still applies).
 godfir_build_force: false
