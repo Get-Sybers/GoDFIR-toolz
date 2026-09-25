@@ -47,7 +47,7 @@
     # context is manifest-declared, relative to the collection/repo root
     # (default: the root itself, which keeps hardening/harden.yml in reach);
     # dockerfile is relative to the context (default: <name>/Dockerfile).
-    path: "{{ (godfir_build_root ~ '/' ~ _img.context) if _img.context is defined else godfir_build_root }}"
+    path: "{{ (godfir_build_tree ~ '/' ~ _img.context) if _img.context is defined else godfir_build_tree }}"
     dockerfile: "{{ _img.dockerfile | default(godfir_build_name ~ '/Dockerfile') }}"
     # Combined ON TOP of the manifest args, in rising precedence: environment
     # pin overrides, then the run-as uid/gid and the source stamps — the

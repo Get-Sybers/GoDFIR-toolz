@@ -6,17 +6,21 @@
 # collection playbook, DX_DFIR's dxdfir_images delegates here at its submodule
 # pin, and a galaxy install exposes it as get_sybers.godfir_toolz.godfir_build.
 
-# The collection/repo root — roles/godfir_build sits two levels below it in
-# the source checkout AND in an installed collection alike, so the manifest
-# and every build context resolve identically in both consumption modes.
-godfir_build_root: "{{ role_path | dirname | dirname }}"
+# The tree to build from. EMPTY (the default) means THIS ROLE'S OWN tree —
+# roles/godfir_build sits two levels below the repo/collection root in the
+# source checkout and in an installed collection alike, so the manifest and
+# every build context resolve identically in both consumption modes. A
+# consumer that pins the tree elsewhere (DX_DFIR's submodule checkout, the
+# molecule fixture) passes that root instead; inventory.yml normalises the
+# two into godfir_build_tree, which every task uses.
+godfir_build_root: ""
 
-# The image inventory — images.yml at the root, THE single source of truth
-# (names, contexts, dockerfiles, args, aliases, the unbuildable map). Its
-# location is the CONTRACT, not a guess, so the lookup is strict: main.yml
-# stats the file first and fails crisply when the root is wrong; nothing
-# hedges a missing manifest into an empty one.
-godfir_build_manifest: "{{ lookup('file', godfir_build_root ~ '/images.yml') | from_yaml }}"
+# The image inventory — images.yml at the tree root, THE single source of
+# truth (names, contexts, dockerfiles, args, aliases, the unbuildable map).
+# Its location is the CONTRACT, not a guess, so the lookup is strict:
+# inventory.yml stats the file first and fails crisply when the root is
+# wrong; nothing hedges a missing manifest into an empty one.
+godfir_build_manifest: "{{ lookup('file', godfir_build_tree ~ '/images.yml') | from_yaml }}"
 godfir_build_namespace: "{{ godfir_build_manifest.namespace | default('get-sybers') }}"
 
 # What to build: image names OR aliases from the manifest, case-insensitive;

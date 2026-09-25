@@ -16,7 +16,7 @@
 # synced or generated. A tree without it is not a build tree — fail early.
 - name: "godfir-build | stat the canonical hardening playbook"
   ansible.builtin.stat:
-    path: "{{ godfir_build_root }}/hardening/harden.yml"
+    path: "{{ godfir_build_tree }}/hardening/harden.yml"
   register: godfir_build_harden_stat
 
 - name: "godfir-build | the build tree is complete"
@@ -24,7 +24,7 @@
     that:
       - godfir_build_harden_stat.stat.exists
     fail_msg: >-
-      {{ godfir_build_root }}/hardening/harden.yml is missing — the build tree
+      {{ godfir_build_tree }}/hardening/harden.yml is missing — the build tree
       is incomplete (a partial checkout, or a consumer whose GoDFIR-toolz
       submodule is not initialised: git submodule update --init --recursive).
     quiet: true
@@ -36,7 +36,7 @@
 - name: "godfir-build | resolve the checkout revision"
   # noqa: command-instead-of-module — read-only rev-parse; the git module clones.
   ansible.builtin.command:
-    argv: [git, -C, "{{ godfir_build_root }}", rev-parse, HEAD]
+    argv: [git, -C, "{{ godfir_build_tree }}", rev-parse, HEAD]
   register: godfir_build_git_head
   changed_when: false
   failed_when: false
@@ -45,7 +45,7 @@
 - name: "godfir-build | resolve the release tag"
   # noqa: command-instead-of-module — read-only describe; the git module clones.
   ansible.builtin.command:
-    argv: [git, -C, "{{ godfir_build_root }}", describe, --tags, --always]
+    argv: [git, -C, "{{ godfir_build_tree }}", describe, --tags, --always]
   register: godfir_build_git_describe
   changed_when: false
   failed_when: false
@@ -54,7 +54,7 @@
 - name: "godfir-build | keep the stamps as facts"
   vars:
     _collection_version: >-
-      {{ ((lookup('file', godfir_build_root ~ '/MANIFEST.json', errors='ignore')
+      {{ ((lookup('file', godfir_build_tree ~ '/MANIFEST.json', errors='ignore')
            | default('', true) | from_json) or {}).collection_info.version | default('') }}
   ansible.builtin.set_fact:
     godfir_build_src: >-

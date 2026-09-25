@@ -1,13 +1,21 @@
 ---
-# images.yml lives at the repo/collection ROOT — that is the contract every
-# consumer (conform.sh, build-all.sh, DX_DFIR, a galaxy install) relies on,
-# so the role holds itself to it: stat that exact path and stop with the real
-# reason before anything else runs. The conditions evaluate in order, so the
-# manifest itself (a STRICT lookup — see defaults) is only parsed once the
-# file is known to exist. Shared by every entry point (build, verify, audit).
+# Shared by every entry point (build, verify, audit): first NORMALISE the
+# tree — an empty godfir_build_root means this role's OWN repo/collection
+# root, two levels up — then hold it to the contract: images.yml lives at
+# the tree root, every consumer (conform.sh, build-all.sh, DX_DFIR, a galaxy
+# install) relies on that, so stat the exact path and stop with the real
+# reason before anything else runs. The assert's conditions evaluate in
+# order, so the manifest itself (a STRICT lookup — see defaults) is only
+# parsed once the file is known to exist.
+- name: "godfir-build | normalise the tree (empty root = this role's own)"
+  ansible.builtin.set_fact:
+    godfir_build_tree: >-
+      {{ (godfir_build_root | default('', true))
+         or (role_path | dirname | dirname) }}
+
 - name: "godfir-build | stat the root inventory (images.yml)"
   ansible.builtin.stat:
-    path: "{{ godfir_build_root }}/images.yml"
+    path: "{{ godfir_build_tree }}/images.yml"
   register: godfir_build_manifest_stat
 
 - name: "godfir-build | the inventory is at the root and declares images"
@@ -16,7 +24,7 @@
       - godfir_build_manifest_stat.stat.exists
       - godfir_build_manifest.images | default([]) | length > 0
     fail_msg: >-
-      {{ godfir_build_root }}/images.yml
+      {{ godfir_build_tree }}/images.yml
       {{ 'declares no images' if godfir_build_manifest_stat.stat.exists
          else 'does not exist' }} — the inventory lives at the repo root by
       contract, so this root is wrong or the checkout is incomplete.

@@ -45,11 +45,13 @@ argument_specs:
         description: "The release tag passed as the GODFIR_RELEASE build arg. Empty resolves git describe, else the collection version."
       godfir_build_root:
         type: str
-        default: "two directories above the role"
+        default: ""
         description:
-          - "The collection/repo root: where images.yml, the build contexts
-            and hardening/harden.yml live. The default resolves in a source
-            checkout and an installed collection alike."
+          - "The tree to build from: where images.yml, the build contexts and
+            hardening/harden.yml live. Empty means THIS ROLE'S OWN
+            repo/collection root (two directories above the role), which
+            resolves in a source checkout and an installed collection alike;
+            a consumer that pins the tree elsewhere passes that root."
   verify:
     short_description: The runtime supply-chain gate over the manifest
     description:
@@ -68,8 +70,8 @@ argument_specs:
         description: "The image refs the caller is about to run."
       godfir_build_root:
         type: str
-        default: "two directories above the role"
-        description: "The collection/repo root carrying images.yml."
+        default: ""
+        description: "The tree carrying images.yml; empty = this role's own repo/collection root."
       godfir_build_uid:
         type: str
         default: "2000"
@@ -88,8 +90,8 @@ argument_specs:
     options:
       godfir_build_root:
         type: str
-        default: "two directories above the role"
-        description: "The collection/repo root carrying images.yml."
+        default: ""
+        description: "The tree carrying images.yml; empty = this role's own repo/collection root."
       godfir_build_uid:
         type: str
         default: "2000"
