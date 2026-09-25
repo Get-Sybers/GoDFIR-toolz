@@ -70,6 +70,10 @@ func main() {
 		os.Exit(runStream(os.Args[2:]))
 	case "materialise":
 		os.Exit(runMaterialise(os.Args[2:]))
+	case "identify":
+		os.Exit(runIdentify(os.Args[2:]))
+	case "timeline":
+		os.Exit(runTimeline(os.Args[2:]))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -99,9 +103,20 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   gomount stream [--volume N] [--filter GLOB] [--jsonl] <image>
   gomount materialise [--volume N] --out DIR [--set NAME]... [--select GLOB]... \
                  [--siblings=true] [--manifest] <image>
+  gomount identify <image>
+  gomount timeline [--volume N | --lv vg/lv] [--residue] [--hash] <image>
+
+  The userspace verbs read NTFS and the Linux filesystems (ext2/3/4, XFS,
+  vfat) through one resolved volume stack: partitions, LVM2 volume groups
+  (--lv vg/lv addresses a logical volume), or a bare whole-disk filesystem.
+  identify prints that stack as one JSON document; timeline emits one JSONL
+  row per (file, timestamp kind) with allocation state (--residue adds the
+  recovered rows, --hash content digests).
 
   <image>       E01/Ex01 (segmented) or raw/dd/img disk image (opened read-only)
-  --volume N    1-based volume to read; 0 = auto (largest NTFS volume) (default 0)
+  --volume N    1-based volume in the resolved stack; 0 = auto (largest NTFS,
+                else the volume holding /etc/os-release, else largest known)
+  --lv vg/lv    address an LVM2 logical volume by name
   -l            ls long listing: type, size, mtime, name
   --deleted     ls also carves directory-index slack for unlinked entries
   --depth D     tree recursion depth (default -1 = unlimited)

@@ -25,6 +25,8 @@ import (
 	"syscall"
 
 	yaml "github.com/Velocidex/yaml/v2"
+
+	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
 )
 
 // materialiseSetsYAML is the embedded artefact-set catalogue. Keeping the set
@@ -60,14 +62,30 @@ func loadArtefactSets() (map[string]artefactSet, error) {
 	return cat.Sets, nil
 }
 
-// materialiseRecord is one manifest line: the tool-facing record of a pulled
-// file. It mirrors the stream verb's per-file JSONL so downstream tooling reads
-// one shape.
+// materialiseRecord is one manifest line — the ORIGIN RECORD of rule 2
+// (docs/linux §5.4): every pulled file carries the chain the pinfo
+// runtime joins onto parser records as Origin/Snapshot/Residue. The
+// legacy fields (path/size/mtime/mftid) keep their names so existing
+// consumers read on; the chain fields are omitted when a backend has no
+// value for them (honest nulls).
 type materialiseRecord struct {
-	Path  string `json:"path"`
-	Size  int64  `json:"size"`
-	Mtime string `json:"mtime"`
-	MFTID string `json:"mftid"`
+	Path   string           `json:"path"`
+	Size   int64            `json:"size"`
+	Mtime  string           `json:"mtime,omitempty"`
+	MFTID  string           `json:"mftid,omitempty"`
+	Image  string           `json:"image,omitempty"`
+	Volume string           `json:"volume,omitempty"` // "p1" | "vg0/root" | "disk"
+	FSUUID string           `json:"fsuuid,omitempty"`
+	Label  string           `json:"label,omitempty"`
+	Inode  uint64           `json:"inode,omitempty"`
+	Staged string           `json:"staged,omitempty"` // stage-relative path when != path
+	Skip   string           `json:"skip,omitempty"`   // why a file was NOT pulled
+	Res    *manifestResidue `json:"residue,omitempty"`
+}
+
+type manifestResidue struct {
+	Kind   string `json:"kind"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // multiFlag collects a repeatable string flag (--set, --select).
@@ -82,10 +100,13 @@ func (m *multiFlag) Set(v string) error {
 
 func runMaterialise(argv []string) int {
 	fs := flag.NewFlagSet("materialise", flag.ExitOnError)
-	volume := fs.Int("volume", 0, "1-based NTFS volume (default 0 = largest NTFS)")
+	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
+	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	out := fs.String("out", "", "output directory for the pulled artefacts (required, writable)")
 	siblings := fs.Bool("siblings", true, "also pull each artefact's named siblings (transaction logs, WAL/SHM)")
 	manifest := fs.Bool("manifest", false, "write <out>/materialise.jsonl listing every pulled file")
+	maxSize := fs.Int64("max-file-size", 0, "skip files larger than this many bytes (0 = no limit); every skip lands in the manifest")
+	withResidue := fs.Bool("residue", false, "also stage recoverable residue content under residue/<kind>/<id>/ (Linux backends)")
 	var sets, selects multiFlag
 	fs.Var(&sets, "set", "named artefact set to pull (repeatable)")
 	fs.Var(&selects, "select", "ad-hoc volume-path glob to pull (repeatable)")
@@ -93,7 +114,7 @@ func runMaterialise(argv []string) int {
 	_ = fs.Parse(argv)
 
 	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "gomount materialise: usage: materialise [--volume N] --out DIR [--set NAME]... [--select GLOB]... [--siblings=true] [--manifest] <image>")
+		fmt.Fprintln(os.Stderr, "gomount materialise: usage: materialise [--volume N | --lv vg/lv] --out DIR [--set NAME]... [--select GLOB]... [--siblings=true] [--manifest] [--max-file-size N] [--residue] <image>")
 		return 1
 	}
 	if *out == "" {
@@ -127,12 +148,20 @@ func runMaterialise(argv []string) int {
 		}
 	}
 
-	fsys, closer, err := openVolumeFS(fs.Arg(0), *volume)
+	fsys, rawFS, ref, closer, err := openVolume(fs.Arg(0), *volume, *lvName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
 		return 1
 	}
 	defer closer()
+
+	// The manifest rows' origin chain (rule 2): the image, the volume's
+	// place in the stack, and the filesystem's durable identity.
+	origin := materialiseRecord{Image: filepath.Base(fs.Arg(0)), Volume: ref.Source}
+	if rawFS != nil {
+		info := rawFS.Info()
+		origin.FSUUID, origin.Label = info.UUID, info.Label
+	}
 
 	// Resolve every selector to a de-duplicated, path-sorted set of volume files.
 	targets := newTargetSet()
@@ -154,10 +183,24 @@ func runMaterialise(argv []string) int {
 		return 1
 	}
 
+	newRecord := func(e fileEntry) materialiseRecord {
+		r := origin
+		r.Path, r.Size, r.Mtime, r.MFTID, r.Inode = e.Path, e.Size, tsCol(e.Mtime), e.MFTID, e.Inode
+		return r
+	}
+
 	var records []materialiseRecord
 	var files, errCount int
 	var bytesCopied int64
 	for _, e := range targets.sorted() {
+		if *maxSize > 0 && e.Size > *maxSize {
+			// Skipped, never silently: the manifest says so (§5.4).
+			r := newRecord(e)
+			r.Skip = fmt.Sprintf("max-file-size (%d > %d)", e.Size, *maxSize)
+			records = append(records, r)
+			fmt.Fprintf(os.Stderr, "gomount materialise: %s: skipped, %d bytes over --max-file-size\n", e.Path, e.Size)
+			continue
+		}
 		n, err := materialiseFile(fsys, e, *out)
 		if err != nil {
 			errCount++
@@ -166,12 +209,17 @@ func runMaterialise(argv []string) int {
 		}
 		files++
 		bytesCopied += n
-		records = append(records, materialiseRecord{
-			Path:  e.Path,
-			Size:  e.Size,
-			Mtime: tsCol(e.Mtime),
-			MFTID: e.MFTID,
-		})
+		records = append(records, newRecord(e))
+	}
+
+	if *withResidue {
+		n, recs, rerr := materialiseResidue(rawFS, *out, origin, *maxSize)
+		records = append(records, recs...)
+		files += n
+		if rerr != nil {
+			fmt.Fprintf(os.Stderr, "gomount materialise: residue: %v\n", rerr)
+			errCount++
+		}
 	}
 
 	if *manifest {
@@ -253,8 +301,10 @@ func resolveSelect(fsys volumeFS, glob string, targets *targetSet) error {
 // the files it names. A literal path is Stat'd directly; a path component that
 // carries glob metacharacters ("*", "?", "[") is expanded by ReadDir, one
 // directory level per component, so "\Users\*\NTUSER.DAT" fans out across every
-// user profile and "...\SUM\*.mdb" across every database. Directories, and paths
-// that do not exist, yield nothing.
+// user profile and "...\SUM\*.mdb" across every database. A "**" component
+// matches zero or more directory levels: "var/log/**" pulls a whole tree,
+// "home/*/.ssh/**" every user's key material. Directories, and paths that do
+// not exist, yield nothing.
 func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 	norm := strings.Trim(strings.ReplaceAll(pattern, "\\", "/"), "/")
 	if norm == "" {
@@ -262,10 +312,50 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 	}
 	comps := strings.Split(norm, "/")
 	var out []fileEntry
-	var walk func(dir string, idx int)
-	walk = func(dir string, idx int) {
+	var walk func(dir string, idx, depth int)
+	var collectAll func(dir string, depth int)
+	collectAll = func(dir string, depth int) {
+		if depth > 64 {
+			return
+		}
+		entries, err := fsys.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			child := path.Join(dir, e.Name)
+			if e.IsDir {
+				collectAll(child, depth+1)
+				continue
+			}
+			if se, err := fsys.Stat(child); err == nil && !se.IsDir {
+				out = append(out, se)
+			}
+		}
+	}
+	walk = func(dir string, idx, depth int) {
+		if depth > 64 { // the collectAll bound: a crafted tree stops here
+			return
+		}
 		comp := comps[idx]
 		last := idx == len(comps)-1
+		if comp == "**" {
+			if last {
+				collectAll(dir, 0)
+				return
+			}
+			walk(dir, idx+1, depth) // ** matches zero levels
+			entries, err := fsys.ReadDir(dir)
+			if err != nil {
+				return
+			}
+			for _, e := range entries {
+				if e.IsDir {
+					walk(path.Join(dir, e.Name), idx, depth+1) // and one more level
+				}
+			}
+			return
+		}
 		if !hasGlobMeta(comp) {
 			child := path.Join(dir, comp)
 			if last {
@@ -274,7 +364,7 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 				}
 				return
 			}
-			walk(child, idx+1)
+			walk(child, idx+1, depth)
 			return
 		}
 		entries, err := fsys.ReadDir(dir)
@@ -294,11 +384,11 @@ func matchPrimaries(fsys volumeFS, pattern string) []fileEntry {
 				continue
 			}
 			if e.IsDir {
-				walk(path.Join(dir, e.Name), idx+1)
+				walk(path.Join(dir, e.Name), idx+1, depth+1)
 			}
 		}
 	}
-	walk("/", 0)
+	walk("/", 0, 0)
 	return out
 }
 
@@ -306,12 +396,22 @@ func hasGlobMeta(s string) bool { return strings.ContainsAny(s, "*?[") }
 
 // materialiseFile copies one volume file to <outRoot>/<volume-relative-path>
 // (leading "/" stripped, "\"-normalised — the same layout the stream verb's tar
-// uses), creating parents and the file at mode 0o400. The copy streams through
-// io.Copy so a multi-gigabyte database never buffers in memory. The image is
-// only ever read; nothing is written back to the source. It returns the bytes
-// written.
+// uses). The image is only ever read; nothing is written back to the source.
 func materialiseFile(fsys volumeFS, e fileEntry, outRoot string) (int64, error) {
-	rel := filepath.FromSlash(strings.TrimPrefix(e.Path, "/"))
+	r, err := fsys.Open(e.Path)
+	if err != nil {
+		return 0, err
+	}
+	defer r.Close()
+	rel := filepath.FromSlash(strings.TrimPrefix(strings.ReplaceAll(e.Path, "\\", "/"), "/"))
+	return stageWrite(outRoot, rel, r)
+}
+
+// stageWrite streams r to <outRoot>/<rel>, creating parents and the file
+// at mode 0o400. The copy goes through io.Copy so a multi-gigabyte
+// database never buffers in memory; symlink traversal is refused end to
+// end and nothing can land outside outRoot.
+func stageWrite(outRoot, rel string, r io.Reader) (int64, error) {
 	dest := filepath.Join(outRoot, rel)
 
 	// Defence in depth against a crafted volume path: never write outside --out.
@@ -324,18 +424,12 @@ func materialiseFile(fsys volumeFS, e fileEntry, outRoot string) (int64, error) 
 		return 0, err
 	}
 	if absDest != absOut && !strings.HasPrefix(absDest, absOut+string(os.PathSeparator)) {
-		return 0, fmt.Errorf("refusing to write outside --out: %s", e.Path)
+		return 0, fmt.Errorf("refusing to write outside --out: %s", rel)
 	}
 
 	if err := ensureDirBeneath(absOut, filepath.Dir(absDest)); err != nil {
 		return 0, err
 	}
-	r, err := fsys.Open(e.Path)
-	if err != nil {
-		return 0, err
-	}
-	defer r.Close()
-
 	// Remove any prior pull first: a 0o400 file cannot be re-opened O_WRONLY, so
 	// this keeps a re-run idempotent.
 	_ = os.Remove(dest)
@@ -356,6 +450,73 @@ func materialiseFile(fsys volumeFS, e fileEntry, outRoot string) (int64, error) 
 		return n, err
 	}
 	return n, nil
+}
+
+// materialiseResidue stages recoverable residue content (docs/linux
+// §5.5) under residue/<kind>/<id>/<volume-path>, one manifest row per
+// item with the residue kind and detail on it — so a recovered auth.log
+// is parsed by the same sub-tools as its live sibling, provenance
+// intact. NTFS (no fsx seam) and backends without recovery contribute
+// nothing, silently.
+func materialiseResidue(rawFS fsx.FS, outRoot string, origin materialiseRecord, maxSize int64) (int, []materialiseRecord, error) {
+	rr, ok := rawFS.(fsx.Residuer)
+	if rawFS == nil || !ok {
+		return 0, nil, nil
+	}
+	var files int
+	var records []materialiseRecord
+	err := rr.Residues(func(r fsx.Residue, open func() (io.ReadCloser, error)) error {
+		if open == nil {
+			return nil // no addressable content: timeline --residue still reports it
+		}
+		e := r.Entry
+		rec := origin
+		rec.Path, rec.Size, rec.Mtime, rec.Inode = e.Path, e.Size, tsCol(e.Mtime), e.Inode
+		rec.Res = &manifestResidue{Kind: r.Kind, Detail: r.Detail}
+		if maxSize > 0 && e.Size > maxSize {
+			rec.Skip = fmt.Sprintf("max-file-size (%d > %d)", e.Size, maxSize)
+			records = append(records, rec)
+			return nil
+		}
+		rel := path.Join("residue", r.Kind, sanitizeComponent(r.ID),
+			strings.TrimPrefix(strings.ReplaceAll(e.Path, "\\", "/"), "/"))
+		rc, oerr := open()
+		if oerr != nil {
+			rec.Skip = "unreadable: " + oerr.Error()
+			records = append(records, rec)
+			return nil
+		}
+		defer rc.Close()
+		if _, werr := stageWrite(outRoot, filepath.FromSlash(rel), rc); werr != nil {
+			rec.Skip = "stage failed: " + werr.Error()
+			records = append(records, rec)
+			return nil
+		}
+		rec.Staged = rel
+		records = append(records, rec)
+		files++
+		return nil
+	})
+	return files, records, err
+}
+
+// sanitizeComponent keeps a residue id usable as ONE path component.
+func sanitizeComponent(s string) string {
+	out := []byte(s)
+	for i, c := range out {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9',
+			c == '.', c == '-', c == '_':
+		default:
+			out[i] = '_'
+		}
+	}
+	// "." and ".." pass the character filter but are path syntax, not
+	// names: path.Join would collapse them out of residue/<kind>/<id>/.
+	if s := string(out); s != "" && s != "." && s != ".." {
+		return s
+	}
+	return "_"
 }
 
 // ensureDirBeneath creates dir and any missing parents under base, refusing to

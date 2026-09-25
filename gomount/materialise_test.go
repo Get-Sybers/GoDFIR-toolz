@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,7 +44,7 @@ func TestMaterialiseCatalogue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadArtefactSets: %v", err)
 	}
-	want := []string{"amcache", "ntuser", "registry-core", "shimcache", "srum", "sum", "timeline", "usrclass"}
+	want := []string{"amcache", "linux-core", "ntuser", "registry-core", "shimcache", "srum", "sum", "timeline", "usrclass"}
 	got := sortedSetNames(sets)
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("set names = %v, want %v", got, want)
@@ -133,7 +134,7 @@ func matRun(t *testing.T, name string, args ...string) {
 // verb uses) and returns the volumeFS over the seeded image.
 func openMatFS(t *testing.T, img string) (volumeFS, func() error) {
 	t.Helper()
-	fsys, closer, err := openVolumeFS(img, 0)
+	fsys, closer, err := openVolumeFS(img, 0, "")
 	if err != nil {
 		t.Fatalf("openVolumeFS: %v", err)
 	}
@@ -364,4 +365,52 @@ func manifestKeys(m map[string]materialiseRecord) []string {
 	}
 	sort.Strings(ks)
 	return ks
+}
+
+// cyclicFS is a stub whose root always contains one subdirectory and one
+// file — an unbounded tree — to pin the "**" depth guard.
+type cyclicFS struct{}
+
+func (cyclicFS) ReadDir(dir string) ([]fileEntry, error) {
+	return []fileEntry{
+		{Name: "loop", Path: dir + "/loop", IsDir: true},
+		{Name: "f.txt", Path: dir + "/f.txt", Size: 1},
+	}, nil
+}
+func (c cyclicFS) Stat(p string) (fileEntry, error) {
+	if strings.HasSuffix(p, "f.txt") {
+		return fileEntry{Name: "f.txt", Path: p, Size: 1}, nil
+	}
+	return fileEntry{Name: "loop", Path: p, IsDir: true}, nil
+}
+func (cyclicFS) Open(string) (io.ReadCloser, error) { return nil, errors.New("stub") }
+func (cyclicFS) Walk(func(fileEntry, func() (io.ReadCloser, error)) error) error {
+	return nil
+}
+
+// TestDoubleStarDepthBound: a pathologically deep (here: endless) tree
+// terminates instead of recursing without bound (PR #70 review).
+func TestDoubleStarDepthBound(t *testing.T) {
+	got := matchPrimaries(cyclicFS{}, "start/**/f.txt")
+	if len(got) == 0 || len(got) > 70 {
+		t.Fatalf("depth-bounded expansion returned %d entries", len(got))
+	}
+}
+
+// TestSanitizeComponent pins that residue ids can never inject path
+// syntax into the staged layout (PR #70 review).
+func TestSanitizeComponent(t *testing.T) {
+	for in, want := range map[string]string{
+		".":          "_",
+		"..":         "_",
+		"":           "_",
+		"a/../b":     "a_.._b", // separators die before the dots can act
+		"inode-42":   "inode-42",
+		"file.txt":   "file.txt",
+		"we ird\x00": "we_ird_",
+	} {
+		if got := sanitizeComponent(in); got != want {
+			t.Fatalf("sanitize(%q) = %q, want %q", in, got, want)
+		}
+	}
 }

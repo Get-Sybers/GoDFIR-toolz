@@ -1,16 +1,25 @@
-# `get-sybers/gomount` — read one NTFS volume, read-only, unprivileged
+# `get-sybers/gomount` — read a disk image's volumes, read-only, unprivileged
 
 ## Backends
 
-gomount reads one NTFS volume from a disk image two ways.
+gomount reads the volumes of a disk image in-process, and can additionally
+FUSE-mount an NTFS volume.
 
-The **userspace backend** parses the NTFS filesystem in-process with
-[go-ntfs](https://www.velocidex.com/golang/go-ntfs) and mounts nothing: no FUSE,
-no kernel driver, no `ntfs-3g`, no privilege. It serves the volume's contents
-straight from the parser through read verbs — `ls`, `cat`, `stat`, `tree`, and
-`browse` for an operator, and `stream` for tools. A malformed filesystem surfaces
-as a Go error rather than a kernel fault, and the backend runs anywhere a Go
-binary runs, including containers with no `/dev/fuse`.
+The **userspace backend** parses filesystems in-process and mounts nothing:
+no FUSE, no kernel driver, no privilege. NTFS is read with
+[go-ntfs](https://www.velocidex.com/golang/go-ntfs); the Linux filesystems —
+**ext2/3/4, XFS v5 and vfat** — with gomount's own clean-room [`fsx`](fsx)
+backends (docs/linux §5.1), and every verb resolves ONE volume stack first
+(docs/linux §5.2): partitions, **LVM2 volume groups** (linear and striped
+LVs, addressed as `--lv vg/lv`), or a bare whole-disk filesystem. It serves
+the volume's contents straight from the parser through read verbs — `ls`,
+`cat`, `stat`, `tree`, and `browse` for an operator, `stream` and
+`materialise` for tools, `identify` for the lane's routing document, and
+`timeline` for the fs:stat rows (allocation state on every row; `--residue`
+adds the recovered rows of §5.5, `--hash` content digests). A malformed
+filesystem surfaces as a Go error rather than a kernel fault, and the
+backend runs anywhere a Go binary runs, including containers with no
+`/dev/fuse`.
 
 ```
 gomount ls     <image> [path]      list a directory (default: the volume root)
@@ -18,6 +27,8 @@ gomount cat    <image> <path>      write a file's bytes to stdout
 gomount stat   <image> <path>      print one entry's metadata
 gomount tree   <image> [path]      list a subtree
 gomount browse <image>             navigate the volume interactively
+gomount identify <image>           print the resolved volume stack as JSON
+gomount timeline <image>           one JSONL row per (file, timestamp kind)
 gomount stream [--jsonl] <image>   walk the whole filesystem for tools
 gomount materialise --out DIR [--set NAME]... [--select GLOB]... [--siblings] [--manifest] <image>
 ```
@@ -29,7 +40,12 @@ built-in artefact set (`registry-core`, `amcache`, `shimcache`, `ntuser`,
 glob. Each file lands at `<out>/<volume-path>` at mode `0400`. `--siblings`
 (default `true`) also copies each artefact's named siblings — a hive's
 `.LOG1`/`.LOG2`, a SQLite `-wal`/`-shm` — from the same directory. `--manifest`
-writes `<out>/materialise.jsonl` with `{path,size,mtime,mftid}` per pulled file.
+writes `<out>/materialise.jsonl` when `--manifest` is given — each row an
+**origin record** (docs/linux §5.4): `path/size/mtime` plus the image, the
+volume's place in the stack (`p1` | `vg/lv` | `disk`), the filesystem UUID
+and label, the inode/mftid, a `staged` path when it differs, a `skip`
+reason for files held back by `--max-file-size`, and the residue
+kind/detail on `--residue` rows.
 The artefact sets are defined in `materialise-sets.yml`, embedded at build time.
 A selector that matches nothing copies nothing and is not an error.
 
@@ -106,7 +122,7 @@ the `mount` verb additionally needs `--device /dev/fuse`.
 ## Output
 
 - `stream`: a tar archive on stdout, one regular-file entry per volume file (entry name = the file's volume path), or one JSON object per file with `--jsonl`.
-- `materialise`: `<out>/<volume-path>` at mode `0400` per pulled file, plus `<out>/materialise.jsonl` with `--manifest`.
+- `materialise`: `<out>/<volume-path>` at mode `0400` per pulled file, `residue/<kind>/<id>/<volume-path>` with `--residue`, plus `<out>/materialise.jsonl` with `--manifest`.
 - `mount`: a read-only NTFS mount at `--mount-point` held in the foreground until `umount`.
 - `ls`/`cat`/`stat`/`tree`/`browse`: the listing or bytes on stdout.
 
