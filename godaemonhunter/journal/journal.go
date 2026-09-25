@@ -236,7 +236,7 @@ func (j *journalFile) readEntry(off uint64) (*entry, error) {
 		data, err := j.readData(doff)
 		if err != nil {
 			e.truncated = true
-			continue // a dirty tail: keep what is readable
+			continue // a dirty tail or an over-cap value: keep what is readable
 		}
 		e.fields = append(e.fields, data)
 	}
@@ -244,6 +244,9 @@ func (j *journalFile) readEntry(off uint64) (*entry, error) {
 }
 
 // readData decodes one DATA object's payload, decompressing as flagged.
+// A value over maxDataPayload — as stored or once decompressed — comes
+// back as an error, never as a silent prefix: readEntry drops that field
+// and marks the entry Truncated, one rule for all four codecs.
 func (j *journalFile) readData(off uint64) ([]byte, error) {
 	typ, flags, payload, err := j.objectHeader(off)
 	if err != nil {
@@ -260,9 +263,8 @@ func (j *journalFile) readData(off uint64) ([]byte, error) {
 		return nil, fmt.Errorf("data at %#x payload %d", off, payload)
 	}
 	n := payload - head
-	capped := false
 	if n > maxDataPayload {
-		n, capped = maxDataPayload, true
+		return nil, fmt.Errorf("data at %#x: stored payload %d over cap", off, n)
 	}
 	raw, err := j.readAt(off+16+head, int(n))
 	if err != nil {
@@ -270,21 +272,26 @@ func (j *journalFile) readData(off uint64) ([]byte, error) {
 	}
 	switch {
 	case flags&objFlagXZ != 0:
-		if capped {
-			return nil, fmt.Errorf("compressed payload over cap")
-		}
 		zr, err := xz.NewReader(bytes.NewReader(raw))
 		if err != nil {
 			return nil, err
 		}
-		return io.ReadAll(io.LimitReader(zr, maxDataPayload))
+		// One byte past the cap distinguishes over-cap from exactly-cap.
+		out, err := io.ReadAll(io.LimitReader(zr, maxDataPayload+1))
+		if err != nil {
+			return nil, err
+		}
+		if len(out) > maxDataPayload {
+			return nil, fmt.Errorf("xz data at %#x: decompressed over cap", off)
+		}
+		return out, nil
 	case flags&objFlagLZ4 != 0:
-		if capped || len(raw) < 8 {
+		if len(raw) < 8 {
 			return nil, fmt.Errorf("bad lz4 payload")
 		}
 		usize := binary.LittleEndian.Uint64(raw[0:8])
 		if usize > maxDataPayload {
-			usize = maxDataPayload
+			return nil, fmt.Errorf("lz4 data at %#x: decompressed size %d over cap", off, usize)
 		}
 		out := make([]byte, usize)
 		m, err := lz4.UncompressBlock(raw[8:], out)
@@ -293,9 +300,9 @@ func (j *journalFile) readData(off uint64) ([]byte, error) {
 		}
 		return out[:m], nil
 	case flags&objFlagZSTD != 0:
-		if capped {
-			return nil, fmt.Errorf("compressed payload over cap")
-		}
+		// Expansion is bounded at construction: the shared decoder carries
+		// WithDecoderMaxMemory(maxDataPayload), so a frame growing past the
+		// cap errors here instead of allocating.
 		return j.zstd.DecodeAll(raw, nil)
 	default:
 		return raw, nil

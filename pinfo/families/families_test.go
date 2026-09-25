@@ -29,8 +29,8 @@ func TestSudoCronPam(t *testing.T) {
 
 	f = Typed{}
 	rt = Type("sudo", "pam_unix(sudo:session): session opened for user root(uid=0) by alice(uid=1000)", &f)
-	if rt != "pam_session" || f.SessionOp != "opened" || f.Username != "root" ||
-		f.ByUser != "alice" || *f.ByUID != 1000 {
+	if rt != "pam_session" || f.PamModule != "pam_unix" || f.SessionOp != "opened" ||
+		f.Username != "root" || f.ByUser != "alice" || *f.ByUID != 1000 {
 		t.Fatalf("pam: %q %+v", rt, f)
 	}
 }

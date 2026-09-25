@@ -98,7 +98,7 @@ func Type(ident, message string, t *Typed) string {
 		}
 	}
 	if m := pamRe.FindStringSubmatch(message); m != nil {
-		t.PamModule = m[2]
+		t.PamModule = m[1]
 		t.SessionOp = m[3]
 		t.Username = m[4]
 		t.ByUser = m[6]

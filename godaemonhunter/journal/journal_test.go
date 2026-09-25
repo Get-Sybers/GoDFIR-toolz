@@ -313,3 +313,52 @@ func TestTypedEntries(t *testing.T) {
 		t.Fatalf("journal pam via _COMM: %v", pam)
 	}
 }
+
+// TestOverCapValueTruncates pins the PR #69 review fix: a DATA value over
+// maxDataPayload — as stored, or once decompressed (the silent-xz case) —
+// drops that field and marks the entry Truncated, never a silent prefix.
+func TestOverCapValueTruncates(t *testing.T) {
+	b := newJB(false)
+	good := b.addData([]byte("MESSAGE=still here"), 0)
+	rawBig := b.addData(append([]byte("RAWBIG="), bytes.Repeat([]byte{'a'}, maxDataPayload)...), 0)
+	xzBig := b.addData(xzPayload(t, "XZBIG="+strings.Repeat("b", maxDataPayload)), objFlagXZ)
+	e1 := b.addEntry(1, 1767225600000000, 5, []uint64{good, rawBig, xzBig})
+	ea := b.addEntryArray(0, []uint64{e1})
+	recs := decode(t, b.finish(ea, 1, fCompressedXZ))
+	if len(recs) != 1 {
+		t.Fatalf("entries: %d", len(recs))
+	}
+	r := recs[0]
+	if r["Message"] != "still here" || r["Truncated"] != true {
+		t.Fatalf("over-cap fields did not truncate the entry: %v", r)
+	}
+	if f, ok := r["Fields"].(map[string]any); ok {
+		for _, k := range []string{"RAWBIG", "XZBIG"} {
+			if _, kept := f[k]; kept {
+				t.Fatalf("over-cap value %s kept: %v", k, f)
+			}
+		}
+	}
+}
+
+// TestBinaryFieldHexed pins that a non-UTF-8 value reaches safeValue with
+// its original bytes (Go string conversion is byte-preserving; the record
+// splits on raw bytes) and lands hex-prefixed, not mangled.
+func TestBinaryFieldHexed(t *testing.T) {
+	b := newJB(false)
+	d1 := b.addData([]byte("MESSAGE=ok"), 0)
+	d2 := b.addData(append([]byte("BLOB="), 0xff, 0xfe, 0x01), 0)
+	e1 := b.addEntry(1, 1767225600000000, 5, []uint64{d1, d2})
+	ea := b.addEntryArray(0, []uint64{e1})
+	recs := decode(t, b.finish(ea, 1, 0))
+	if len(recs) != 1 {
+		t.Fatalf("entries: %d", len(recs))
+	}
+	f, _ := recs[0]["Fields"].(map[string]any)
+	if f["BLOB"] != "hex:fffe01" {
+		t.Fatalf("binary value not hexed byte-faithfully: %v", recs[0])
+	}
+	if recs[0]["Truncated"] == true {
+		t.Fatalf("binary value wrongly marked truncated: %v", recs[0])
+	}
+}

@@ -22,6 +22,7 @@
 package journal
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -112,12 +113,15 @@ func buildRecord(e *entry, machineID string, ks *knowledge.Store) *journalRecord
 	rec.EventTime = tstamp.UnixMicros(int64(e.realtime))
 	rec.TimeKind = "event"
 	for _, f := range e.fields {
-		k, v, ok := strings.Cut(string(f), "=")
+		// Split on the raw bytes: the value may be binary, and safeValue
+		// must see it untouched to hex it faithfully.
+		kb, v, ok := bytes.Cut(f, []byte{'='})
 		if !ok {
 			continue
 		}
+		k := string(kb)
 		if fill, known := lifted[k]; known {
-			fill(rec, safeValue([]byte(v)))
+			fill(rec, safeValue(v))
 			continue
 		}
 		if rec.Fields == nil {
@@ -125,7 +129,7 @@ func buildRecord(e *entry, machineID string, ks *knowledge.Store) *journalRecord
 		}
 		if len(rec.Fields) < maxExtraFields {
 			if _, dup := rec.Fields[k]; !dup {
-				rec.Fields[k] = safeValue([]byte(v))
+				rec.Fields[k] = safeValue(v)
 			}
 		} else {
 			rec.Truncated = true
