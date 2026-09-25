@@ -101,9 +101,11 @@ image this repository builds — name, build context, dockerfile, build args,
 aliases and the engine-pin markers — plus the `get-sybers/*` namespace's
 known non-tool repos. `conform.sh` checks each tool directory against it, and
 the **`godfir_build` role** — the collection's build engine (ansible tasks end
-to end) — builds and hardening-verifies every entry from it;
-`build-all.sh` is only the thin launcher of its playbook
-(`playbooks/build_images.yml`). A consumer plugs this repo in one of two
+to end) — builds and hardening-verifies every entry from it.
+`build-all.sh` exists solely so this repo works **standalone** (cloned on its
+own, no consumer around): a thin launcher of the collection playbook
+(`playbooks/build_images.yml`), nothing more — an integrating consumer uses
+the role, never the script. A consumer plugs this repo in one of two
 ways, both reading the same files:
 
 - **Direct reference** — pin the repo (submodule or checkout) and read

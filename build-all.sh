@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 #
-# Build the hardened get-sybers/* images — a THIN LAUNCHER, nothing more: the
-# inventory lives in images.yml and the build logic lives in ansible (the
-# godfir_build role, driven by playbooks/build_images.yml). This script only
-# forwards names and the optional stamp overrides.
+# Build the hardened get-sybers/* images — STANDALONE USE OF THIS REPO ONLY.
+# This script exists so GoDFIR-toolz works cloned on its own (no consumer
+# around); an integrating consumer (DX_DFIR) uses the godfir_build role /
+# collection playbook directly and NEVER this script. It is a thin launcher,
+# nothing more: the inventory lives in images.yml and the build logic lives
+# in ansible (the godfir_build role, driven by playbooks/build_images.yml) —
+# this script only forwards names and the optional stamp overrides.
 #
 #   ./build-all.sh                  # everything in images.yml, in manifest order
 #   ./build-all.sh gore gomft       # a subset (names case-insensitive; the

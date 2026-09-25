@@ -8,8 +8,10 @@
 # Known consumers:
 #   - conform.sh    — name/engine-ref consistency for each tool directory
 #                     (--images-yml defaults to this file).
-#   - build-all.sh  — the standalone launcher resolves its whole build set,
-#                     aliases included, from here.
+#   - build-all.sh  — the STANDALONE-ONLY launcher (this repo cloned on its
+#                     own) resolves its whole build set, aliases included,
+#                     from here; integrating consumers use the godfir_build
+#                     role, never the script.
 #   - DX_DFIR       — references this file directly at its submodule pin: the
 #                     dxdfir_images role builds every entry (CI included) and
 #                     the get_sybers_dxdfir.images runtime guard allow-lists

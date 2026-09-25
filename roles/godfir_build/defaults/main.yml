@@ -12,9 +12,11 @@
 godfir_build_root: "{{ role_path | dirname | dirname }}"
 
 # The image inventory — images.yml at the root, THE single source of truth
-# (names, contexts, dockerfiles, args, aliases, the unbuildable map).
-godfir_build_manifest: >-
-  {{ (lookup('file', godfir_build_root ~ '/images.yml', errors='ignore') | default('', true) | from_yaml) or {} }}
+# (names, contexts, dockerfiles, args, aliases, the unbuildable map). Its
+# location is the CONTRACT, not a guess, so the lookup is strict: main.yml
+# stats the file first and fails crisply when the root is wrong; nothing
+# hedges a missing manifest into an empty one.
+godfir_build_manifest: "{{ lookup('file', godfir_build_root ~ '/images.yml') | from_yaml }}"
 godfir_build_namespace: "{{ godfir_build_manifest.namespace | default('get-sybers') }}"
 
 # What to build: image names OR aliases from the manifest, case-insensitive;
