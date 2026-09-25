@@ -23,9 +23,9 @@ has three pillars:
    `gomount stream` tar consumer, and run/output introspection. The Linux
    tools are born on it; the Windows tools adopt it in a mechanical
    follow-up phase.
-2. **Thirteen Linux parsers** (`gojournal`, `goauditd`, `gowtmp`,
+2. **Fifteen Linux parsers** (`gojournal`, `goauditd`, `gowtmp`,
    `gosyslog`, `goshell`, `gousers`, `gocron`, `gounit`, `gotrash`,
-   `gohost`, `gopkg`, `goacct`, `gosqlite`) — each a framework-conformant Tier-1 image from its first
+   `gohost`, `gonetwork`, `goctl`, `gopkg`, `goacct`, `gosqlite`) — each a framework-conformant Tier-1 image from its first
    commit, with record schemas designed against the byakugan data model
    (§4.1): the parsers extract everything byakugan's CAR maps need — typed
    rows, native vocabulary, identity fields, join keys — and derive nothing
@@ -149,9 +149,11 @@ pinfo/
 │               §4.1) + the JSONL writer with honest-null discipline —
 │               JSONL is the ONE output format of the Linux matrix
 │               (decision 12)
-├── tstamp/     normalisation to RFC3339 UTC: RFC3164 (year inference from
-│               file mtime with rollover walk-back), RFC5424, ISO-8601,
-│               epoch s/ms/µs/ns, journal usec, days-since-epoch (shadow)
+├── tstamp/     normalisation to ISO 8601 UTC at fixed microsecond
+│               precision (one rendering, lexically sortable): RFC3164
+│               (year inference from file mtime with rollover walk-back),
+│               RFC5424, ISO-8601 inputs, epoch s/ms/µs/ns, journal usec,
+│               days-since-epoch (shadow)
 ├── discover/   walk + content-first magic detection helpers; transparent
 │               rotation (.1, .2.gz …) and gzip; deterministic ordering
 ├── tarstream/  the --tar mode: consume `gomount stream` (one tar entry per
@@ -180,15 +182,17 @@ downstream (byakugan maps, Filebeat, the report verb) reads one shape:
 ```json
 {"Tool":"goauditd","ToolVersion":"0.1.0","RecordType":"auditd_event",
  "SourceFilename":"var/log/audit/audit.log.1.gz","SourceModified":"2026-03-02T04:11:09Z",
- "EventTime":"2026-03-01T22:14:02.481Z","TimeKind":"event",
+ "EventTime":"2026-03-01T22:14:02.481000Z","TimeKind":"event",
  "Origin":{"Image":"srv01.E01","Volume":"vg0/root",
            "Path":"/var/log/audit/audit.log.1.gz","Inode":131204},
- "Snapshot":{"Backend":"lvm","ID":"home-snap1","Time":"2026-02-28T00:00:04Z"},
+ "Snapshot":{"Backend":"lvm","ID":"home-snap1","Time":"2026-02-28T00:00:04.000000Z"},
  "...payload fields..."}
 ```
 
-- `EventTime` is UTC RFC3339, always populated when the artefact carries a
-  time; `TimeKind` says what the time is (`event`, `written`, `deleted`,
+- `EventTime` is ISO 8601 UTC at fixed microsecond precision
+  (`2006-01-02T15:04:05.000000Z`) — one rendering for every timestamp in
+  every record, uniform and lexically sortable — always populated when the
+  artefact carries a time; `TimeKind` says what the time is (`event`, `written`, `deleted`,
   `install`, …) for artefacts with several.
 - `Tool` + `RecordType` is the record's parser chain — the role plaso's
   `Parser` field plays on the rows byakugan keeps (rule 2).
@@ -265,7 +269,7 @@ records still go to files under `OUT_DIR`; exit codes stay `0/1/2/3`
 
 ## 4. The Linux parser set
 
-Thirteen tools, one artefact class each, all Tier-1 shape from birth:
+Fifteen tools, one artefact class each, all Tier-1 shape from birth:
 `FROM scratch`, static, `USER 2000:2000`, `contract.yml`, batch mode on no
 arguments, argv/`--tar` debug pass-through, JSONL output (the one record
 format, decision 12). Prior-art libraries are **candidates**: each is license-checked and
@@ -286,6 +290,8 @@ clean-room over an `io.ReaderAt` is how gomount's partition code was built.
 | `gounit` | systemd units/timers + enablement | Services/Run keys via gore | L1 |
 | `gotrash` | XDG Trash | gorb | L1 |
 | `gohost` | host identity + fstab/crypttab volume mapping | registry system hives via gore | L1 |
+| `gonetwork` | network configuration surface | network registry keys via gore | L1 |
+| `goctl` | kernel/loader control surface (sysctl, modprobe, ld.so) | Run keys / IFEO via gore | L1 |
 | `gopkg` | dpkg/rpm/pacman/apk + snap/flatpak | goamcache/goappcompat | L4 |
 | `goacct` | process accounting `pacct` | goprefetch | L4 |
 | `gosqlite` | profile-driven SQLite dumps | sqlecmd (.NET) | L4 |
@@ -422,6 +428,19 @@ What is parsed and the known format edges:
   identities to mount points, crypttab rows tie encrypted devices to
   mapper names. Extraction only: applying the zone and joining UUIDs to
   volumes (`Origin.FSUUID`) stay byakugan-side.
+- **`gonetwork`** — the network posture as typed records: hosts, resolv,
+  nsswitch, TCP wrappers, interface and connection profiles (ifupdown,
+  systemd-networkd, NetworkManager `.nmconnection` with id/type/uuid/SSID
+  lifted and everything else verbatim — security material included, the
+  shadow-crypt rule), and persisted firewall state (iptables-save chains
+  and rules; netplan and nftables.conf captured verbatim, 64KiB cap).
+- **`goctl`** — the kernel/loader control surface, a persistence and
+  anti-forensics classic, each record with its vendor/admin/runtime Scope:
+  sysctl parameters (`sysctl.conf` + `sysctl.d`), module policy
+  (`modules-load.d`, `etc/modules`, and `modprobe.d` where `install`/
+  `remove` values are shell commands and `blacklist` hides modules), and
+  the dynamic loader controls — `ld.so.preload` one record per library,
+  `ld.so.conf` paths and includes.
 - **`gopkg`** — software presence and package events. Inventories: dpkg
   `status`, rpmdb (`var/lib/rpm` and `usr/lib/sysimage/rpm`; BerkeleyDB,
   ndb and SQLite backends — candidate `knqyf263/go-rpmdb`, pure Go), pacman
@@ -817,7 +836,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 2 | No log2timeline anywhere in the Linux path; Plaso remains for the Windows export stage and as a bring-up cross-check only |
 | 3 | The shared runtime is a real module, `pinfo`, at the repo root; Linux tools are born on it; the byte-identical-`batch.go` rule remains for the Windows tools until their adoption phase |
 | 4 | Parser images build with the repo root as context and take `pinfo` via `replace` — hermetic, air-gap-clean, no module fetch |
-| 5 | The record envelope (§3.3) with UTC RFC3339 `EventTime` and explicit provenance is mandatory for every Linux tool — and carries no synthetic identifiers; `Origin`/`Snapshot`/`Residue` are stamped by the `pinfo` runtime from the access layer's manifest, never computed by tool code |
+| 5 | The record envelope (§3.3) with ISO 8601 UTC `EventTime` (fixed microsecond precision) and explicit provenance is mandatory for every Linux tool — and carries no synthetic identifiers; `Origin`/`Snapshot`/`Residue` are stamped by the `pinfo` runtime from the access layer's manifest, never computed by tool code |
 | 6 | gomount — already begun as the native extraction path on Windows — gains the Linux backends behind one `fsx` seam; no second mount tool; userspace-only for Linux filesystems |
 | 7 | Snapshots are passed by the access layer (`--snap all`), parsers stay snapshot-agnostic, provenance rides paths + envelope + manifest, dedup defaults on |
 | 8 | ZFS is detected and reported, not read, until a demand-driven decision (§11.2) |
@@ -849,8 +868,8 @@ snapshot story. Each is a one-page decision when its time comes.
 ### 11.3 Backlog (recorded, unscheduled)
 
 Web-server access/error logs (`goweb`); XDG `recently-used.xbel` and desktop
-artefacts; network configuration surface (hosts, resolv, NetworkManager
-profiles, firewall saves); browser-profile coverage beyond gosqlite's first
+artefacts; netplan/nftables field-level decoding (gonetwork captures them
+verbatim today); browser-profile coverage beyond gosqlite's first
 profiles; XFS log decoding as a `fs_journal` residue backend (§5.5 covers
 ext4/jbd2); content carving over unallocated space (out of the residue
 surface by decision 11 — if it ever lands, it is the signatures lane's

@@ -36,6 +36,7 @@ import (
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
 )
 
 // Tool binds the shared runtime to one tool.
@@ -426,7 +427,7 @@ func itemStamp(t Tool, o Options, cfg *Config, item string) record.Stamp {
 		SourceFilename: rel,
 	}
 	if st, err := os.Stat(item); err == nil {
-		s.SourceModified = st.ModTime().UTC().Format(time.RFC3339)
+		s.SourceModified = tstamp.ISO8601(st.ModTime())
 	}
 	s.Origin, s.Snapshot, s.Residue = cfg.manifest.Stamp(rel)
 	return s

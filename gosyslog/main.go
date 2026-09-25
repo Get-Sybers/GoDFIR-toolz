@@ -132,7 +132,7 @@ func parseLine(line string, ref time.Time, rec *syslogRecord) {
 	case r5424Re.MatchString(line):
 		m := r5424Re.FindStringSubmatch(line)
 		if t, ok := tstamp.Flexible(m[1]); ok {
-			rec.EventTime = tstamp.RFC3339(t)
+			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
 		rec.Host = dash(m[2])
@@ -146,7 +146,7 @@ func parseLine(line string, ref time.Time, rec *syslogRecord) {
 	case isoRe.MatchString(line):
 		m := isoRe.FindStringSubmatch(line)
 		if t, ok := tstamp.Flexible(m[1]); ok {
-			rec.EventTime = tstamp.RFC3339(t)
+			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
 		rec.Host = m[2]
@@ -154,7 +154,7 @@ func parseLine(line string, ref time.Time, rec *syslogRecord) {
 	case bsdRe.MatchString(line):
 		m := bsdRe.FindStringSubmatch(line)
 		if t, ok := tstamp.Syslog3164(m[1], ref); ok {
-			rec.EventTime = tstamp.RFC3339(t)
+			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
 		rec.Host = m[2]
@@ -316,7 +316,7 @@ func main() {
 			s := record.Stamp{Tool: "gosyslog", ToolVersion: version, SourceFilename: rel}
 			if st != nil {
 				ref = st.ModTime().UTC()
-				s.SourceModified = tstamp.RFC3339(st.ModTime())
+				s.SourceModified = tstamp.ISO8601(st.ModTime())
 			}
 			w.SetStamp(s)
 			_, err = parseLog(f, ref, w)

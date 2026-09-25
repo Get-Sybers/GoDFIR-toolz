@@ -45,7 +45,7 @@ func TestCoalescedExecve(t *testing.T) {
 		t.Fatalf("events: %d", len(recs))
 	}
 	e := recs[0]
-	if e["AuditID"] != "1767225600.123:42" || e["EventTime"] != "2026-01-01T00:00:00.123Z" {
+	if e["AuditID"] != "1767225600.123:42" || e["EventTime"] != "2026-01-01T00:00:00.123000Z" {
 		t.Fatalf("identity/time: %v", e)
 	}
 	types := e["Types"].([]any)

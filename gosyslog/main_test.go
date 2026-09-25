@@ -44,14 +44,14 @@ func TestDialects(t *testing.T) {
 	if len(recs) != 4 {
 		t.Fatalf("count %d", len(recs))
 	}
-	if recs[0]["EventTime"] != "2026-03-01T22:14:02Z" || recs[0]["Host"] != "web01" ||
+	if recs[0]["EventTime"] != "2026-03-01T22:14:02.000000Z" || recs[0]["Host"] != "web01" ||
 		recs[0]["Ident"] != "systemd" || recs[0]["PID"] != float64(1) {
 		t.Fatalf("bsd: %v", recs[0])
 	}
 	if recs[1]["EventTime"] != "2026-03-01T20:14:03.123456Z" || recs[1]["Ident"] != "rsyslogd" {
 		t.Fatalf("iso: %v", recs[1])
 	}
-	if recs[2]["EventTime"] != "2026-03-01T20:14:04Z" || recs[2]["Ident"] != "app" ||
+	if recs[2]["EventTime"] != "2026-03-01T20:14:04.000000Z" || recs[2]["Ident"] != "app" ||
 		recs[2]["PID"] != float64(4321) || recs[2]["Message"] != "service started" {
 		t.Fatalf("5424: %v", recs[2])
 	}

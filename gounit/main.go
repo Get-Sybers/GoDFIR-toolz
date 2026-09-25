@@ -345,7 +345,7 @@ func main() {
 			st, _ := os.Stat(path)
 			s := record.Stamp{Tool: "gounit", ToolVersion: version, SourceFilename: rel}
 			if st != nil {
-				s.SourceModified = tstamp.RFC3339(st.ModTime())
+				s.SourceModified = tstamp.ISO8601(st.ModTime())
 			}
 			w.SetStamp(s)
 			_, err = parseUnit(f, rec, w)

@@ -41,7 +41,7 @@ func TestPasswdShadowGroup(t *testing.T) {
 	}
 
 	recs = parse(t, "shadow", "alice:$y$j9T$abc$def:20454:0:99999:7:::\nlocked:!:20000::::::\n")
-	if recs[0]["PasswordCrypt"] != "$y$j9T$abc$def" || recs[0]["EventTime"] != "2026-01-01T00:00:00Z" ||
+	if recs[0]["PasswordCrypt"] != "$y$j9T$abc$def" || recs[0]["EventTime"] != "2026-01-01T00:00:00.000000Z" ||
 		recs[0]["TimeKind"] != "password_change" || recs[0]["MaxDays"] != float64(99999) {
 		t.Fatalf("shadow: %v", recs[0])
 	}

@@ -75,7 +75,7 @@ func parseTrashinfo(rd io.Reader, infoPath string, w *record.Writer) (int, error
 		case strings.HasPrefix(line, "DeletionDate="):
 			rec.DeletionDateRaw = line[len("DeletionDate="):]
 			if t, ok := tstamp.Flexible(rec.DeletionDateRaw); ok {
-				rec.EventTime = tstamp.RFC3339(t)
+				rec.EventTime = tstamp.ISO8601(t)
 				rec.TimeKind = "deleted"
 			}
 		}
@@ -145,7 +145,7 @@ func main() {
 			st, _ := os.Stat(path)
 			s := record.Stamp{Tool: "gotrash", ToolVersion: version, SourceFilename: rel}
 			if st != nil {
-				s.SourceModified = tstamp.RFC3339(st.ModTime())
+				s.SourceModified = tstamp.ISO8601(st.ModTime())
 			}
 			w.SetStamp(s)
 			_, err = parseTrashinfo(f, path, w)

@@ -11,8 +11,8 @@ func TestTree(t *testing.T) {
 	dir := filepath.Join(root, "var_log_wtmp")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "gowtmp.jsonl"), []byte(
-		`{"Tool":"gowtmp","RecordType":"utmp","EventTime":"2026-01-01T01:00:00Z"}`+"\n"+
-			`{"Tool":"gowtmp","RecordType":"utmp","EventTime":"2026-01-01T00:00:00Z",`+
+		`{"Tool":"gowtmp","RecordType":"utmp","EventTime":"2026-01-01T01:00:00.000000Z"}`+"\n"+
+			`{"Tool":"gowtmp","RecordType":"utmp","EventTime":"2026-01-01T00:00:00.000000Z",`+
 			`"Snapshot":{"Backend":"lvm","ID":"s1"}}`+"\n"+
 			`{"Tool":"gowtmp","RecordType":"lastlog","Residue":{"Kind":"orphan_inode"}}`+"\n"), 0o644)
 	dir2 := filepath.Join(root, "etc_passwd")
@@ -33,7 +33,7 @@ func TestTree(t *testing.T) {
 		t.Fatalf("csv item: %+v", csv)
 	}
 	if jl.Tool != "gowtmp" || jl.Records != 3 ||
-		jl.First != "2026-01-01T00:00:00Z" || jl.Last != "2026-01-01T01:00:00Z" {
+		jl.First != "2026-01-01T00:00:00.000000Z" || jl.Last != "2026-01-01T01:00:00.000000Z" {
 		t.Fatalf("jsonl item: %+v", jl)
 	}
 	if len(jl.Types) != 2 || jl.Types[0] != "lastlog" ||

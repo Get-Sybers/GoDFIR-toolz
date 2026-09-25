@@ -5,23 +5,23 @@ import (
 	"time"
 )
 
-func TestRFC3339AndUnix(t *testing.T) {
-	if got := RFC3339(time.Time{}); got != "" {
+func TestISO8601AndUnix(t *testing.T) {
+	if got := ISO8601(time.Time{}); got != "" {
 		t.Fatalf("zero: %q", got)
 	}
 	if got := Unix(0, 0); got != "" {
 		t.Fatalf("zero unix: %q", got)
 	}
-	if got := Unix(1767225600, 0); got != "2026-01-01T00:00:00Z" {
+	if got := Unix(1767225600, 0); got != "2026-01-01T00:00:00.000000Z" {
 		t.Fatalf("unix: %q", got)
 	}
-	if got := Unix(1767225600, 481000000); got != "2026-01-01T00:00:00.481Z" {
+	if got := Unix(1767225600, 481000000); got != "2026-01-01T00:00:00.481000Z" {
 		t.Fatalf("unix nsec: %q", got)
 	}
-	if got := UnixMicros(1767225600481000); got != "2026-01-01T00:00:00.481Z" {
+	if got := UnixMicros(1767225600481000); got != "2026-01-01T00:00:00.481000Z" {
 		t.Fatalf("micros: %q", got)
 	}
-	if got := Days(20454); got != "2026-01-01T00:00:00Z" {
+	if got := Days(20454); got != "2026-01-01T00:00:00.000000Z" {
 		t.Fatalf("days: %q", got)
 	}
 	if got := Days(0); got != "" {
@@ -53,16 +53,16 @@ func TestSyslog3164YearInference(t *testing.T) {
 
 func TestFlexible(t *testing.T) {
 	cases := map[string]string{
-		"2026-03-01T22:14:02.481Z":      "2026-03-01T22:14:02.481Z",
-		"2026-03-01T22:14:02+02:00":     "2026-03-01T20:14:02Z",
-		"2026-03-01 22:14:02":           "2026-03-01T22:14:02Z",
+		"2026-03-01T22:14:02.481Z":      "2026-03-01T22:14:02.481000Z",
+		"2026-03-01T22:14:02+02:00":     "2026-03-01T20:14:02.000000Z",
+		"2026-03-01 22:14:02":           "2026-03-01T22:14:02.000000Z",
 		"2026-03-01T22:14:02.123456":    "2026-03-01T22:14:02.123456Z",
-		"2026-03-01 22:14:02.123+01:00": "2026-03-01T21:14:02.123Z",
+		"2026-03-01 22:14:02.123+01:00": "2026-03-01T21:14:02.123000Z",
 	}
 	for in, want := range cases {
 		got, ok := Flexible(in)
-		if !ok || RFC3339(got) != want {
-			t.Errorf("Flexible(%q) = %q ok=%v, want %q", in, RFC3339(got), ok, want)
+		if !ok || ISO8601(got) != want {
+			t.Errorf("Flexible(%q) = %q ok=%v, want %q", in, ISO8601(got), ok, want)
 		}
 	}
 	if _, ok := Flexible("Mar 1 22:14:02"); ok {

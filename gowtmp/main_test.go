@@ -115,7 +115,7 @@ func TestParseUtmp(t *testing.T) {
 		login["PID"] != float64(4242) || login["RecordType"] != "utmp" {
 		t.Fatalf("login row: %v", login)
 	}
-	if login["EventTime"] != "2026-01-01T00:00:00.481Z" {
+	if login["EventTime"] != "2026-01-01T00:00:00.481000Z" {
 		t.Fatalf("EventTime: %v", login["EventTime"])
 	}
 	logout := recs[1]

@@ -37,7 +37,7 @@ func TestParseTrashinfo(t *testing.T) {
 		rec["OriginalPathRaw"] != "/home/alice/secret%20plans.docx" {
 		t.Fatalf("path: %v", rec)
 	}
-	if rec["EventTime"] != "2026-03-01T22:14:02Z" || rec["TimeKind"] != "deleted" {
+	if rec["EventTime"] != "2026-03-01T22:14:02.000000Z" || rec["TimeKind"] != "deleted" {
 		t.Fatalf("time: %v", rec)
 	}
 	if rec["TrashedFileExists"] != true || rec["TrashedSize"] != float64(42) {

@@ -1,0 +1,50 @@
+# gonetwork/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: gonetwork
+image: get-sybers/gonetwork:latest
+entrypoint: self-orchestrating
+description: >
+  Network-configuration parser (static Go on the shared pinfo module): name
+  resolution (hosts, resolv.conf, nsswitch), interface and connection
+  profiles (ifupdown, systemd-networkd, NetworkManager, netplan captured),
+  TCP wrappers, and persisted firewall state (iptables-save files;
+  nftables.conf captured) — typed records, values verbatim.
+
+env:
+  GONETWORK_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised network-config file is an item'}
+  GONETWORK_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per input file'}
+  GONETWORK_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); gonetwork needs none but honours it'}
+  GONETWORK_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output'}
+  GONETWORK_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+
+mounts:
+  - {name: input,  path: /input,  mode: ro, env: GONETWORK_INPUT_DIR, required: true}
+  - {name: output, path: /output, mode: rw, env: GONETWORK_OUT_DIR,   required: true}
+  - {name: work,   path: /work,   mode: rw, env: GONETWORK_WORK_DIR,  required: false}
+
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, version, pinfo, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
+
+outputs:
+  layout: "<OUT_DIR>/<item>/gonetwork.jsonl; <item> is the file path relative to INPUT_DIR with path separators and whitespace folded to _"
+
+records:
+  envelope: [Tool, ToolVersion, RecordType, SourceFilename, SourceModified, EventTime, TimeKind, Origin, Snapshot, Residue]
+  hosts_entry: {IPAddress: 'address column verbatim', Hostnames: 'the names it resolves', Line: 'source line number'}
+  resolv_entry: {Directive: 'nameserver | search | domain | options | ...', Value: 'the rest of the line verbatim', Line: 'source line number'}
+  nsswitch_entry: {Database: 'the nss database (passwd, hosts, ...)', Sources: 'source list in order', Line: 'source line number'}
+  tcpwrappers_entry: {Daemons: 'daemon list verbatim', Clients: 'client list verbatim', Option: 'the third field (allow/deny/spawn ...) when present', Raw: 'the whole rule', Line: 'source line number'}
+  interfaces_directive: {Directive: 'auto | allow-hotplug | source | source-directory | mapping', Value: 'arguments verbatim', Line: 'source line number'}
+  interface_profile: {Interface: 'iface name', Family: 'inet | inet6', Method: 'static | dhcp | manual | ...', Fields: 'every option line (address, gateway, ...) verbatim', Line: 'stanza start line'}
+  networkd_profile: {Interface: '[Match] Name', Fields: 'every Section.Key=value verbatim'}
+  nmconnection_profile: {Name: '[connection] id', ConnType: '[connection] type', ConnUUID: '[connection] uuid', SSID: 'wifi ssid when present', Fields: 'every other Section.Key=value verbatim (evidence extraction: security material included, the shadow-crypt rule)'}
+  netplan_config: {Config: 'the netplan YAML captured verbatim, 64KiB cap'}
+  nftables_config: {Config: 'nftables.conf captured verbatim, 64KiB cap'}
+  iptables_chain: {Table: 'the *table context', Chain: 'chain name', Policy: 'chain policy', Line: 'source line number'}
+  iptables_rule: {Table: 'the *table context', Chain: 'the -A/-I target', Rule: 'the rule verbatim', Line: 'source line number'}
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: -f FILE | -d DIR, -q. Records stream
+  to stdout. Exit 0 ok / 1 usage or fatal / 2 at least one file failed.

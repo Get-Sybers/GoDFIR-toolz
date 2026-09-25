@@ -1,9 +1,13 @@
-// Package tstamp normalises artefact timestamps to the envelope's UTC RFC3339
-// form (docs/linux §3.3). Parsers hand byakugan the native truth; what this
-// package fixes is only the *rendering*: one time format across every tool.
+// Package tstamp normalises artefact timestamps to the envelope's ISO 8601
+// form (docs/linux §3.3): UTC, fixed microsecond precision —
+// 2006-01-02T15:04:05.000000Z — so every timestamp in every record is
+// uniform and lexically sortable. Parsers hand byakugan the native truth;
+// what this package fixes is only the *rendering*: one time format across
+// every tool.
 //
 // Naive timestamps (a syslog line has no zone) are recorded as UTC verbatim —
-// the imaged host's zone is context byakugan applies, never guessed here.
+// the imaged host's zone is context byakugan applies (gohost extracts it),
+// never guessed here.
 package tstamp
 
 import (
@@ -11,13 +15,16 @@ import (
 	"time"
 )
 
-// RFC3339 renders t in UTC with sub-second precision kept and trailing zeros
-// trimmed (RFC3339Nano); a zero time renders as "".
-func RFC3339(t time.Time) string {
+// ISO8601Layout is the one timestamp rendering of the Linux matrix: ISO
+// 8601, UTC, fixed microseconds.
+const ISO8601Layout = "2006-01-02T15:04:05.000000Z"
+
+// ISO8601 renders t in the fixed layout; a zero time renders as "".
+func ISO8601(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.UTC().Format(time.RFC3339Nano)
+	return t.UTC().Format(ISO8601Layout)
 }
 
 // Unix renders an epoch seconds + nanoseconds pair; zero renders as "".
@@ -25,7 +32,7 @@ func Unix(sec, nsec int64) string {
 	if sec == 0 && nsec == 0 {
 		return ""
 	}
-	return RFC3339(time.Unix(sec, nsec))
+	return ISO8601(time.Unix(sec, nsec))
 }
 
 // UnixMicros renders an epoch in microseconds (journal __REALTIME).
@@ -33,7 +40,7 @@ func UnixMicros(us int64) string {
 	if us == 0 {
 		return ""
 	}
-	return RFC3339(time.Unix(us/1e6, (us%1e6)*1e3))
+	return ISO8601(time.Unix(us/1e6, (us%1e6)*1e3))
 }
 
 // Days renders a days-since-epoch count (shadow(5) fields); 0 and negative
@@ -42,7 +49,7 @@ func Days(days int64) string {
 	if days <= 0 {
 		return ""
 	}
-	return RFC3339(time.Unix(days*86400, 0))
+	return ISO8601(time.Unix(days*86400, 0))
 }
 
 // Syslog3164 parses the classic yearless syslog prefix ("Jan  2 15:04:05")

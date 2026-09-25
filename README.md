@@ -32,7 +32,7 @@ verifies it the same way as for the .NET images.
 
 ## The Linux Go parsers (docs/linux — the same shape, second OS)
 
-Ten static Go binaries for the Linux artefact classes, built on the shared
+Twelve static Go binaries for the Linux artefact classes, built on the shared
 [`pinfo/`](docs/linux/README.md) module (batch runtime, record envelope,
 provenance stamping) instead of a copied `batch.go`, and therefore built
 with the **repo root as context**. Same hardening contract: `FROM scratch`,
@@ -48,6 +48,8 @@ one static binary, `USER 2000:2000`.
 - [gounit/](gounit/README.md) — systemd units, timers and drop-ins, with the vendor/admin/runtime/user scope
 - [gotrash/](gotrash/README.md) — XDG Trash: original path, deletion time, paired content file
 - [gohost/](gohost/README.md) — host identity (os-release, hostname, machine-id, timezone, locale) + fstab/crypttab volume-to-name mapping
+- [gonetwork/](gonetwork/README.md) — hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, persisted firewall state
+- [goctl/](goctl/README.md) — sysctl, module policy (modprobe.d install/blacklist), ld.so.preload and ld.so.conf
 
 The plan they implement — the pinfo module, snapshots, filesystem residue,
 byakugan alignment, the phased sequence — is

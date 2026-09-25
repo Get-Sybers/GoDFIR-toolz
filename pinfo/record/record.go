@@ -57,7 +57,7 @@ type Residue struct {
 // Envelope is the common head of every record. Tool + RecordType is the
 // record's parser chain (the role plaso's Parser field plays);
 // SourceFilename is the parsed file relative to the input root; EventTime
-// is UTC RFC3339 and TimeKind says what the time is when an artefact
+// is ISO 8601 UTC (fixed microseconds, tstamp.ISO8601Layout) and TimeKind says what the time is when an artefact
 // carries several.
 type Envelope struct {
 	Tool           string    `json:"Tool"`

@@ -322,7 +322,7 @@ func main() {
 		st, _ := os.Stat(path)
 		s := record.Stamp{Tool: "gowtmp", ToolVersion: version, SourceFilename: rel}
 		if st != nil {
-			s.SourceModified = tstamp.RFC3339(st.ModTime())
+			s.SourceModified = tstamp.ISO8601(st.ModTime())
 		}
 		w.SetStamp(s)
 		if _, err := parseStream(f, family, w, warnf); err != nil {
@@ -355,7 +355,7 @@ func main() {
 			}
 			w.SetStamp(record.Stamp{
 				Tool: "gowtmp", ToolVersion: version,
-				SourceFilename: e.Name, SourceModified: tstamp.RFC3339(e.Mod),
+				SourceFilename: e.Name, SourceModified: tstamp.ISO8601(e.Mod),
 			})
 			if _, perr := parseStream(e.R, family, w, warnf); perr != nil {
 				warnf("%s: %v", e.Name, perr)
