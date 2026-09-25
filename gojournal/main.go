@@ -33,6 +33,7 @@ import (
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/families"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
 )
@@ -45,27 +46,33 @@ var version = "0.0.0-dev"
 // journalRecord is one journal entry (RecordType "journal_entry").
 type journalRecord struct {
 	record.Envelope
-	MachineID    string            `json:"MachineID,omitempty"`
-	BootID       string            `json:"BootID,omitempty"`
-	Seqnum       uint64            `json:"Seqnum"`
-	MonotonicUS  uint64            `json:"MonotonicUS,omitempty"`
-	Message      string            `json:"Message,omitempty"`
-	Priority     string            `json:"Priority,omitempty"`
-	Facility     string            `json:"Facility,omitempty"`
-	Identifier   string            `json:"Identifier,omitempty"`
-	PID          string            `json:"PID,omitempty"`
-	UID          string            `json:"UID,omitempty"`
-	GID          string            `json:"GID,omitempty"`
-	Comm         string            `json:"Comm,omitempty"`
-	Exe          string            `json:"Exe,omitempty"`
-	Cmdline      string            `json:"Cmdline,omitempty"`
-	SystemdUnit  string            `json:"SystemdUnit,omitempty"`
-	UserUnit     string            `json:"UserUnit,omitempty"`
-	Hostname     string            `json:"Hostname,omitempty"`
-	Transport    string            `json:"Transport,omitempty"`
-	AuditSession string            `json:"AuditSession,omitempty"`
-	Fields       map[string]string `json:"Fields,omitempty"`
-	Truncated    bool              `json:"Truncated,omitempty"`
+	MachineID    string `json:"MachineID,omitempty"`
+	BootID       string `json:"BootID,omitempty"`
+	Seqnum       uint64 `json:"Seqnum"`
+	MonotonicUS  uint64 `json:"MonotonicUS,omitempty"`
+	Message      string `json:"Message,omitempty"`
+	Priority     string `json:"Priority,omitempty"`
+	Facility     string `json:"Facility,omitempty"`
+	Identifier   string `json:"Identifier,omitempty"`
+	PID          string `json:"PID,omitempty"`
+	UID          string `json:"UID,omitempty"`
+	GID          string `json:"GID,omitempty"`
+	Comm         string `json:"Comm,omitempty"`
+	Exe          string `json:"Exe,omitempty"`
+	Cmdline      string `json:"Cmdline,omitempty"`
+	SystemdUnit  string `json:"SystemdUnit,omitempty"`
+	UserUnit     string `json:"UserUnit,omitempty"`
+	Hostname     string `json:"Hostname,omitempty"`
+	Transport    string `json:"Transport,omitempty"`
+	AuditSession string `json:"AuditSession,omitempty"`
+	// the typed families (sshd, sudo, pam, cron), recognised by the shared
+	// pinfo/families engine: on a systemd host the journal is the PRIMARY
+	// pathway for these events — sshd and friends log through it, and the
+	// flat auth.log may not exist at all — so a matching entry carries the
+	// family RecordType and fields in addition to every journal field.
+	families.Typed
+	Fields    map[string]string `json:"Fields,omitempty"`
+	Truncated bool              `json:"Truncated,omitempty"`
 }
 
 const maxExtraFields = 128
@@ -126,6 +133,13 @@ func buildRecord(e *entry, machineID string) *journalRecord {
 		} else {
 			rec.Truncated = true
 		}
+	}
+	ident := rec.Identifier
+	if ident == "" {
+		ident = rec.Comm
+	}
+	if rt := families.Type(ident, rec.Message, &rec.Typed); rt != "" {
+		rec.RecordType = rt
 	}
 	return rec
 }

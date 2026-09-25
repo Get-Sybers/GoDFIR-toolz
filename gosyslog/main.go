@@ -36,6 +36,7 @@ import (
 
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
+	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/families"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
 	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
 )
@@ -53,25 +54,11 @@ type syslogRecord struct {
 	Ident   string `json:"Ident,omitempty"`
 	PID     *int64 `json:"PID,omitempty"`
 	Message string `json:"Message"`
-	// typed families
-	SSHEvent    string `json:"SSHEvent,omitempty"`
-	Method      string `json:"Method,omitempty"`
-	Username    string `json:"Username,omitempty"`
-	TargetUser  string `json:"TargetUser,omitempty"`
-	InvalidUser bool   `json:"InvalidUser,omitempty"`
-	IPAddress   string `json:"IPAddress,omitempty"`
-	Port        *int64 `json:"Port,omitempty"`
-	KeyType     string `json:"KeyType,omitempty"`
-	Fingerprint string `json:"Fingerprint,omitempty"`
-	TTY         string `json:"TTY,omitempty"`
-	PWD         string `json:"PWD,omitempty"`
-	Command     string `json:"Command,omitempty"`
-	PamModule   string `json:"PamModule,omitempty"`
-	SessionOp   string `json:"SessionOp,omitempty"`
-	ByUser      string `json:"ByUser,omitempty"`
-	ByUID       *int64 `json:"ByUID,omitempty"`
-	Line        int    `json:"Line"`
-	Raw         string `json:"Raw"`
+	// the typed families (docs/linux §4.1 rule 1), recognised by the shared
+	// pinfo/families engine — the same engine the journal pathway feeds
+	families.Typed
+	Line int    `json:"Line"`
+	Raw  string `json:"Raw"`
 }
 
 // ---- discovery -------------------------------------------------------------
@@ -163,88 +150,8 @@ func parseLine(line string, ref time.Time, rec *syslogRecord) {
 		rec.Message = line // continuation or free-form line: kept, untyped
 	}
 	rec.RecordType = "syslog_line"
-	typeLine(rec)
-}
-
-// ---- typed families --------------------------------------------------------
-
-var (
-	sshAuthRe    = regexp.MustCompile(`^(Accepted|Failed) (\S+) for (invalid user )?(.+?) from (\S+) port (\d+)(?: ssh2)?(?::\s+(\S+)\s+(\S+))?\s*$`)
-	sshInvalidRe = regexp.MustCompile(`^Invalid user (\S+) from (\S+)(?: port (\d+))?`)
-	pamRe        = regexp.MustCompile(`^(pam_unix|pam_[a-z0-9_]+)\(([^)]+)\): session (opened|closed) for user ([^( ]+)(?:\(uid=(\d+)\))?(?: by (?:([^( ]+))?\(uid=(\d+)\))?`)
-	sudoRe       = regexp.MustCompile(`^\s*(\S+) : (?:.*?;\s*)?TTY=(\S+)\s*;\s*PWD=(.*?)\s*;\s*USER=(\S+)\s*;\s*(?:ENV=\S+\s*;\s*)?COMMAND=(.*)$`)
-	cronCmdRe    = regexp.MustCompile(`^\((\S+)\) CMD \((.*)\)\s*$`)
-)
-
-// typeLine promotes a parsed line into its typed family when it is one
-// (docs/linux §4.1 rule 1); the raw line and the generic fields remain.
-func typeLine(rec *syslogRecord) {
-	msg := rec.Message
-	switch {
-	case rec.Ident == "sshd" || strings.HasPrefix(rec.Ident, "sshd"):
-		if m := sshAuthRe.FindStringSubmatch(msg); m != nil {
-			rec.RecordType = "sshd_event"
-			if m[1] == "Accepted" {
-				rec.SSHEvent = "accepted"
-			} else {
-				rec.SSHEvent = "failed"
-			}
-			rec.Method = m[2]
-			rec.InvalidUser = m[3] != ""
-			rec.Username = m[4]
-			rec.IPAddress = m[5]
-			if n, err := strconv.ParseInt(m[6], 10, 64); err == nil {
-				rec.Port = &n
-			}
-			rec.KeyType, rec.Fingerprint = m[7], m[8]
-			return
-		}
-		if m := sshInvalidRe.FindStringSubmatch(msg); m != nil {
-			rec.RecordType = "sshd_event"
-			rec.SSHEvent = "invalid_user"
-			rec.InvalidUser = true
-			rec.Username = m[1]
-			rec.IPAddress = m[2]
-			if m[3] != "" {
-				if n, err := strconv.ParseInt(m[3], 10, 64); err == nil {
-					rec.Port = &n
-				}
-			}
-			return
-		}
-	case rec.Ident == "sudo":
-		if m := sudoRe.FindStringSubmatch(msg); m != nil {
-			rec.RecordType = "sudo_event"
-			rec.Username = m[1]
-			rec.TTY = m[2]
-			rec.PWD = m[3]
-			rec.TargetUser = m[4]
-			rec.Command = m[5]
-			return
-		}
-	case rec.Ident == "CRON" || rec.Ident == "crond" || rec.Ident == "cron":
-		if m := cronCmdRe.FindStringSubmatch(msg); m != nil {
-			rec.RecordType = "cron_event"
-			rec.Username = m[1]
-			rec.Command = m[2]
-			return
-		}
-	}
-	if m := pamRe.FindStringSubmatch(msg); m != nil {
-		rec.RecordType = "pam_session"
-		rec.PamModule = m[2]
-		rec.SessionOp = m[3]
-		rec.Username = m[4]
-		rec.ByUser = m[6]
-		uidStr := m[7]
-		if uidStr == "" {
-			uidStr = m[5]
-		}
-		if uidStr != "" {
-			if n, err := strconv.ParseInt(uidStr, 10, 64); err == nil {
-				rec.ByUID = &n
-			}
-		}
+	if rt := families.Type(rec.Ident, rec.Message, &rec.Typed); rt != "" {
+		rec.RecordType = rt
 	}
 }
 

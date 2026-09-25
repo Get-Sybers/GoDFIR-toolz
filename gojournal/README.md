@@ -27,6 +27,14 @@ set is lifted to named columns — `Message`, `Priority`, `Identifier`,
 mangled). `(MachineID, BootID, Seqnum)` is the record's identity, carried
 never minted; `__REALTIME` microseconds land in `EventTime`.
 
+The journal is the **primary pathway for the typed event families**: on a
+systemd host sshd, sudo, pam and cron all log through it (the flat
+`auth.log` may not exist at all), so entries whose identifier and message
+match are promoted by the shared `pinfo/families` engine — `sshd_event`,
+`sudo_event`, `pam_session`, `cron_event` — carrying the family fields in
+addition to every journal field, in exactly the shape gosyslog produces
+from flat logs. One event, one shape, either source.
+
 With no arguments the binary runs the container-framework batch mode: it
 reads the `GOJOURNAL_*` environment, finds every journal under the input
 tree, writes one output folder per file and prints exactly one JSON

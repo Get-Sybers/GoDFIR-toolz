@@ -14,9 +14,12 @@ byakugan-side context), ISO-8601 prefixes, and RFC5424 frames. The
 `ident[pid]:` tag is split out; lines with no timestamp prefix
 (continuations) are kept untyped with the raw line.
 
-High-value families are **typed by the parser** (docs/linux §4.1 rule 1),
-so byakugan maps select rows by predicates over typed fields instead of
-regexing messages: `sshd_event` (authentication results with method,
+High-value families are **typed by the shared `pinfo/families` engine**
+(docs/linux §4.1 rule 1) — the same engine gojournal feeds, because on a
+systemd host the journal is the primary pathway for these events and the
+flat logs are the fallback; either source yields one shape, so byakugan
+maps select rows by predicates over typed fields instead of regexing
+messages: `sshd_event` (authentication results with method,
 account, source address/port, key type and fingerprint), `sudo_event`
 (invoking account, target user, TTY, PWD, command), `pam_session`
 (open/close with the invoking uid), and `cron_event` (job owner and

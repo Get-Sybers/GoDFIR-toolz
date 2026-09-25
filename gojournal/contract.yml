@@ -7,7 +7,10 @@ description: >
   binary *.journal file under the input tree — archived and dirty
   (*.journal~) alike — streamed entry by entry, XZ/LZ4/ZSTD data payloads
   decoded, compact-mode files (systemd 252+) supported. One record per
-  entry; the journal's own fields verbatim.
+  entry, the journal's own fields verbatim — and the journal is the PRIMARY
+  pathway for the typed event families: entries whose identifier and
+  message match sshd/sudo/pam/cron carry the family RecordType and fields
+  (the shared pinfo/families engine, one shape with gosyslog's).
 
 env:
   GOJOURNAL_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every *.journal / *.journal~ file is an item'}
@@ -54,6 +57,10 @@ records:
     AuditSession: '_AUDIT_SESSION'
     Fields: 'every other field verbatim (capped at 128; non-UTF-8 values hex-prefixed)'
     Truncated: 'true when payloads were capped or a dirty entry lost items'
+  sshd_event: 'a journal entry recognised as an sshd authentication event: every journal_entry field PLUS the pinfo/families fields (SSHEvent accepted|failed|invalid_user, Method, Username, InvalidUser, IPAddress, Port, KeyType, Fingerprint) — identical shape to gosyslog''s sshd_event'
+  sudo_event: 'as sshd_event, for sudo command lines (Username, TargetUser, TTY, PWD, Command)'
+  pam_session: 'as sshd_event, for pam session open/close (PamModule, SessionOp, Username, ByUser, ByUID)'
+  cron_event: 'as sshd_event, for cron job lines (Username, Command)'
 
 argv_passthrough: >
   Debug only, never used by DX_DFIR: -f FILE | -d DIR, -q.

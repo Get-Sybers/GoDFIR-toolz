@@ -8,7 +8,9 @@ description: >
   and friends — rotations and gzip included — become one record per line,
   timestamp dialects normalised (RFC3164 yearless with mtime-anchored year
   inference, ISO-8601, RFC5424), and known line families typed by the
-  parser: sshd authentication, sudo commands, pam sessions, cron jobs.
+  shared pinfo/families engine — sshd authentication, sudo commands, pam
+  sessions, cron jobs — one shape with gojournal's journal-pathway events;
+  the flat logs are the fallback for pre-systemd and rotated evidence.
 
 env:
   GOSYSLOG_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, recursed read-only; every recognised syslog-family file is an item'}

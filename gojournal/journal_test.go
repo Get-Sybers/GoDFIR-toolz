@@ -278,3 +278,38 @@ func TestRejectsAndResilience(t *testing.T) {
 		t.Log("truncated walk survived (acceptable)")
 	}
 }
+
+// TestTypedEntries proves the journal is a first-class pathway for the
+// typed families: an sshd entry in the journal yields the same
+// sshd_event shape the flat auth.log pathway yields, journal fields kept.
+func TestTypedEntries(t *testing.T) {
+	fp := "SHA256:AbCdEf0123456789AbCdEf0123456789AbCdEf01234"
+	b := newJB(false)
+	d1 := b.addData([]byte("SYSLOG_IDENTIFIER=sshd"), 0)
+	d2 := b.addData([]byte("MESSAGE=Accepted publickey for alice from 198.51.100.7 port 51234 ssh2: ED25519 "+fp), 0)
+	d3 := b.addData([]byte("_PID=901"), 0)
+	e1 := b.addEntry(1, 1767225600000000, 1, []uint64{d1, d2, d3})
+	d4 := b.addData([]byte("_COMM=sudo"), 0)
+	d5 := b.addData([]byte("MESSAGE=pam_unix(sudo:session): session opened for user root(uid=0) by alice(uid=1000)"), 0)
+	e2 := b.addEntry(2, 1767225601000000, 2, []uint64{d4, d5})
+	ea := b.addEntryArray(0, []uint64{e1, e2})
+	img := b.finish(ea, 2, 0)
+
+	recs := decode(t, img)
+	ssh := recs[0]
+	if ssh["RecordType"] != "sshd_event" || ssh["SSHEvent"] != "accepted" ||
+		ssh["Username"] != "alice" || ssh["IPAddress"] != "198.51.100.7" ||
+		ssh["Port"] != float64(51234) || ssh["Fingerprint"] != fp {
+		t.Fatalf("journal sshd: %v", ssh)
+	}
+	// the journal fields ride along untouched
+	if ssh["Identifier"] != "sshd" || ssh["PID"] != "901" || ssh["Seqnum"] != float64(1) ||
+		ssh["EventTime"] != "2026-01-01T00:00:00.000000Z" {
+		t.Fatalf("journal fields lost: %v", ssh)
+	}
+	// _COMM fallback when SYSLOG_IDENTIFIER is absent
+	pam := recs[1]
+	if pam["RecordType"] != "pam_session" || pam["SessionOp"] != "opened" || pam["ByUser"] != "alice" {
+		t.Fatalf("journal pam via _COMM: %v", pam)
+	}
+}

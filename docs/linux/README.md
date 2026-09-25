@@ -394,7 +394,9 @@ What is parsed and the known format edges:
   per-UID sparse records, UID from offset); the wtmpdb SQLite successor via
   the cgo-free SQLite driver (decision 12's interim-storage driver). Record-size sanity checks guard
   against non-glibc layouts rather than misparsing them.
-- **`gosyslog`** — syslog-shaped text logs (`syslog`, `messages`, `auth.log`,
+- **`gosyslog`** — syslog-shaped text logs (the FALLBACK pathway: on a
+  systemd host the same events flow through the journal first, and the
+  shared `pinfo/families` engine gives one shape from either source) (`syslog`, `messages`, `auth.log`,
   `secure`, `kern.log`, `cron`, `daemon.log`, mail logs, …) plus their
   rotations, gzip included. Timestamp dialects: RFC3164 (no year — inferred
   from file mtime, walking back across New Year), RFC5424, and ISO-8601
@@ -744,7 +746,7 @@ parsers owe them):
 | Source | CAR object · action | Standing today |
 |---|---|---|
 | `gowtmp` | `user_session` login/logout (record types 6/7/8; others stay raw) | replaces `l2t_utmp`/`l2t_utmpx` |
-| `gosyslog` typed sshd/sudo/su rows | `user_session` / authentication | replaces the `l2t_text` ssh view |
+| the `pinfo/families` typed events — from `gojournal` (the primary pathway) and `gosyslog` (fallback) alike | `user_session` / authentication | replaces the `l2t_text` ssh view; one map serves both sources |
 | `goauditd` execve events | `process` create/execute — argv, uids, tty carried | new coverage |
 | `goacct` | `process` (execution history) | new coverage |
 | `gojournal` (typed units/messages) | `user_session`, `process`, service surface | new coverage |
@@ -848,7 +850,7 @@ snapshot story. Each is a one-page decision when its time comes.
 | 10 | Record design is byakugan-aligned per §4.1 — typed rows, native vocabulary verbatim, honest nulls, identity fields and join keys extracted (never minted), declared field names — and parsers never derive relationships, canonicalise into CAR vocabulary, or enrich: extraction is the parsers' side of the boundary, derivation is byakugan's |
 | 11 | Filesystem residue is an access-layer capability behind `fsx` (§5.5): typed kinds, allocation state on every timeline row, `Residue` provenance parallel to `Snapshot`, recovered content re-fed through the same parsers — structure-driven recovery only, never content carving, and never silently mixed with allocated files |
 | 12 | Records are **JSONL only** — one JSON object per record; CSV is not an output format anywhere in the Linux path and no `<TOOL>_FORMAT` variable exists. A tool that ever needs interim storage beyond streaming (sorting or aggregation past memory) uses a database format (SQLite via the cgo-free driver) in its `WORK_DIR` scratch — never an interchange text format — and the record files stay the JSONL interface |
-| 13 | **The method**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). That core is where depth is added; the configuration-surface tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method |
+| 13 | **The method**: the matrix reads the OS's own record-keeping — the journal, systemd, and the logs the system produces (auditd, the syslog family, login records, the package managers' logs, kernel accounting). That core is where depth is added; the configuration-surface tools already built (`gohost`, `gonetwork`, `goctl`, `gousers`, `gocron`, `goshell`, `gotrash`) are its one-pass supporting context and that direction is closed — no further config-surface parsers, and application-data parsing (browser profiles, generic SQLite dumps) is out of the method. The journal is also the **primary pathway**: the typed event families (sshd, sudo, pam, cron) are defined once in `pinfo/families` and recognised wherever that stream surfaces — the journal first, the flat logs as fallback — so even SSH evidence flows through the journal mechanism, one shape from either source |
 
 ### 11.2 Open questions
 
