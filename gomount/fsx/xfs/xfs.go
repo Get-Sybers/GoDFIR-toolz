@@ -696,6 +696,15 @@ func (f *FS) Open(p string) (io.ReadCloser, error) {
 }
 
 func (f *FS) openInode(in *inode) (io.ReadCloser, error) {
+	if in.mode&sIFMT == sIFLNK {
+		// The icat precedent: a symlink's data IS its target string, and
+		// its blocks carry the XSLM header a plain extent read would leak.
+		t, err := f.readlink(in)
+		if err != nil {
+			return nil, err
+		}
+		return io.NopCloser(strings.NewReader(t)), nil
+	}
 	if in.format == fmtLocal {
 		n := min(int(in.size), len(in.fork))
 		return io.NopCloser(strings.NewReader(string(in.fork[:n]))), nil

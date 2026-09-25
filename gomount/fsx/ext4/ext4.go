@@ -673,6 +673,15 @@ func (f *FS) Open(p string) (io.ReadCloser, error) {
 }
 
 func (f *FS) openInode(in *inode) (io.ReadCloser, error) {
+	if in.mode&sIFMT == sIFLNK {
+		// The icat precedent: a symlink's data IS its target string — a
+		// fast symlink's i_block holds text, never block pointers.
+		t, err := f.readlink(in)
+		if err != nil {
+			return nil, err
+		}
+		return io.NopCloser(strings.NewReader(t)), nil
+	}
 	ra, size, err := f.blockReader(in)
 	if err != nil {
 		return nil, err

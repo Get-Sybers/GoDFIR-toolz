@@ -9,6 +9,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -136,5 +138,79 @@ func TestTimelineResidueRows(t *testing.T) {
 	}
 	if kinds["orphan_inode"] == 0 || kinds["deleted_dirent"] == 0 || kinds["lost_found"] == 0 {
 		t.Fatalf("residue kinds on the timeline: %v", kinds)
+	}
+}
+
+// TestMaterialiseLinuxCore drives the upgraded materialise end-to-end
+// over the real ext4 fixture: the linux-core set with ** globs, the
+// origin-record manifest, a --max-file-size skip row, and residue
+// staging under residue/<kind>/<id>/.
+func TestMaterialiseLinuxCore(t *testing.T) {
+	img := fixturePath(t, "ext4")
+	out := t.TempDir()
+	code := runMaterialise([]string{
+		"--out", out, "--set", "linux-core", "--select", "big.bin",
+		"--manifest", "--residue", "--max-file-size", "50000", img,
+	})
+	if code != 0 {
+		t.Fatalf("materialise exit %d", code)
+	}
+	for _, p := range []string{
+		"etc/hostname", "etc/os-release", "var/log/syslog",
+		"home/alice/.bash_history", "lost+found/#12",
+	} {
+		if _, err := os.Stat(filepath.Join(out, p)); err != nil {
+			t.Fatalf("%s not staged: %v", p, err)
+		}
+	}
+
+	mf, err := os.ReadFile(filepath.Join(out, "materialise.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []materialiseRecord
+	for _, line := range strings.Split(strings.TrimSpace(string(mf)), "\n") {
+		var r materialiseRecord
+		if err := json.Unmarshal([]byte(line), &r); err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, r)
+	}
+	byPath := map[string]materialiseRecord{}
+	for _, r := range rows {
+		byPath[r.Path] = r
+	}
+
+	h := byPath["/etc/hostname"]
+	if h.FSUUID != "21111111-2222-3333-4444-555555555555" || h.Volume != "disk" ||
+		h.Inode == 0 || h.Image == "" || h.Mtime != "2026-01-10T22:14:02Z" {
+		t.Fatalf("origin record: %+v", h)
+	}
+	if b := byPath["/big.bin"]; !strings.Contains(b.Skip, "max-file-size") {
+		t.Fatalf("max-file-size skip row: %+v", b)
+	}
+	if _, err := os.Stat(filepath.Join(out, "big.bin")); err == nil {
+		t.Fatal("big.bin staged despite --max-file-size")
+	}
+
+	staged := 0
+	for _, r := range rows {
+		if r.Res == nil || r.Staged == "" {
+			continue
+		}
+		staged++
+		if !strings.HasPrefix(r.Staged, "residue/"+r.Res.Kind+"/") {
+			t.Fatalf("staged layout: %+v", r)
+		}
+		b, err := os.ReadFile(filepath.Join(out, filepath.FromSlash(r.Staged)))
+		if err != nil {
+			t.Fatalf("staged residue unreadable: %+v: %v", r, err)
+		}
+		if r.Res.Kind == "orphan_inode" && !strings.Contains(string(b), "orphan content") {
+			t.Fatalf("orphan content: %q", b)
+		}
+	}
+	if staged < 3 { // lost+found #12 + two orphans at minimum
+		t.Fatalf("residue staged: %d", staged)
 	}
 }
