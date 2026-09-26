@@ -273,7 +273,7 @@ knobs with `-e` from each Dockerfile:
 | `harden_extra_remove` | `[]` | image-specific paths to delete |
 | `harden_tool` | `unknown` | recorded in `/etc/dfir-hardened` (equals the `com.get-sybers.tool` label) |
 | `harden_static_binary` | `false` | the entrypoint is a static binary with no libc (Shape B keeps glibc) |
-| `harden_shell` / `harden_python` | `false` | the image intentionally keeps a shell / python — a declared deviation its Dockerfile justifies; the build gate asserts these booleans against the actual filesystem, so a Dockerfile that removes the shell *after* the playbook declares `shell=false` here |
+| `harden_shell` / `harden_python` | `false` | the image intentionally keeps a shell / python — a declared deviation its Dockerfile justifies. The build gate asserts these booleans against the actual filesystem and **fails the build on any mismatch** (a declared-absent shell that is still present, and vice versa), so a Dockerfile that strips the shell *after* this playbook runs still declares `shell=false` here |
 
 ## License
 
