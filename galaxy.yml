@@ -1,7 +1,7 @@
 # the collection packaging of this repo (README "The image inventory" covers both consumption modes)
 namespace: get_sybers
 name: godfir_toolz
-version: 0.1.0
+version: 0.2.0
 readme: README.md
 authors:
   - Get-Sybers
@@ -10,9 +10,9 @@ description: >-
   inventory (images.yml), every image's build context and contract.yml, the
   shared hardening playbook (hardening/harden.yml), the conformance tooling
   (conform.sh), and the godfir_build role + build_images playbook that build
-  and hardening-verify every image from the manifest — Windows Go parsers,
-  the Linux daemon matrix, gomount, the .NET tool recipe, and the pipeline
-  images (byakugan, plaso, signatures, zeek, anamnesis).
+  and hardening-verify every image from the manifest — the Windows matrix
+  (gowindowlicker), the Linux daemon matrix (godaemonhunter), gomount, and
+  the pipeline images (byakugan, plaso, signatures, zeek, anamnesis).
 license:
   - Apache-2.0
 dependencies:

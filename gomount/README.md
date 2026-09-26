@@ -151,7 +151,7 @@ the `mount` verb additionally needs `--device /dev/fuse`.
 ```sh
 docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
   -v "$PWD/evidence:/evidence:ro" \
-  get-sybers/gomount:latest stream --filter '*.pf' /evidence/disk.E01 | goprefetch --tar
+  get-sybers/gomount:latest stream --filter '*.pf' /evidence/disk.E01 | gowindowlicker goprefetch --tar
 ```
 
 `test/contract_test.sh` builds the image and asserts the label set, the

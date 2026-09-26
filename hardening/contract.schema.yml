@@ -79,11 +79,11 @@ properties:
     description: >
       the on-disk layout under the output root: a single `layout` for a
       self-orchestrating tool; one entry per sub-tool for a multi-tool image; one
-      entry per built image for an argv recipe that builds several (godfir-tool)
+      entry per built image for an argv recipe that builds several
     minProperties: 1
   images:
     type: object
-    description: for a recipe that builds several images (godfir-tool), the built images and their argv shapes, keyed by image name; each has a matching entry under outputs
+    description: for a recipe that builds several images, the built images and their argv shapes, keyed by image name; each has a matching entry under outputs
     propertyNames: {pattern: "^[a-z][a-z0-9-]*$"}
     additionalProperties:
       type: object
