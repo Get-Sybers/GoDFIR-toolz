@@ -1,7 +1,7 @@
 # the collection packaging of this repo (README "The image inventory" covers both consumption modes)
 namespace: get_sybers
 name: godfir_toolz
-version: 0.2.0
+version: 0.3.0
 readme: README.md
 authors:
   - Get-Sybers

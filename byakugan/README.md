@@ -10,8 +10,12 @@ The Dockerfile's `ARG BYAKUGAN_REF` default is the ONE place the engine
 version is set (`--build-arg` overrides it), and the built image carries it as
 `com.get-sybers.engine-ref`. Python (`python3` + `python3-yaml`)
 stays as a declared deviation, and `ca-certificates` stays too (TLS trust for
-`load`'s push mode); every shell, ansible, apt, pip, sudo and setuid binaries
-are gone and the image runs as uid 2000.
+`load`'s push mode and the exchange's OpenCTI wire); every shell, ansible,
+apt, pip, sudo and setuid binaries are gone and the image runs as uid 2000.
+The dispatcher carries nine sub-tools: `build`, `timeline`, `verify`,
+`car-vocab`, `load`, and the STIX/CTI exchange — `stix-export`,
+`stix-behaviour`, `cti-pull`, `cti-sightings` (the engine's
+`docs/STIX-Exchange.md` is the design doc).
 
 The ENTRYPOINT is the engine's own dispatcher, `byakugan.cli`
 (`byakugan-entry.py` is a shim that delegates to it), which selects the
@@ -25,6 +29,10 @@ byakugan timeline     a car tree               -> timeline.jsonl
 byakugan verify       a materialised car tree  -> the CAR correctness gate (verify.txt)
 byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
 byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bundles, or pushed)
+byakugan stix-export     detection hits          -> a STIX 2.1 bundle (sightings + indicators, projections merged)
+byakugan stix-behaviour  detections x a car tree -> behaviour sightings over spindle-keyed observations
+byakugan cti-pull        OpenCTI indicators      -> the cti-* Elasticsearch _bulk copy (no input mount)
+byakugan cti-sightings   indicator-match alerts  -> sightings of the platform's own indicators
 ```
 
 ## Input
@@ -34,6 +42,10 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 - `verify` reads `BYAKUGAN_VERIFY_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` under it is one item.
 - `car-vocab` reads nothing.
 - `load` reads `BYAKUGAN_LOAD_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` (and, from a `BYAKUGAN_BUILD_DERIVE` build, `car_inferred.jsonl` and `car_content.jsonl`) under it is one source, bulk-loaded into the `logs-car.*` data streams.
+- `stix-export` reads `BYAKUGAN_STIX_EXPORT_INPUT_DIR` (default `/input`, read-only): EVERY regular file under it is a hits input (detect JSONL, an ES `_search` response, alert documents); `_BUNDLES_DIR` names a materialised CAR tree whose `stix_bundle.json` projections pass through; `_RULES_DIR` (default: the `/rules` mount when present) is the deployment's rules-as-code — the engine ships none, and hits without one are refused.
+- `stix-behaviour` reads `BYAKUGAN_STIX_BEHAVIOUR_INPUT_DIR` (default `/input`, read-only): a materialised CAR tree; `_DETECTIONS_DIR` (required) is the detection-lane output dir (`suricata/`, `hayabusa/`, `yara/`).
+- `cti-pull` reads nothing on disk (the one input-less sub-tool) — OpenCTI over the wire, or `_FROM_BUNDLE` for the offline re-normalise.
+- `cti-sightings` reads `BYAKUGAN_CTI_SIGHTINGS_INPUT_DIR` (default `/input`, read-only): EVERY regular file under it is an alerts input.
 
 ## Env
 
@@ -71,6 +83,46 @@ byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bun
 | `BYAKUGAN_LOAD_FORCE` | `0` | `1/true/yes/on`: re-render bundles and, in push mode, re-push even when the manifest/load report already show the run complete |
 | `BYAKUGAN_LOAD_ARGS` | *(empty)* | extra `byakugan.elastic.load` argv |
 | `BYAKUGAN_LOAD_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
+| `BYAKUGAN_OPENCTI_URL` | *(empty)* | the OpenCTI endpoint, shared by the exchange sub-tools — with `_PUSH` (or a pull without `_FROM_BUNDLE`) the network opt-in behind `network: optional` |
+| `BYAKUGAN_OPENCTI_TOKEN` | *(empty)* | the OpenCTI bearer token — a secret: env only (the lane's `secret_env`), never argv |
+| `BYAKUGAN_OPENCTI_CONNECTOR_ID` | *(empty)* | the OpenCTI connector id for pushes; a deterministic default otherwise |
+| `BYAKUGAN_STIX_EXPORT_INPUT_DIR` | `/input` | the hits tree — every regular file under it is a hits input |
+| `BYAKUGAN_STIX_EXPORT_OUT_DIR` | `/output` | where `bundle.json` is written |
+| `BYAKUGAN_STIX_EXPORT_BUNDLES_DIR` | *(empty)* | a materialised CAR tree whose `stix_bundle.json` projections pass through |
+| `BYAKUGAN_STIX_EXPORT_RULES_DIR` | `/rules` | the deployment's rules-as-code (pattern resolution); the default applies only when the `rules` mount is present |
+| `BYAKUGAN_STIX_EXPORT_CASE` | *(empty)* | the case id scoping observation ids (default: the hits' run id) |
+| `BYAKUGAN_STIX_EXPORT_TLP` | *(empty)* | `white|green|amber|red|none` (engine default: `amber`) |
+| `BYAKUGAN_STIX_EXPORT_CONFIG` | *(empty)* | a JSON/YAML exchange config file |
+| `BYAKUGAN_STIX_EXPORT_PUSH` | `0` | `1/true/yes/on`: also push the bundle to OpenCTI |
+| `BYAKUGAN_STIX_EXPORT_ARGS` | *(empty)* | extra exchange argv |
+| `BYAKUGAN_STIX_EXPORT_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
+| `BYAKUGAN_STIX_BEHAVIOUR_INPUT_DIR` | `/input` | the materialised CAR tree the join reads |
+| `BYAKUGAN_STIX_BEHAVIOUR_OUT_DIR` | `/output` | where `behaviour-sightings.json` is written |
+| `BYAKUGAN_STIX_BEHAVIOUR_DETECTIONS_DIR` | — | **required**: the detection-lane output dir (bind it read-only) |
+| `BYAKUGAN_STIX_BEHAVIOUR_CASE` | — | **required**: the case id scoping sighting/observation ids |
+| `BYAKUGAN_STIX_BEHAVIOUR_TLP` | *(empty)* | `white|green|amber|red|none` (engine default: `amber`) |
+| `BYAKUGAN_STIX_BEHAVIOUR_PRODUCER` | *(empty)* | the producer identity name (engine default: `DX_DFIR`) |
+| `BYAKUGAN_STIX_BEHAVIOUR_ATTACK_INDEX` | *(empty)* | an ATT&CK index/bundle path (empty = the committed index) |
+| `BYAKUGAN_STIX_BEHAVIOUR_ARGS` | *(empty)* | extra exchange argv |
+| `BYAKUGAN_STIX_BEHAVIOUR_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
+| `BYAKUGAN_CTI_PULL_OUT_DIR` | `/output` | where `cti-bulk.ndjson` is written (no input mount needed) |
+| `BYAKUGAN_CTI_PULL_SINCE` | *(empty)* | incremental: only indicators modified after this ISO-8601 watermark |
+| `BYAKUGAN_CTI_PULL_PAGE_SIZE` | *(empty)* | indicators per GraphQL page (engine default 200) |
+| `BYAKUGAN_CTI_PULL_MAX_PAGES` | *(empty)* | stop after this many pages (safety valve) |
+| `BYAKUGAN_CTI_PULL_INDEX` | *(empty)* | the `cti-*` index the bulk lines target (engine default: `cti-opencti`) |
+| `BYAKUGAN_CTI_PULL_FROM_BUNDLE` | *(empty)* | offline re-normalise of an already-pulled bundle at this path |
+| `BYAKUGAN_CTI_PULL_BUNDLE_OUT` | *(empty)* | also keep the pulled indicator bundle here |
+| `BYAKUGAN_CTI_PULL_CONFIG` | *(empty)* | a JSON/YAML exchange config file |
+| `BYAKUGAN_CTI_PULL_ARGS` | *(empty)* | extra exchange argv |
+| `BYAKUGAN_CTI_PULL_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
+| `BYAKUGAN_CTI_SIGHTINGS_INPUT_DIR` | `/input` | the alerts tree — every regular file under it is an alerts input |
+| `BYAKUGAN_CTI_SIGHTINGS_OUT_DIR` | `/output` | where `sightings.json` is written |
+| `BYAKUGAN_CTI_SIGHTINGS_CASE` | *(empty)* | the case id scoping the sighting ids (default: the alerts' rule execution id) |
+| `BYAKUGAN_CTI_SIGHTINGS_TLP` | *(empty)* | `white|green|amber|red|none` (engine default: `amber`) |
+| `BYAKUGAN_CTI_SIGHTINGS_CONFIG` | *(empty)* | a JSON/YAML exchange config file |
+| `BYAKUGAN_CTI_SIGHTINGS_PUSH` | `0` | `1/true/yes/on`: also push the sightings back to OpenCTI |
+| `BYAKUGAN_CTI_SIGHTINGS_ARGS` | *(empty)* | extra exchange argv |
+| `BYAKUGAN_CTI_SIGHTINGS_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
 
 ## Output
 
@@ -124,6 +176,13 @@ docker run --rm … -v "$PWD/car:/input:ro" -v "$PWD/car:/output" \
 docker run --rm get-sybers/byakugan:latest car-vocab
 docker run --rm … -v "$PWD/car:/input:ro" -v "$PWD/elastic-out:/output" \
   get-sybers/byakugan:latest load
+# the exchange: hits -> a validated STIX 2.1 bundle (rules mounted; the engine ships none)
+docker run --rm … -v "$PWD/hits:/input:ro" -v "$PWD/rules:/rules:ro" \
+  -v "$PWD/exchange:/output" get-sybers/byakugan:latest stix-export
+# detections joined to CAR entities -> behaviour sightings
+docker run --rm … -v "$PWD/car:/input:ro" -v "$PWD/detections:/detections:ro" \
+  -v "$PWD/exchange:/output" -e BYAKUGAN_STIX_BEHAVIOUR_DETECTIONS_DIR=/detections \
+  -e BYAKUGAN_STIX_BEHAVIOUR_CASE=CASE-17 get-sybers/byakugan:latest stix-behaviour
 ```
 
 Builds with the repo root as context so `COPY hardening/harden.yml` consumes
