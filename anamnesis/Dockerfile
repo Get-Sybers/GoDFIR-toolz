@@ -6,7 +6,7 @@ ARG GO_VERSION=1.25
 ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 # the ONE place the engine version is set; consumers build without a REF arg and inherit it
-ARG ANAMNESIS_REF=1d612b7c460433878718eda9da2a45841e59940b
+ARG ANAMNESIS_REF=5a5175829fe4a7203e8b1e9ab1c7e695fbbdfd9b
 # MemProcFS pin: the release TAG is major.minor but the asset name carries the full
 # patch + date stamp — bump tag, asset and checksum together
 ARG MEMPROCFS_VERSION=5.18.11
