@@ -114,6 +114,27 @@ def item_name(root: str, item: str) -> str:
     return name or "item"
 
 
+def psort_item_name(root: str, item: str) -> str:
+    """psort's per-item output folder: the storage file's item name WITHOUT its
+    `.plaso` extension — and when the file sits in a folder of the same name
+    (log2timeline's own `<item>/<item>.plaso`), that folder's name — so with
+    OUT_DIR pointing at the log2timeline output root the rendered timeline lands
+    beside its storage file in the one `<item>/` folder, never in a second
+    `<item>_<item>.plaso/` tree beside it."""
+    rel = os.path.relpath(item, root)
+    if rel in (".", "") or rel.startswith(".."):
+        rel = os.path.basename(item)
+    parts = rel.replace("\\", "/").split("/")
+    base = parts[-1]
+    if base.lower().endswith(".plaso"):
+        base = base[: -len(".plaso")]
+    if len(parts) > 1 and parts[-2] == base:
+        parts = parts[:-1]
+    else:
+        parts[-1] = base
+    return item_name(root, os.path.join(root, *parts))
+
+
 def is_image(path: str) -> bool:
     return os.path.splitext(path)[1].lower() in IMAGE_EXTS
 
@@ -267,8 +288,9 @@ def batch(subtool: str, env, stdout) -> int:
         return finish("nothing", 1)
 
     failures = []
+    name_of = psort_item_name if subtool == "psort" else item_name
     for item in items:
-        item_dir = os.path.join(cfg.out_dir, item_name(cfg.input_dir, item))
+        item_dir = os.path.join(cfg.out_dir, name_of(cfg.input_dir, item))
         marker = os.path.join(item_dir, f"{subtool}.jsonl")
         if not cfg.force and os.path.isfile(marker):
             summary["skipped"] += 1

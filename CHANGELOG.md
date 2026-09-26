@@ -1,7 +1,23 @@
 # Changelog — get_sybers.godfir_toolz
 
-## Unreleased
+## 0.3.2
 
+- **`byakugan` discovers DX_DFIR's per-collection, per-host processed
+  tree** — the engine pin advances to Byakugan #126 (`1a6d798`): sources
+  are found by the files each tool writes, at any depth under the
+  tool-named leaf (`processed/<tool>/[<collection>/]<host>/…`), one
+  isolated store each and named after the path under the leaf so two
+  collections never share a store; the older flat leaves keep building
+  beside them, and the exchange's behaviour bridge reads the signatures
+  image's per-item detection folders. Image 0.3.2.
+- **`plaso`'s `psort` renders beside the storage file.** Its per-item
+  folder is the storage file's name without `.plaso`, collapsing
+  log2timeline's own `<item>/<item>.plaso` to `<item>`: with `OUT_DIR` at
+  the log2timeline output root, `timeline.jsonl` (and `psort.log`,
+  `psort.jsonl`) land in the one `<item>/` folder the `.plaso` already sits
+  in, never in a second `<item>_<item>.plaso/` tree beside it. A consumer
+  that kept psort's output root separate is unaffected (its item names
+  only lose the extension).
 - **`build-all.sh` provisions a bare standalone clone itself.** It used to
   demand an `ansible-playbook` on PATH and stop there, leaving the
   `community.docker` collection and the docker SDK its modules import for

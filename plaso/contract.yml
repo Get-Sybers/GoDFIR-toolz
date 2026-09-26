@@ -58,7 +58,7 @@ outputs:
   log2timeline:
     layout: "<OUT_DIR>/<item>/<item>.plaso + log2timeline.log + log2timeline.jsonl (the index that marks the item done); records = storage files produced"
   psort:
-    layout: "<OUT_DIR>/<item>/timeline.jsonl + psort.log + psort.jsonl (the index); records = rendered events"
+    layout: "<OUT_DIR>/<item>/timeline.jsonl + psort.log + psort.jsonl (the index); records = rendered events. <item> is the storage file's name without .plaso — and its folder's name when the file sits in a same-named folder (log2timeline's <item>/<item>.plaso), so OUT_DIR = the log2timeline output root renders every timeline beside its storage file in the one <item>/ folder"
   image_export:
     layout: "<OUT_DIR>/<item>/export/<extracted tree> + image_export.log + image_export.jsonl (the index); records = files exported"
   item_naming: "<item> is the input path relative to INPUT_DIR with path separators and whitespace folded to _"

@@ -81,7 +81,7 @@ run unless `FORCE` is set.
 | Sub-tool | Per item | `records` |
 |---|---|---|
 | `log2timeline` | `<OUT_DIR>/<item>/<item>.plaso`, `log2timeline.log`, `log2timeline.jsonl` | storage files produced |
-| `psort` | `<OUT_DIR>/<item>/timeline.jsonl`, `psort.log`, `psort.jsonl` | rendered events |
+| `psort` | `<OUT_DIR>/<item>/timeline.jsonl`, `psort.log`, `psort.jsonl` — `<item>` is the storage file's name without `.plaso`, or its folder's name when the file sits in a same-named folder (log2timeline's `<item>/<item>.plaso`), so `OUT_DIR` = the log2timeline output root renders every timeline **beside** its storage file in the one `<item>/` folder | rendered events |
 | `image_export` | `<OUT_DIR>/<item>/export/…`, `image_export.log`, `image_export.jsonl` | files exported |
 
 stdout is exactly one JSON object: `tool`, `subtool`, `version`, `status`,

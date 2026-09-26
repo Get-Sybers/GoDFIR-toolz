@@ -117,7 +117,7 @@ class EntryTest(unittest.TestCase):
             fh.write(b"plaso-storage")
         code, s = self.run_batch("psort")
         self.assertEqual((code, s["records"]), (0, 3))
-        self.assertTrue(os.path.isfile(os.path.join(self.out, "case.plaso", "timeline.jsonl")))
+        self.assertTrue(os.path.isfile(os.path.join(self.out, "case", "timeline.jsonl")))
 
     def test_config_errors(self):
         for env in ({"PLASO_PSORT_INPUT_DIR": os.path.join(self.tmp, "nope")},
@@ -131,6 +131,26 @@ class EntryTest(unittest.TestCase):
     def test_item_name(self):
         self.assertEqual(entry.item_name("/in", "/in/a/b c/$MFT"), "a_b_c_$MFT")
         self.assertEqual(entry.item_name("/in", "/elsewhere/x"), "x")
+
+    def test_psort_item_name(self):
+        # the extension goes; a same-named folder (log2timeline's own layout) collapses to the folder
+        self.assertEqual(entry.psort_item_name("/in", "/in/img.E01/img.E01.plaso"), "img.E01")
+        self.assertEqual(entry.psort_item_name("/in", "/in/case-a/img.E01/img.E01.plaso"), "case-a_img.E01")
+        self.assertEqual(entry.psort_item_name("/in", "/in/storage/other.plaso"), "storage_other")
+        self.assertEqual(entry.psort_item_name("/in", "/in/x y/host/OTHER.PLASO"), "x_y_host_OTHER")
+        self.assertEqual(entry.psort_item_name("/in", "/elsewhere/img.plaso"), "img")
+
+    def test_psort_renders_beside_the_storage_file(self):
+        # log2timeline wrote <out>/<item>/<item>.plaso; psort over that root, into that
+        # root, lands timeline.jsonl in the same <item>/ folder (no <item>_<item>.plaso/)
+        os.makedirs(os.path.join(self.inp, "img.E01"))
+        with open(os.path.join(self.inp, "img.E01", "img.E01.plaso"), "wb") as fh:
+            fh.write(b"plaso-storage")
+        code, s = self.run_batch("psort", PLASO_PSORT_OUT_DIR=self.inp)
+        self.assertEqual(code, 0, s)
+        self.assertTrue(os.path.isfile(os.path.join(self.inp, "img.E01", "timeline.jsonl")))
+        self.assertTrue(os.path.isfile(os.path.join(self.inp, "img.E01", "psort.jsonl")))
+        self.assertFalse(os.path.exists(os.path.join(self.inp, "img.E01_img.E01.plaso")))
 
 
 if __name__ == "__main__":
