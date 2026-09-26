@@ -167,14 +167,29 @@ filesystem, so posture cannot drift from the images either.
 ./build-all.sh byakugan plaso signatures zeek
 ```
 
-`build-all.sh` is a thin launcher of `playbooks/build_images.yml` for
+`build-all.sh` is the launcher of `playbooks/build_images.yml` for
 standalone use of this repo only — the inventory lives in `images.yml` and
-the build logic in the `godfir_build` role; the script only forwards names
-and the optional stamp overrides. Clone-at-build engine pins live as ARG
-defaults in the tool Dockerfiles; each entry's `env_args` in `images.yml`
-names the pins overridable from the environment (e.g.
-`BYAKUGAN_REF=v1.2 ./build-all.sh byakugan` — the role reads them itself),
-and `GODFIR_REVISION` / `GODFIR_RELEASE` override the source stamps.
+the build logic in the `godfir_build` role; the script prepares the host,
+then forwards names and the optional stamp overrides. A bare clone needs
+nothing installed beforehand but `python3` (≥ 3.11, with the `venv`
+module) and the docker CLI: on first run the script installs the pinned
+controller layer (`requirements.txt`: ansible-core + the docker SDK
+`community.docker`'s modules import) into `<repo>/.venv` and the pinned
+`community.docker` collection (`requirements.yml`) into
+`<repo>/.ansible/collections` — per checkout, as the invoking user, never
+touching the system; both are gitignored and excluded from the collection
+artifact, and a host provisioned once builds offline afterwards. It then
+checks what it cannot install (a daemon this user may talk to, BuildKit)
+and names the fix when something is missing. `./build-all.sh --preflight`
+runs exactly that and builds nothing. A host with its own ansible passes
+it as `GODFIR_ANSIBLE=/path/to/ansible-playbook` (its python must import
+`docker`); `GODFIR_VENV` relocates the venv.
+
+Clone-at-build engine pins live as ARG defaults in the tool Dockerfiles;
+each entry's `env_args` in `images.yml` names the pins overridable from the
+environment (e.g. `BYAKUGAN_REF=v1.2 ./build-all.sh byakugan` — the role
+reads them itself), and `GODFIR_REVISION` / `GODFIR_RELEASE` override the
+source stamps.
 
 Each image's README carries its standalone `docker build` one-liner (run from
 the repo root, like the commands above).

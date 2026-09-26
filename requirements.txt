@@ -1,0 +1,32 @@
+# The standalone controller lock, consumed only by build-all.sh (a consumer
+# brings its own ansible: DX_DFIR's requirements.txt carries these same pins).
+# ansible-core itself, and the docker SDK + requests that community.docker's
+# modules (docker_image_info, docker_host_info, docker_image) import on the
+# controller. Pinned exactly so an unattended upstream release cannot shift a
+# dependency under a build; the community.docker COLLECTION is pinned in
+# requirements.yml.
+#
+# Regenerate after a deliberate bump, on the OLDEST interpreter supported
+# (python 3.11 — ansible-core 2.19.x installs on 3.11 through 3.13), then
+# restore this header:
+#   python3 -m venv /tmp/lock \
+#     && /tmp/lock/bin/pip install ansible-core requests docker PyYAML \
+#     && /tmp/lock/bin/pip freeze > requirements.txt
+#
+# Mirrors DX_DFIR's lock of 2026-09-12.
+
+ansible-core==2.19.13
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+cryptography==50.0.1
+docker==7.2.0
+idna==3.19
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+packaging==26.3
+pycparser==3.0
+PyYAML==6.0.3
+requests==2.34.2
+resolvelib==1.2.1
+urllib3==2.7.0

@@ -28,6 +28,9 @@ repository: https://github.com/Get-Sybers/GoDFIR-toolz
 issues: https://github.com/Get-Sybers/GoDFIR-toolz/issues
 build_ignore:
   - .gitignore
+  # build-all.sh's standalone provisioning — never part of the artifact
+  - .venv
+  - .ansible
   - "*/.conform-build.log"
   # test scenarios stay in the repo, not the artifact (house convention)
   - "roles/*/molecule"
