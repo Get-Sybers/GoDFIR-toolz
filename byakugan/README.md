@@ -29,6 +29,10 @@ byakugan timeline     a car tree               -> timeline.jsonl
 byakugan verify       a materialised car tree  -> the CAR correctness gate (verify.txt)
 byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
 byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bundles, or pushed)
+byakugan stix-export     detection hits          -> a STIX 2.1 bundle (sightings + indicators, projections merged)
+byakugan stix-behaviour  detections x a car tree -> behaviour sightings over spindle-keyed observations
+byakugan cti-pull        OpenCTI indicators      -> the cti-* Elasticsearch _bulk copy (no input mount)
+byakugan cti-sightings   indicator-match alerts  -> sightings of the platform's own indicators
 ```
 
 ## Input

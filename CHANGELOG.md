@@ -4,8 +4,9 @@
 
 - **`byakugan` carries the STIX/CTI exchange** — the engine pin advances to
   the merged `byakugan.exchange` (Byakugan #124) and the image version to
-  0.3.0: four new dispatcher sub-tools beside `build|timeline|verify|load|`
-  `car-vocab` — `stix-export` (detection hits → STIX 2.1 sightings +
+  0.3.0: four new dispatcher sub-tools beside
+  `build|timeline|verify|load|car-vocab` — `stix-export` (detection hits →
+  STIX 2.1 sightings +
   indicators, the projection's `stix_bundle.json` merged through),
   `stix-behaviour` (the detection lanes joined to CAR entities as sightings
   over spindle-keyed observed-data), `cti-pull` (OpenCTI indicators → the
