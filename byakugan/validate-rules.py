@@ -312,10 +312,10 @@ def _str_list(v) -> bool:
 
 
 def validate(rules: list[dict] | None = None) -> None:
-    """Fail fast on a malformed rule set — a bad rule must stop the load before
-    anything is pushed to the Detection Engine, not half-install a rule set.
-    Mirrors :func:`registry.validate`: first problem raises ValueError, prefixed
-    with the rule id."""
+    """Fail fast on a malformed rule set — a bad rule must stop the image
+    build (and any future push to the Detection Engine) before it half-ships
+    a rule set: the first problem raises ValueError, prefixed with the rule
+    id."""
     rules = load() if rules is None else rules
     seen: set[str] = set()
     for r in rules:
