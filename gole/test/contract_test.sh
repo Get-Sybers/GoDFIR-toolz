@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# test/contract_test.sh — the framework conformance smoke test for this tool
-# (docs/framework 06.5 / 09.5). It runs the image over test/fixtures/ in batch
-# mode with the environment contract set and asserts:
-#   1. the exit code (0 when the fixtures hold at least one item, else 1);
-#   2. stdout is exactly one line, JSON, carrying every summary_schema key;
-#   3. a rerun is idempotent: same exit, every item skipped, no new files;
-#   4. a bad environment (missing input mount) exits 2 / status config_error.
-#
-#   test/contract_test.sh                              # docker build + run
-#   IMAGE=get-sybers/<tool>:latest test/contract_test.sh   # reuse a built image
-#   GODFIR_BIN=/path/to/<tool> test/contract_test.sh       # run a host binary
-#
-# This file is shared verbatim by every self-orchestrating tool; the tool name
-# and its variable prefix derive from the directory it sits in.
+# The framework conformance smoke test (docs/framework 06.5 / 09.5), shared
+# verbatim by every self-orchestrating tool — the tool and its env prefix
+# derive from the directory. IMAGE=<ref> reuses a built image;
+# GODFIR_BIN=<path> runs a host binary instead.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

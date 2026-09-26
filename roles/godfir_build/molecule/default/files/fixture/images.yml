@@ -1,8 +1,4 @@
-# The molecule fixture inventory — four FROM-scratch stand-ins exercising
-# every gate of the role offline: a good subdir-context image (env_args +
-# aliases), a good root-context image (subtool aliases), a declared-posture
-# violation (badshell ships bin/sh while declaring shell=false), and a
-# missing declaration (nodecl). Shaped exactly like the real root manifest.
+# fixture inventory, shaped exactly like the real root manifest (role README: Testing)
 namespace: get-sybers
 images:
   - name: standin

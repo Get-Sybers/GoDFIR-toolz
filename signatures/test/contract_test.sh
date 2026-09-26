@@ -1,21 +1,9 @@
 #!/usr/bin/env bash
-# test/contract_test.sh — the framework conformance smoke test for the
-# signatures multi-tool image (docs/framework 06.5). It builds the image
-# (unless IMAGE is given), runs `yara` over test/fixtures/staged/, `suricata`
-# over test/fixtures/pcaps/ and `hayabusa` over test/fixtures/evtx/, and
-# asserts for each run:
-#   1. the exit code (0);
-#   2. stdout is exactly one JSON line carrying every summary_schema key;
-#   3. a rerun is idempotent: same exit, every item skipped, no new files;
-# and for hayabusa that the item's timeline.jsonl holds exactly the detections
-# the summary counts (at least one; one JSON record per line) beside its
-# hayabusa.jsonl index. Then it runs with a bad environment (missing input
-# mount) and with no sub-tool named, asserting exit 2 / status config_error
-# for both. scan needs an NTFS image and is covered by the Go unit tests with
-# a stub pipe.
-#
-#   test/contract_test.sh                                   # docker build + run
-#   IMAGE=get-sybers/signatures:latest test/contract_test.sh    # reuse a built image
+# The framework conformance smoke test for the signatures multi-tool image
+# (docs/framework 06.5): yara/suricata/hayabusa each over their fixtures,
+# plus idempotency and the config-error exits. `scan` needs an NTFS image
+# and is covered by the Go unit tests with a stub pipe. IMAGE=<ref> reuses
+# a built image.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

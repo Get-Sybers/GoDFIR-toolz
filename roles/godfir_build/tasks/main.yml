@@ -1,8 +1,4 @@
 ---
-# godfir_build: gather the build facts (manifest, tree, stamps), resolve the
-# requested set, then build + verify each image. Ansible tasks end to end —
-# the launcher scripts only invoke the playbook that runs this role.
-
 - name: "godfir-build | assert the root inventory contract"
   ansible.builtin.include_tasks: inventory.yml
 
@@ -11,9 +7,6 @@
   register: godfir_build_docker
   changed_when: false
 
-# The hardening playbook has ONE canonical home: hardening/harden.yml at the
-# root. Every repo-root-context Dockerfile COPYs it directly — nothing is
-# synced or generated. A tree without it is not a build tree — fail early.
 - name: "godfir-build | stat the canonical hardening playbook"
   ansible.builtin.stat:
     path: "{{ godfir_build_tree }}/hardening/harden.yml"
@@ -29,10 +22,6 @@
       submodule is not initialised: git submodule update --init --recursive).
     quiet: true
 
-# The source identity to stamp (com.get-sybers.src) and the release tag: an
-# explicit var wins; a git checkout answers next; an installed collection has
-# no .git, so its MANIFEST.json version stands in; 'unknown'/'dev' close the
-# chain so the build never blocks on identity.
 - name: "godfir-build | resolve the checkout revision"
   # noqa: command-instead-of-module — read-only rev-parse; the git module clones.
   ansible.builtin.command:

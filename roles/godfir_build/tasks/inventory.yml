@@ -1,12 +1,4 @@
 ---
-# Shared by every entry point (build, verify, audit): first NORMALISE the
-# tree — an empty godfir_build_root means this role's OWN repo/collection
-# root, two levels up — then hold it to the contract: images.yml lives at
-# the tree root, every consumer (conform.sh, build-all.sh, DX_DFIR, a galaxy
-# install) relies on that, so stat the exact path and stop with the real
-# reason before anything else runs. The assert's conditions evaluate in
-# order, so the manifest itself (a STRICT lookup — see defaults) is only
-# parsed once the file is known to exist.
 - name: "godfir-build | normalise the tree (empty root = this role's own)"
   ansible.builtin.set_fact:
     godfir_build_tree: >-
@@ -18,6 +10,7 @@
     path: "{{ godfir_build_tree }}/images.yml"
   register: godfir_build_manifest_stat
 
+# ordered conditions: the strict manifest lookup only parses once the file exists
 - name: "godfir-build | the inventory is at the root and declares images"
   ansible.builtin.assert:
     that:

@@ -1,22 +1,4 @@
-# ==============================================================================
-# galaxy.yml — GoDFIR-toolz as an installable Ansible collection.
-#
-# The plug-and-play contract: this repository SUPPLIES the get-sybers/* image
-# inventory (images.yml) and every build context, and a consumer plugs it in
-# one of two ways:
-#
-#   A. direct reference — a git submodule (or checkout) pinned by the consumer;
-#      DX_DFIR consumes this way (docker/GoDFIR-toolz at its gitlink pin).
-#   B. ansible-galaxy — install straight from git, no submodule:
-#        ansible-galaxy collection install \
-#          'git+https://github.com/Get-Sybers/GoDFIR-toolz.git'
-#      The collection lands with images.yml and the build contexts intact under
-#      ansible_collections/get_sybers/godfir_toolz/ for the consumer's build
-#      role to read. Publishing to galaxy.ansible.com is the release step on
-#      top of this same file.
-#
-# Both modes read the SAME files, so the inventory cannot fork between them.
-# ==============================================================================
+# the collection packaging of this repo (README "The image inventory" covers both consumption modes)
 namespace: get_sybers
 name: godfir_toolz
 version: 0.1.0
@@ -34,8 +16,7 @@ description: >-
 license:
   - Apache-2.0
 dependencies:
-  # godfir_build drives docker through these modules; consumers that pin an
-  # exact version (DX_DFIR's requirements.yml) satisfy this range.
+  # a consumer pinning an exact version (DX_DFIR's requirements.yml) satisfies this range
   community.docker: ">=3.10.3,<5.0.0"
 tags:
   - dfir

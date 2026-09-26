@@ -1,8 +1,4 @@
 ---
-# Build the two GOOD fixture images through the role — the build gates run
-# for real (BuildKit, FROM scratch, offline-safe: nothing is pulled).
-# Molecule's idempotence step reruns this and expects ZERO changes: the
-# source stamp is pinned, so the role's staleness logic must no-op.
 - name: Converge
   hosts: localhost
   gather_facts: false

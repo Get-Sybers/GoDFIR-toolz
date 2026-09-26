@@ -1,8 +1,4 @@
 ---
-# Resolve godfir_build_set (names or aliases, case-insensitive) against the
-# manifest. Everything is validated BEFORE any image builds; an empty set
-# means every manifest image, in order.
-
 - name: "godfir-resolve | refuse the tools the manifest declares unbuildable"
   vars:
     _refused: >-

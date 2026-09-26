@@ -1,14 +1,7 @@
 # syntax=docker/dockerfile:1
 # get-sybers/gomft — raw NTFS $MFT parser (static Go on Velociraptor's go-ntfs).
-# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
-# batches over GOMFT_INPUT_DIR into GOMFT_OUT_DIR (one folder per $MFT) and
-# prints one JSON summary line; argv (-f/-d/--tar …) is the debug pass-through.
-# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
-#
-#   docker build -t get-sybers/gomft:latest -f gomft/Dockerfile gomft
 
-# go-ntfs's module graph requires go >= 1.25; the official images pin
-# GOTOOLCHAIN=local, so the builder must itself be >= 1.25.
+# go-ntfs requires go >= 1.25 and the golang images set GOTOOLCHAIN=local, so the builder must be >= 1.25
 ARG GO_VERSION=1.25
 ARG TOOL_VERSION=0.2.0
 ARG GODFIR_REVISION=unknown
@@ -21,7 +14,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gomft .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /gomft --version
 
 FROM scratch

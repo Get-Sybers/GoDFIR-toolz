@@ -1,51 +1,11 @@
 #!/usr/bin/env bash
 #
-# gomount — self-contained integration MOUNT TEST.
-#
-# Proves the WHOLE unprivileged stack end-to-end WITHOUT any real evidence image:
-#
-#   plain file (mkntfs superfloppy) --gomount decode--> io.ReaderAt
-#     --gomount NTFS volume select + BPB--> volume ReaderAt+exactSize
-#       --gomount single-file FUSE (go-fuse, volume.img, FOPEN_DIRECT_IO, EROFS on write)--
-#         --gomount EXEC ntfs-3g -o ro (separate GPL process, never linked)-->
-#           a REAL, browsable, READ-ONLY mount at the mountpoint.
-#
-# UNPRIVILEGED recipe (no --privileged, no CAP_SYS_ADMIN, no loop device):
-#   docker run --rm \
-#     --device /dev/fuse \
-#     --security-opt apparmor=unconfined \
-#     --security-opt seccomp=unconfined \
-#     get-sybers/gomount:latest \
-#     bash /test/mount-test.sh
-#
-# The container's default caps do NOT include CAP_SYS_ADMIN. This script (as PID
-# of the container's process tree) re-execs the MOUNT PHASE inside a fresh user +
-# mount namespace via `unshare -U -m -r`; inside that userns the process holds
-# CAP_SYS_ADMIN over its OWN mount namespace, which is what lets FUSE mount
-# unprivileged (kernel >= 4.18). Owning ONE namespace for the whole mount phase
-# keeps the mount visible to the `ls`/`stat`/`umount` that follow — a FUSE mount
-# made in a private mount namespace is invisible to siblings outside it.
-#
-# ASSERTIONS (all must hold for exit 0):
-#   A. the mountpoint appears in /proc/mounts with fs type "fuse"/"fuse.ntfs-3g"
-#      and NOT "fuseblk"  (fuseblk == block/loop device == privileged; fuse ==
-#      regular-file backing == FS_USERNS_MOUNT == unprivileged).
-#   B. `ls -la <mountpoint>` exits 0 and lists the seeded HELLO.txt.
-#   C. `stat`/read of the seeded file succeeds through the mount.
-#   D. sha256(source image) is UNCHANGED across mount+umount  (read-only proof).
-#
-# EXIT CODES:  0 = stack proven   2 = ran but an assertion FAILED
-#              3 = SKIPPED: environment cannot provide unprivileged FUSE (see the
-#                  ENVIRONMENT REPORT printed at the top; this is not a gomount bug)
-#
-# gomount CLI contract exercised:
-#   gomount mount  --read-only --mount-point <dir> [--no-self-unshare] [--foreground] <image>
-#   gomount umount --mount-point <dir>
-# --no-self-unshare tells gomount it is ALREADY inside a suitable userns (this
-# script owns it) so gomount must NOT unshare again; equivalently gomount may
-# auto-detect a non-initial userns with CAP_SYS_ADMIN and skip the unshare.
-# Set GOMOUNT_BIN to override the binary (default: gomount on PATH).
-
+# gomount integration MOUNT TEST: decode -> volume -> single-file FUSE ->
+# exec'd ntfs-3g -o ro -> a real read-only mount, all unprivileged. Full
+# design, assertions, the userns/one-namespace subtlety and the docker
+# recipe: README.md "Run". Exit 0 proven, 2 assertion failed, 3 environment
+# cannot provide unprivileged FUSE (see the ENVIRONMENT REPORT — not a
+# gomount bug). GOMOUNT_BIN overrides the binary (default: gomount on PATH).
 set -u -o pipefail
 
 # ----------------------------------------------------------------------------- config

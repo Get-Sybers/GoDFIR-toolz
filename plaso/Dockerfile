@@ -1,22 +1,13 @@
 # syntax=docker/dockerfile:1
-# get-sybers/plaso — Plaso at a pinned PyPI release (libyal built from source),
-# fronted by the plaso-entry dispatcher (docs/framework 04 §4.3).
-# Multi-tool image: `plaso-entry <log2timeline|psort|image_export>` with no
-# further arguments self-orchestrates that sub-tool from its PLASO_<SUBTOOL>_*
-# env block (one output folder per item, one JSON summary line); any other argv
-# is passed through to plaso's own entry tools verbatim.
-# Shape B, declared deviations: python=true (plaso IS python) and shell=true
-# (sh/dash stay for plaso's console-script wrappers; bash is removed).
-# static_binary=false (CPython + libyal shared objects). Ansible, the
-# build-time hardener, is removed after it runs.
-#
-#   docker build -t get-sybers/plaso:latest -f plaso/Dockerfile .
+# get-sybers/plaso — Plaso at a pinned PyPI release (libyal built from source)
+# behind the plaso-entry dispatcher. Shape B; declared deviations python=true,
+# shell=true (sh/dash for the console-script wrappers; bash removed).
+# Dispatch semantics, env blocks and run docs: README.md.
 ARG BASE=python:3.12-slim
 ARG PLASO_VERSION=20260720
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
-# ---- wheel-build stage: compile the libyal stack from source ----------------
 FROM ${BASE} AS wheels
 ARG PLASO_VERSION
 RUN set -eux; \
@@ -38,15 +29,11 @@ RUN set -eux; \
     ln -s /usr/local/bin/psort /usr/local/bin/psort.py; \
     ln -s /usr/local/bin/image_export /usr/local/bin/image_export.py; \
     printf 'plaso %s (pypi, libyal built from source)\n' "${PLASO_VERSION}" > /etc/dxdfir-plaso-version
-# The image runs as uid 2000, so the baked python entry points and the contract
-# must be world-readable; their modes are pinned here rather than inherited
-# from the build context (which varies by checkout/umask).
+# modes pinned below, not inherited: the build context's umask varies and uid 2000 must read these
 COPY plaso/psort_wrapper.py /opt/dxdfir/psort_wrapper.py
 COPY plaso/plaso-entry.py /opt/dxdfir/plaso-entry.py
 COPY plaso/contract.yml /opt/dxdfir/contract.yml
 COPY hardening/harden.yml /tmp/hardening/harden.yml
-# harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
-# values below: python and a shell stay (declared), bash and ansible go.
 RUN set -eux; \
     chmod 0644 /opt/dxdfir/psort_wrapper.py /opt/dxdfir/contract.yml; \
     chmod 0755 /opt/dxdfir/plaso-entry.py; \
@@ -56,7 +43,7 @@ RUN set -eux; \
     rm -rf /usr/local/bin/ansible* /usr/local/lib/python3*/site-packages/ansible* \
            /etc/ansible /root/.ansible /tmp/hardening \
            /bin/bash /usr/bin/bash /bin/rbash /usr/bin/rbash /usr/bin/bashbug
-# Build-stage sanity gate: the dispatcher answers --version and plaso's tools load.
+# build-stage sanity gate: the dispatcher answers --version and plaso's tools load
 RUN python3 /opt/dxdfir/plaso-entry.py --version && log2timeline --version
 
 FROM scratch

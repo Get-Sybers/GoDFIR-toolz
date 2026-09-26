@@ -1,48 +1,11 @@
 #!/usr/bin/env bash
 #
-# gomount — self-contained integration USERSPACE TEST.
-#
-# Proves the WHOLE pure-userspace NTFS path end-to-end WITHOUT any real evidence
-# image, and — the point of this backend — WITHOUT any mount, FUSE, kernel driver,
-# KVM, /dev/fuse, /dev/kvm, or privilege:
-#
-#   plain file (mkntfs superfloppy) --gomount decode--> io.ReaderAt
-#     --gomount NTFS volume select + BPB--> volume ReaderAt+exactSize
-#       --gomount go-ntfs in-process parse (walk/read the filesystem)-->
-#         ls / cat / stat / stream served straight from the parser.
-#
-# There is NO separate process, NO ntfs-3g, NO fusermount3, NO namespace. A parser
-# bug here is a Go panic, never host RCE — this is the max-security backend, and it
-# runs anywhere a Go program runs, including this unprivileged Proxmox LXC (which
-# exposes neither /dev/fuse nor /dev/kvm). So unlike mount-test.sh it has no
-# environment SKIP path: given the ntfs-3g package (for the fixture builders
-# mkntfs/ntfscp) and the gomount binary, it MUST run to a verdict here and in CI.
-#
-# UNPRIVILEGED recipe (no --privileged, no caps, no devices):
-#   docker run --rm -v "$PWD/gomount:/src" -w /src golang:trixie bash -c '
-#     export DEBIAN_FRONTEND=noninteractive PATH=$PATH:/usr/local/go/bin
-#     apt-get update -qq && apt-get install -y -qq ntfs-3g
-#     bash test/userspace-test.sh'
-#
-# ASSERTIONS (all must hold for exit 0):
-#   A. `gomount ls -l <img>`          lists the seeded HELLO.txt with its exact size.
-#   B. `gomount cat <img> HELLO.txt`  is byte-identical to the seed (sha256 match).
-#   C. `gomount stat <img> HELLO.txt` exits 0 and prints sane metadata (name + size).
-#   D. `gomount stream --jsonl <img>` emits machine records that include HELLO.txt.
-#   E. sha256(source image) is UNCHANGED across every read above (read-only proof).
-#
-# EXIT CODES:  0 = userspace backend proven   2 = ran but an assertion / prerequisite FAILED
-#
-# gomount CLI contract exercised (the userspace backend the other components build):
-#   gomount ls     <image> [path]      list a directory (default: volume root)
-#   gomount cat    <image> <path>      write a file's bytes to stdout
-#   gomount stat   <image> <path>      print one entry's metadata
-#   gomount stream [--jsonl] <image>   walk the whole filesystem for TOOLS
-# The image argument is a raw/dd/img or E01 disk image (or, as here, a partitionless
-# NTFS superfloppy); the volume is auto-selected (largest NTFS), no flag needed.
-# Set GOMOUNT_BIN to override the binary; otherwise the script uses `gomount` on
-# PATH, or builds it from this checkout with the Go toolchain if one is available.
-
+# gomount integration USERSPACE TEST: ls/cat/stat/stream straight from the
+# in-process parser — no mount, no FUSE, no privilege, so NO environment
+# SKIP path: it must reach a verdict wherever ntfs-3g (fixture builders) and
+# the binary exist. Full design and assertions: README.md "Run". Exit 0
+# proven, 2 failed. GOMOUNT_BIN overrides the binary; else PATH, else a Go
+# toolchain builds it from this checkout.
 set -u -o pipefail
 
 # ----------------------------------------------------------------------------- config

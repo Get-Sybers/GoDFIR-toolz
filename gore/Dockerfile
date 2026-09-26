@@ -1,12 +1,5 @@
 # syntax=docker/dockerfile:1
 # get-sybers/gore — Batch-driven Windows registry extractor (static Go on Velociraptor's regparser).
-# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
-# batches over GORE_INPUT_DIR into GORE_OUT_DIR (one folder per hive,
-# GORE_BATCH selects the .reb definition, .LOG1/.LOG2 replayed into GORE_WORK_DIR)
-# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
-# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
-#
-#   docker build -t get-sybers/gore:latest -f gore/Dockerfile gore
 
 ARG GO_VERSION=1.24
 ARG TOOL_VERSION=0.2.0
@@ -20,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gore .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /gore --version
 # The bundled batch definition, with modes fixed here rather than inherited from
 # the checkout, so uid 2000 can read it whatever umask the build host used.

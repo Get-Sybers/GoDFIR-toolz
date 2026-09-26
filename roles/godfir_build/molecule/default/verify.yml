@@ -1,16 +1,10 @@
 ---
-# The full gate matrix over the committed fixture — every case ansible tasks,
-# no shell: stamps and env pins, staleness replacement, alias resolution, the
-# four build negatives, the runtime verify gate (pass / unknown / digest /
-# wrong uid) and the audit (clean + aggregated violations with the non_tool
-# exemption). Every negative runs the role inside a block and asserts the
-# rescue caught the EXPECTED refusal — passing when it should fail, or
-# failing for the wrong reason, fails the scenario.
+# every negative runs the role in block/rescue and asserts the EXPECTED refusal text
 - name: Verify
   hosts: localhost
   gather_facts: false
   tasks:
-    # ---- the converged image carries the contract, the stamp and the env pin
+    # ---- contract, stamp and env pin on the converged image
     - name: "verify | inspect standin"
       community.docker.docker_image_info:
         name: get-sybers/standin:latest
@@ -29,7 +23,7 @@
           - godfir_build_mol_cfg.Labels['rel'] == 'molecule'
         quiet: true
 
-    # ---- staleness: a new source revision replaces the image without force
+    # ---- staleness
     - name: "verify | rebuild standin at a NEW source revision"
       ansible.builtin.include_role:
         name: godfir_build
@@ -59,7 +53,7 @@
           - godfir_build_mol_dangling.images | length == 0
         quiet: true
 
-    # ---- aliases resolve (stalias -> standin; subx -> rootctx with the note)
+    # ---- alias resolution
     - name: "verify | aliases and subtool aliases resolve"
       ansible.builtin.include_role:
         name: godfir_build
@@ -69,7 +63,7 @@
         godfir_build_src_sha: molecule-src-b
         godfir_build_release: molecule
 
-    # ---- build negatives ----------------------------------------------------
+    # ---- build negatives
     - name: "verify | an unknown tool is refused before anything builds"
       block:
         - name: "verify | build nosuch (must fail)"
@@ -146,7 +140,7 @@
               - "'ships no /etc/dfir-hardened declaration' in (ansible_failed_result | to_json)"
             quiet: true
 
-    # ---- the runtime verify gate -------------------------------------------
+    # ---- the runtime verify gate
     - name: "verify | the gate passes a manifest image (registry-qualified too) and ignores a foreign one"
       ansible.builtin.include_role:
         name: godfir_build
@@ -155,8 +149,6 @@
         godfir_build_root: "{{ godfir_molecule_root }}"
         godfir_build_verify_images:
           - get-sybers/standin:latest
-          # the docker.io prefix is the same hub image: in scope, membership
-          # holds after registry normalization, and the local inspect resolves
           - docker.io/get-sybers/standin:latest
           - docker.elastic.co/kibana/kibana:9.0.0
 
@@ -259,10 +251,7 @@
         godfir_build_src_sha: molecule-src-b
         godfir_build_release: molecule
 
-    # ---- the audit ----------------------------------------------------------
-    # badshell and nodecl exist as images (their builds succeeded; the gates
-    # failed AFTER), and they carry USER + label — so the audit's runtime
-    # contract sees all four manifest images present and hardened.
+    # ---- the audit (badshell/nodecl images exist: their builds succeeded, the gates failed AFTER)
     - name: "verify | the audit is clean with all four present"
       ansible.builtin.include_role:
         name: godfir_build

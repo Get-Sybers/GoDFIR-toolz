@@ -1,23 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build the hardened get-sybers/* images — STANDALONE USE OF THIS REPO ONLY.
-# This script exists so GoDFIR-toolz works cloned on its own (no consumer
-# around); an integrating consumer (DX_DFIR) uses the godfir_build role /
-# collection playbook directly and NEVER this script. It is a thin launcher,
-# nothing more: the inventory lives in images.yml and the build logic lives
-# in ansible (the godfir_build role, driven by playbooks/build_images.yml) —
-# this script only forwards names and the optional stamp overrides.
-#
-#   ./build-all.sh                  # everything in images.yml, in manifest order
-#   ./build-all.sh gore gomft       # a subset (names case-insensitive; the
-#                                   # substituted EZ-tool aliases resolve)
-#   ./build-all.sh sqlecmd bstrings # the .NET per-tool images by name
-#   ./build-all.sh byakugan plaso signatures zeek
-#
-# Clone-at-build engine pins live as ARG defaults in the tool Dockerfiles;
-# each entry's env_args in images.yml names the pins overridable from the
-# environment (e.g. BYAKUGAN_REF=v1.2 ./build-all.sh byakugan — the role reads
-# them itself). GODFIR_REVISION / GODFIR_RELEASE override the source stamps.
+# Standalone-only thin launcher of the collection playbook — usage, env pins
+# and the consumer story: README.md "Building". An integrating consumer uses
+# the godfir_build role, never this script.
 set -Eeuo pipefail
 cd "$(dirname "$0")"
 
@@ -26,9 +11,7 @@ command -v ansible-playbook >/dev/null 2>&1 \
 
 EXTRA=()
 if [ "$#" -gt 0 ]; then
-    # JSON-escape each name (backslash, then double quote) so a quoted or
-    # malformed argument can neither break the extra-vars JSON nor smuggle
-    # extra keys into it — the role then judges the NAME, never the syntax.
+    # JSON-escape each name so a quoted/malformed argument can't break or extend the extra-vars JSON
     names=""
     for _name in "$@"; do
         _esc=${_name//\\/\\\\}

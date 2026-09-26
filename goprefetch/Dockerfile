@@ -1,15 +1,7 @@
 # syntax=docker/dockerfile:1
 # get-sybers/goprefetch — Windows Prefetch (.pf) parser (static Go on Velociraptor's go-prefetch).
-# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
-# batches over GOPREFETCH_INPUT_DIR into GOPREFETCH_OUT_DIR (one folder per
-# prefetch file)
-# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
-# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
-#
-#   docker build -t get-sybers/goprefetch:latest -f goprefetch/Dockerfile goprefetch
 
-# go-prefetch requires go >= 1.25 (module directive), and the official golang
-# images set GOTOOLCHAIN=local, so the builder must be at least 1.25 itself.
+# go-prefetch requires go >= 1.25 and the golang images set GOTOOLCHAIN=local, so the builder must be >= 1.25
 ARG GO_VERSION=1.25
 ARG TOOL_VERSION=0.2.0
 ARG GODFIR_REVISION=unknown
@@ -22,7 +14,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /goprefetch .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /goprefetch --version
 
 FROM scratch

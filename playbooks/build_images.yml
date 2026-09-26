@@ -1,8 +1,4 @@
 ---
-# The playbook holds the decisions; the role groups, the tasks act.
-# The build galaxy's standalone entry: build (a subset of) the get-sybers/*
-# images on this host from images.yml. build-all.sh launches exactly this; an
-# installed collection runs it as get_sybers.godfir_toolz.build_images.
 - name: "GoDFIR | build images"
   hosts: "{{ godfir_hosts | default('localhost') }}"
   connection: "{{ godfir_connection | default('local') }}"

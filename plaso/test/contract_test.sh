@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# test/contract_test.sh — the framework conformance smoke test for the plaso
-# multi-tool image (docs/framework 06.5). It builds the image (unless IMAGE is
-# given), runs `log2timeline` over test/fixtures/ (a small staged tree) and then
-# `psort` over the storage files that produced, and asserts for each run:
-#   1. the exit code (0);
-#   2. stdout is exactly one JSON line carrying every summary_schema key;
-#   3. a rerun is idempotent: same exit, every item skipped, no new files;
-# then runs with a bad environment (missing input mount) and with no sub-tool
-# named, asserting exit 2 / status config_error for both.
-#
-#   test/contract_test.sh                              # docker build + run
-#   IMAGE=get-sybers/plaso:latest test/contract_test.sh    # reuse a built image
+# The framework conformance smoke test for the plaso multi-tool image
+# (docs/framework 06.5): log2timeline over the staged fixtures, psort over
+# the storage files that produced, plus idempotency and the config-error
+# exits. IMAGE=<ref> reuses a built image.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
