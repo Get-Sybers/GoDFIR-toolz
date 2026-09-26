@@ -1,7 +1,0 @@
-# The standalone collection pin, consumed only by build-all.sh — exact, never
-# a range or :latest. It satisfies galaxy.yml's declared dependency range; a
-# consumer pins the collection itself (DX_DFIR's requirements.yml carries the
-# same version).
-collections:
-  - name: community.docker
-    version: "3.10.3"

@@ -1,8 +1,8 @@
 *.zip
 __pycache__/
 
-# build-all.sh's per-checkout controller venv (requirements.txt)
+# build-all.sh's per-checkout controller venv (the pins live in the script)
 .venv/
 # ansible-lint / ansible-galaxy local caches; build-all.sh's in-tree
-# community.docker install (requirements.yml)
+# community.docker install
 .ansible/

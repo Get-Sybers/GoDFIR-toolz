@@ -1,26 +1,31 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# build-all.sh — build the get-sybers/* images from images.yml, STANDALONE.
+# build-all.sh — build the get-sybers/* images from images.yml, STANDALONE ONLY.
 #
-# This script exists so the repository works on its own (cloned by itself, no
-# consumer around). It is a launcher of the collection playbook
+# This script exists for exactly one situation: this repository cloned by
+# itself, with no consumer around. It launches the collection playbook
 # (playbooks/build_images.yml → the godfir_build role): the inventory lives in
 # images.yml and the build logic in the role; the script only prepares the
-# host, forwards names and the optional stamp overrides. An integrating
-# consumer uses the role, never this script — DX_DFIR's dxdfir_images role is
-# the reference — and nothing here is reachable from a consumer's path.
+# host, forwards names and the optional stamp overrides.
 #
-# Being standalone, it provisions what the role needs itself, per checkout,
-# without touching the system, and it is safe to re-run:
-#   - the pinned controller layer (requirements.txt: ansible-core + the docker
-#     SDK community.docker's modules import) into <repo>/.venv, created by the
-#     invoking user; reinstalled only when the lock changes;
-#   - the pinned community.docker collection (requirements.yml) into
-#     <repo>/.ansible/collections, only when it does not already resolve;
-#   - a preflight on everything it cannot install: python3 >= 3.11 with the
-#     venv module, the docker CLI, a daemon this user may talk to, BuildKit.
-# The messages name the fix. Both trees are gitignored and excluded from the
-# collection artifact. A host provisioned once builds offline afterwards.
+# It is NEVER used by another repository. A consumer builds through the
+# godfir_build role from its own tooling (DX_DFIR: `dxdfir build-docker`), and
+# this script refuses to run from a checkout that is a submodule of another
+# repository. Nothing it provisions is shared with a consumer: every pin it
+# needs is written HERE, it creates no file a consumer's tooling could pick
+# up, and what it installs stays in two gitignored, artifact-ignored trees
+# of this checkout —
+#   - <repo>/.venv                the pinned controller layer (ansible-core +
+#                                 the docker SDK community.docker's modules
+#                                 import), created by the invoking user,
+#                                 reinstalled only when the pins below change;
+#   - <repo>/.ansible/collections the pinned community.docker collection,
+#                                 installed only when it does not already
+#                                 resolve, put on ANSIBLE_COLLECTIONS_PATH for
+#                                 the run (never written to ansible.cfg).
+# It then preflights what it cannot install — python3 >= 3.11 with the venv
+# module, the docker CLI, a daemon this user may talk to, BuildKit — and
+# names the fix on every failure. A host provisioned once builds offline.
 #
 # Usage:
 #   build-all.sh [options] [NAME...]
@@ -49,6 +54,35 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 cd "$REPO_ROOT"
 
+# ---- the pins: THE one place this script's dependencies are set -------------
+# The controller layer, an exact lock (ansible-core itself, the docker SDK +
+# requests that community.docker's modules import on the controller, and
+# their resolution). Regenerate after a deliberate bump on the OLDEST python
+# supported (3.11 — ansible-core 2.19.x installs on 3.11 through 3.13):
+#   python3 -m venv /tmp/lock && /tmp/lock/bin/pip install ansible-core requests docker PyYAML \
+#     && /tmp/lock/bin/pip freeze
+PIP_LOCK='
+ansible-core==2.19.13
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+cryptography==50.0.1
+docker==7.2.0
+idna==3.19
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+packaging==26.3
+pycparser==3.0
+PyYAML==6.0.3
+requests==2.34.2
+resolvelib==1.2.1
+urllib3==2.7.0
+'
+# The collection the godfir_build role's modules come from: exact, never a
+# range or :latest. It satisfies galaxy.yml's declared dependency range.
+COLLECTION_PIN='community.docker:3.10.3'
+COLLECTION_NAME='community.docker'
+
 # ---- styling (conform.sh's) --------------------------------------------------
 if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
     C_RST=$'\033[0m'; C_OK=$'\033[38;5;172m'; C_ACT=$'\033[38;5;214m'
@@ -58,7 +92,7 @@ ok()   { printf '%s[ ok ]%s %s\n' "$C_OK"  "$C_RST" "$*"; }
 step() { printf '%s[ >> ]%s %s\n' "$C_ACT" "$C_RST" "$*"; }
 note() { printf '       %s%s%s\n' "$C_DIM" "$*" "$C_RST"; }
 die()  { printf '%s[fail]%s %s\n' "$C_ERR" "$C_RST" "$1" >&2; shift; for _l in "$@"; do printf '       %s\n' "$_l" >&2; done; exit 2; }
-usage() { sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() { sed -n '2,52p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 
 # ---- arguments ---------------------------------------------------------------
 PREFLIGHT_ONLY=false
@@ -74,6 +108,15 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+# ---- standalone only ---------------------------------------------------------
+# A submodule checkout carries a `.git` FILE (a gitlink into the superproject)
+# where a standalone clone has a directory: that is another repository's copy
+# of this one, and its build goes through that repository's tooling.
+if [[ -f "$REPO_ROOT/.git" ]]; then
+    die "this checkout is a submodule of another repository — build-all.sh is standalone-only." \
+        "build through that repository's own tooling (DX_DFIR: dxdfir build-docker), which drives the godfir_build role."
+fi
+
 # ---- host tools the script cannot install -----------------------------------
 # apt names are hints: the script never escalates and never touches the system.
 command -v python3 >/dev/null 2>&1 \
@@ -87,10 +130,10 @@ command -v docker >/dev/null 2>&1 \
 command -v git >/dev/null 2>&1 \
     || note "git not found — images will be stamped from GODFIR_REVISION or 'unknown', not the checkout's HEAD"
 
-# ---- the controller layer: ansible-core + the docker SDK, pinned -------------
+# ---- the controller layer: ansible-core + the docker SDK, pinned above ------
 # GODFIR_ANSIBLE: a host that brings its own ansible skips the venv entirely.
-# Otherwise the checkout's own venv, (re)installed from requirements.txt when
-# the venv is missing, incomplete, or the lock changed since the last install.
+# Otherwise the checkout's own venv, (re)installed from PIP_LOCK when the venv
+# is missing, incomplete, or the lock changed since the last install.
 VENV="${GODFIR_VENV:-$REPO_ROOT/.venv}"
 if [[ -n "${GODFIR_ANSIBLE:-}" ]]; then
     [[ -x "$GODFIR_ANSIBLE" ]] || die "GODFIR_ANSIBLE is not an executable: $GODFIR_ANSIBLE"
@@ -98,17 +141,17 @@ if [[ -n "${GODFIR_ANSIBLE:-}" ]]; then
     ANSIBLE_BIN_DIR="$(cd "$(dirname "$(readlink -f "$ANSIBLE_PLAYBOOK")")" && pwd)"
     ok "ansible from GODFIR_ANSIBLE: $ANSIBLE_PLAYBOOK"
 else
-    [[ -f requirements.txt ]] || die "requirements.txt is missing — incomplete checkout?"
-    _lock_sum="$(sha256sum requirements.txt | cut -d' ' -f1)"
-    _stamp="$VENV/.requirements.sha256"
+    _lock_sum="$(printf '%s' "$PIP_LOCK" | sha256sum | cut -d' ' -f1)"
+    _stamp="$VENV/.lock.sha256"
     if [[ ! -x "$VENV/bin/ansible-playbook" || "$(cat "$_stamp" 2>/dev/null)" != "$_lock_sum" ]]; then
-        step "Installing the pinned controller layer (requirements.txt) into $VENV ..."
-        note "first run, or the lock changed — needs PyPI; later runs are offline"
+        step "Installing the pinned controller layer into $VENV ..."
+        note "first run, or the pins changed — needs PyPI; later runs are offline"
         python3 -m venv "$VENV" || die "could not create the venv at $VENV"
         "$VENV/bin/pip" install --quiet --upgrade pip \
             || die "pip upgrade in $VENV failed (no route to PyPI?)"
-        "$VENV/bin/pip" install --quiet -r requirements.txt \
-            || die "installing requirements.txt into $VENV failed (no route to PyPI?)"
+        printf '%s\n' "$PIP_LOCK" > "$VENV/lock.txt"
+        "$VENV/bin/pip" install --quiet -r "$VENV/lock.txt" \
+            || die "installing the pinned controller layer into $VENV failed (no route to PyPI?)"
         printf '%s\n' "$_lock_sum" > "$_stamp"
     fi
     ANSIBLE_PLAYBOOK="$VENV/bin/ansible-playbook"
@@ -130,15 +173,16 @@ _ansible_py="$("$ANSIBLE_PLAYBOOK" --version 2>/dev/null | sed -n 's/^ *python v
 [[ -n "$_ansible_py" && -x "$_ansible_py" ]] || _ansible_py="$ANSIBLE_BIN_DIR/python"
 "$_ansible_py" -c 'import docker, requests' 2>/dev/null \
     || die "ansible's python ($_ansible_py) cannot import the docker SDK community.docker needs." \
-           "$([[ -n "${GODFIR_ANSIBLE:-}" ]] && echo "$_ansible_py -m pip install -r $REPO_ROOT/requirements.txt" || echo "remove $VENV and re-run to reinstall the lock")"
+           "$([[ -n "${GODFIR_ANSIBLE:-}" ]] && echo "$_ansible_py -m pip install 'docker==7.2.0' 'requests==2.34.2'" || echo "remove $VENV and re-run to reinstall the pins")"
 
-# ---- the community.docker collection, pinned ---------------------------------
-# ansible.cfg (read from the repo root) puts <repo>/.ansible/collections first
-# on collections_path, the user/system paths after: a host that already has
-# community.docker resolves it, a bare clone gets the pin installed in-tree.
-# (`collection list NAME` exits 0 whether or not NAME is installed, so the
-# JSON listing is parsed instead — the resolved version, or nothing.)
+# ---- the community.docker collection, pinned above ---------------------------
+# The checkout's own collection tree leads ANSIBLE_COLLECTIONS_PATH for this
+# run only — ansible.cfg is not touched — with the user/system paths after: a
+# host that already has community.docker resolves it, a bare clone gets the
+# pin installed in-tree. (`collection list NAME` exits 0 whether or not NAME
+# is installed, so the JSON listing is parsed instead.)
 COLLECTIONS="$REPO_ROOT/.ansible/collections"
+export ANSIBLE_COLLECTIONS_PATH="$COLLECTIONS:${ANSIBLE_COLLECTIONS_PATH:-$HOME/.ansible/collections:/usr/share/ansible/collections}"
 collection_version() {
     ansible-galaxy collection list --format json 2>/dev/null \
         | "$_ansible_py" -c 'import json, sys
@@ -146,19 +190,18 @@ for paths in json.load(sys.stdin).values():
     if sys.argv[1] in paths:
         print(paths[sys.argv[1]].get("version", "?")); break' "$1" 2>/dev/null
 }
-_cd_ver="$(collection_version community.docker)"
+_cd_ver="$(collection_version "$COLLECTION_NAME")"
 if [[ -z "$_cd_ver" ]]; then
-    [[ -f requirements.yml ]] || die "requirements.yml is missing — incomplete checkout?"
-    step "Installing the pinned community.docker collection (requirements.yml) into $COLLECTIONS ..."
+    step "Installing the pinned $COLLECTION_PIN collection into $COLLECTIONS ..."
     note "needs galaxy.ansible.com once; later runs are offline"
-    ansible-galaxy collection install -r requirements.yml -p "$COLLECTIONS" \
-        || die "installing the community.docker collection failed (no route to galaxy.ansible.com?)" \
+    ansible-galaxy collection install "$COLLECTION_PIN" -p "$COLLECTIONS" \
+        || die "installing the $COLLECTION_NAME collection failed (no route to galaxy.ansible.com?)" \
                "an offline host: install it once on a connected host and carry $COLLECTIONS across"
-    _cd_ver="$(collection_version community.docker)"
+    _cd_ver="$(collection_version "$COLLECTION_NAME")"
     [[ -n "$_cd_ver" ]] \
-        || die "community.docker still does not resolve after the install — check collections_path in ansible.cfg"
+        || die "$COLLECTION_NAME still does not resolve after the install (ANSIBLE_COLLECTIONS_PATH=$ANSIBLE_COLLECTIONS_PATH)"
 fi
-ok "community.docker $_cd_ver"
+ok "$COLLECTION_NAME $_cd_ver"
 
 # ---- the docker engine -------------------------------------------------------
 if ! _dinfo="$(docker info 2>&1 >/dev/null)"; then

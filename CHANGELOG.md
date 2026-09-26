@@ -24,26 +24,26 @@
   in, never in a second `<item>_<item>.plaso/` tree beside it. A consumer
   that kept psort's output root separate is unaffected (its item names
   only lose the extension).
-- **`build-all.sh` provisions a bare standalone clone itself.** It used to
-  demand an `ansible-playbook` on PATH and stop there, leaving the
-  `community.docker` collection and the docker SDK its modules import for
-  the operator to discover one failure at a time. It now installs the
-  pinned controller layer (new `requirements.txt`, DX_DFIR's lock) into
-  `<repo>/.venv` and the pinned collection (new `requirements.yml`,
-  `community.docker 3.10.3`) into `<repo>/.ansible/collections` — per
-  checkout, as the invoking user, no sudo, reinstalling only when the lock
-  changes — and preflights what it cannot install (python3 ≥ 3.11 with the
+- **`build-all.sh` provisions a bare standalone clone itself, and is
+  standalone ONLY.** It used to demand an `ansible-playbook` on PATH and
+  stop there, leaving the `community.docker` collection and the docker SDK
+  its modules import for the operator to discover one failure at a time.
+  It now installs the pinned controller layer (ansible-core + the docker
+  SDK, an exact lock written in the script itself) into `<repo>/.venv` and
+  the pinned `community.docker 3.10.3` into `<repo>/.ansible/collections`,
+  put on `ANSIBLE_COLLECTIONS_PATH` for the run — per checkout, as the
+  invoking user, no sudo, nothing written to `ansible.cfg` or anywhere a
+  consumer's tooling could pick it up, reinstalling only when the pins
+  change — and preflights what it cannot install (python3 ≥ 3.11 with the
   venv module, the docker CLI, a daemon this user may talk to, BuildKit)
   with the fix named on each failure. `--preflight` prepares and verifies
   without building; `GODFIR_ANSIBLE` uses a host's own ansible (its python
   checked for the docker SDK); `GODFIR_VENV` relocates the venv; unknown
-  options are refused instead of being forwarded as image names.
-  `ansible.cfg` puts the in-tree collection path first on
-  `collections_path` with the user/system paths after, so a host that
-  already has the collection keeps resolving it; `.venv` and `.ansible`
-  are gitignored and `build_ignore`d from the collection artifact. The
-  script remains standalone-only: a consumer uses the `godfir_build` role
-  and nothing in DX_DFIR calls it.
+  options are refused instead of being forwarded as image names. The
+  script refuses to run from a checkout that is a submodule of another
+  repository: a consumer builds through the `godfir_build` role from its
+  own tooling (DX_DFIR: `dxdfir build-docker`). `.venv` and `.ansible` are
+  gitignored and `build_ignore`d from the collection artifact.
 
 ## 0.3.1
 

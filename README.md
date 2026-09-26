@@ -168,16 +168,23 @@ filesystem, so posture cannot drift from the images either.
 ```
 
 `build-all.sh` is the launcher of `playbooks/build_images.yml` for
-standalone use of this repo only — the inventory lives in `images.yml` and
-the build logic in the `godfir_build` role; the script prepares the host,
-then forwards names and the optional stamp overrides. A bare clone needs
-nothing installed beforehand but `python3` (≥ 3.11, with the `venv`
-module) and the docker CLI: on first run the script installs the pinned
-controller layer (`requirements.txt`: ansible-core + the docker SDK
-`community.docker`'s modules import) into `<repo>/.venv` and the pinned
-`community.docker` collection (`requirements.yml`) into
-`<repo>/.ansible/collections` — per checkout, as the invoking user, never
-touching the system; both are gitignored and excluded from the collection
+standalone use of this repo **only** — this repository cloned by itself,
+no consumer around. It is never used by another repository: a consumer
+builds through the `godfir_build` role from its own tooling (DX_DFIR:
+`dxdfir build-docker`), and the script refuses to run from a checkout that
+is a submodule of another repository. The inventory lives in `images.yml`
+and the build logic in the role; the script prepares the host, then
+forwards names and the optional stamp overrides.
+
+A bare clone needs nothing installed beforehand but `python3` (≥ 3.11,
+with the `venv` module) and the docker CLI. Every pin the script needs is
+written in the script itself — it creates no file a consumer's tooling
+could pick up. On first run it installs the pinned controller layer
+(ansible-core + the docker SDK `community.docker`'s modules import) into
+`<repo>/.venv` and the pinned `community.docker` collection into
+`<repo>/.ansible/collections`, put on `ANSIBLE_COLLECTIONS_PATH` for the
+run — per checkout, as the invoking user, never touching the system or
+`ansible.cfg`; both trees are gitignored and excluded from the collection
 artifact, and a host provisioned once builds offline afterwards. It then
 checks what it cannot install (a daemon this user may talk to, BuildKit)
 and names the fix when something is missing. `./build-all.sh --preflight`
