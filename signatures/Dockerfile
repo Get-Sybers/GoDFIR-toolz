@@ -26,9 +26,9 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends libyara-dev pkg-config; \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /src/goyara
-COPY goyara/go.mod goyara/go.sum ./
+COPY signatures/goyara/go.mod signatures/goyara/go.sum ./
 RUN go mod download
-COPY goyara/ ./
+COPY signatures/goyara/ ./
 RUN CGO_ENABLED=1 go build -trimpath -ldflags='-s -w' -o /out/goyara .
 
 # signatures-entry: the static dispatcher (this directory's module)

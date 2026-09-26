@@ -10,7 +10,7 @@ description: >
   summary line per run.
 subtools: [yara, suricata, hayabusa, scan]
 components:
-  goyara: built inside this image from ../goyara (libyara via cgo); no image of its own
+  goyara: built inside this image from ./goyara (libyara via cgo); no image of its own
   gomount: the static binary built from ../gomount, used by the scan sub-tool
 
 # Every sub-tool reads the reserved variables under its own prefix

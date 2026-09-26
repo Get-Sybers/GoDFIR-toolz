@@ -4,8 +4,8 @@ One hardened image for the whole detection lane: **YARA + Suricata**
 (Debian) **+ Hayabusa** (pinned release zip, sha256-verified at build time —
 `HAYABUSA_VERSION` + `HB_SHA_*` build args; the build asserts the baked binary
 is that version and provides `dfir-timeline`) **+ the gomount→goyara
-userspace NTFS scan pipe** (both built from their own top-level modules;
-[goyara](../goyara/README.md) links libyara through cgo and has no image of its
+userspace NTFS scan pipe** (gomount built from its own top-level module, goyara from this directory's own module;
+[goyara](goyara/README.md) links libyara through cgo and has no image of its
 own). The DetectRaptor YARA merge and the ET Open Suricata ruleset are baked
 at build time — their terms: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 `sh`/`dash` stay as a declared deviation for the legacy
@@ -151,7 +151,7 @@ docker run --rm … --tmpfs /var/run/suricata:rw,nosuid,nodev --tmpfs /var/log/s
 ```
 
 Builds with the repo root as context so `COPY hardening/harden.yml`, the
-`gomount/` and `goyara/` modules and this directory's module are in reach.
+`gomount/` module and this directory's own modules (`signatures` and `goyara/`) are in reach.
 `test/contract_test.sh` builds the image, runs `yara` over `test/fixtures/`
 (a small staged tree), `suricata` over its capture and `hayabusa` over its
 `.evtx` tree, and asserts the summary line, the exit codes, idempotency, the
