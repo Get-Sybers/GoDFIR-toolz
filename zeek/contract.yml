@@ -29,7 +29,7 @@ summary_schema:
   required: [tool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
 
 outputs:
-  layout: "<OUT_DIR>/<item>/<log>.json (or <log>.log with ZEEK_FORMAT=tsv) — zeek's per-capture logs (conn, dns, http, files, …) — plus <OUT_DIR>/<item>/zeek.jsonl, the index of produced logs and their record counts that marks the item done; <item> is the capture path relative to INPUT_DIR with path separators and whitespace folded to _"
+  layout: "<OUT_DIR>/<item>/<log>.json (or <log>.log with ZEEK_FORMAT=tsv) — zeek's per-capture logs (conn, dns, http, files, …) — plus <OUT_DIR>/<item>/zeek.jsonl, the index of produced logs and their record counts that marks the item done; <item> is the capture path relative to INPUT_DIR with path separators and whitespace folded to _ and the capture extension dropped (captures/cap.pcap -> captures_cap; two captures differing only by extension keep their full names)"
 
 argv_passthrough: >
   Debug only, never used by DX_DFIR: any argument is handed to the zeek binary

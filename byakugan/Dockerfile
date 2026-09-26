@@ -11,8 +11,8 @@ ARG BASE=debian:trixie-slim
 ARG GO_BASE=golang:1.24-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/byakugan
 # the ONE place the engine version is set; consumers build without a REF arg and inherit it
-ARG BYAKUGAN_REF=a742746ba12c1ab61155860c877838a8705e69e5
-ARG TOOL_VERSION=0.3.1
+ARG BYAKUGAN_REF=1d1b837564fa830c56658a5153006cbe8e70fd25
+ARG TOOL_VERSION=0.3.2
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 

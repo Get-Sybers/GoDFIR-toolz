@@ -1,5 +1,50 @@
 # Changelog — get_sybers.godfir_toolz
 
+## 0.3.2
+
+- **`byakugan` discovers DX_DFIR's per-collection, per-host processed
+  tree** — the engine pin advances to Byakugan #126 (`1d1b837`, merged): sources
+  are found by the files each tool writes, at any depth under the
+  tool-named leaf (`processed/<tool>/[<collection>/]<host>/…`), one
+  isolated store each and named after the path under the leaf so two
+  collections never share a store; the older flat leaves keep building
+  beside them, and the exchange's behaviour bridge reads the signatures
+  image's per-item detection folders. Image 0.3.2.
+- **A capture's output folder drops its extension** — `zeek` and the
+  `signatures` suricata sub-tool name the per-capture folder
+  `captures_cap/`, not `captures_cap.pcap/` (the extension says nothing
+  about the evidence and the CAR engine names its source after the
+  folder); two captures differing only by extension keep their full names
+  rather than one being skipped as the other's "done" output.
+- **`plaso`'s `psort` renders beside the storage file.** Its per-item
+  folder is the storage file's name without `.plaso`, collapsing
+  log2timeline's own `<item>/<item>.plaso` to `<item>`: with `OUT_DIR` at
+  the log2timeline output root, `timeline.jsonl` (and `psort.log`,
+  `psort.jsonl`) land in the one `<item>/` folder the `.plaso` already sits
+  in, never in a second `<item>_<item>.plaso/` tree beside it. A consumer
+  that kept psort's output root separate is unaffected (its item names
+  only lose the extension).
+- **`build-all.sh` provisions a bare standalone clone itself, and is
+  standalone ONLY.** It used to demand an `ansible-playbook` on PATH and
+  stop there, leaving the `community.docker` collection and the docker SDK
+  its modules import for the operator to discover one failure at a time.
+  It now installs the pinned controller layer (ansible-core + the docker
+  SDK, an exact lock written in the script itself) into `<repo>/.venv` and
+  the pinned `community.docker 3.10.3` into `<repo>/.ansible/collections`,
+  put on `ANSIBLE_COLLECTIONS_PATH` for the run — per checkout, as the
+  invoking user, no sudo, nothing written to `ansible.cfg` or anywhere a
+  consumer's tooling could pick it up, reinstalling only when the pins
+  change — and preflights what it cannot install (python3 ≥ 3.11 with the
+  venv module, the docker CLI, a daemon this user may talk to, BuildKit)
+  with the fix named on each failure. `--preflight` prepares and verifies
+  without building; `GODFIR_ANSIBLE` uses a host's own ansible (its python
+  checked for the docker SDK); `GODFIR_VENV` relocates the venv; unknown
+  options are refused instead of being forwarded as image names. The
+  script refuses to run from a checkout that is a submodule of another
+  repository: a consumer builds through the `godfir_build` role from its
+  own tooling (DX_DFIR: `dxdfir build-docker`). `.venv` and `.ansible` are
+  gitignored and `build_ignore`d from the collection artifact.
+
 ## 0.3.1
 
 - **`byakugan` bakes the engine's Elastic detection rules-as-code** — the

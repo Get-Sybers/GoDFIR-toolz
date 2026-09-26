@@ -68,8 +68,9 @@ var passthrough = map[string]bool{
 
 // subtools maps a sub-tool name to its batch binding.
 var subtools = map[string]batchTool{
-	"yara":     {name: "signatures", subtool: "yara", prefix: "SIGNATURES_YARA", formats: []string{"json"}, discover: discoverYara, process: processYara},
-	"suricata": {name: "signatures", subtool: "suricata", prefix: "SIGNATURES_SURICATA", formats: []string{"json"}, discover: discoverSuricata, process: processSuricata},
+	"yara": {name: "signatures", subtool: "yara", prefix: "SIGNATURES_YARA", formats: []string{"json"}, discover: discoverYara, process: processYara},
+	"suricata": {name: "signatures", subtool: "suricata", prefix: "SIGNATURES_SURICATA", formats: []string{"json"}, discover: discoverSuricata, process: processSuricata,
+		dropExts: map[string]bool{".pcap": true, ".pcapng": true, ".cap": true}},
 	"hayabusa": {name: "signatures", subtool: "hayabusa", prefix: "SIGNATURES_HAYABUSA", formats: []string{"json"}, discover: discoverHayabusa, process: processHayabusa},
 	"scan":     {name: "signatures", subtool: "scan", prefix: "SIGNATURES_SCAN", formats: []string{"json"}, discover: discoverScan, process: processScan},
 }

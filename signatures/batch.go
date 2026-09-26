@@ -55,6 +55,10 @@ type batchTool struct {
 	// prefix overrides the variable prefix derived from name (<NAME>_): a
 	// multi-tool image's sub-tool env block, e.g. SIGNATURES_YARA.
 	prefix string
+	// dropExts are the item extensions left out of the output folder name
+	// (a capture's .pcap): the extension says nothing about the evidence and
+	// the CAR engine names its source after the folder. Empty keeps them.
+	dropExts map[string]bool
 	// formats lists the accepted <TOOL>_FORMAT values; the first is the default.
 	formats []string
 	// discover returns every artefact under cfg.InputDir this tool handles,
@@ -297,6 +301,31 @@ func batchItemName(root, item string) string {
 	return name
 }
 
+// batchItemNames maps every item to its output folder name, dropping the
+// tool's dropExts. Two items that differ only by such an extension
+// (cap.pcap and cap.pcapng) would collide, so those keep their full name —
+// never a silent skip of the second one as "already done".
+func (t batchTool) batchItemNames(root string, items []string) map[string]string {
+	names := make(map[string]string, len(items))
+	owners := make(map[string][]string, len(items))
+	for _, item := range items {
+		name := batchItemName(root, item)
+		if ext := filepath.Ext(name); t.dropExts[strings.ToLower(ext)] {
+			name = strings.TrimSuffix(name, ext)
+		}
+		names[item] = name
+		owners[name] = append(owners[name], item)
+	}
+	for _, its := range owners {
+		if len(its) > 1 {
+			for _, item := range its {
+				names[item] = batchItemName(root, item)
+			}
+		}
+	}
+	return names
+}
+
 // runBatch is the batch-mode main loop. getenv and stdout are injected so the
 // runtime is testable; the summary line is the only thing written to stdout.
 func runBatch(t batchTool, getenv func(string) string, stdout io.Writer) int {
@@ -349,8 +378,9 @@ func runBatch(t batchTool, getenv func(string) string, stdout io.Writer) int {
 	}
 
 	ext := formatExt(cfg.Format)
+	names := t.batchItemNames(cfg.InputDir, items)
 	for _, item := range items {
-		itemDir := filepath.Join(cfg.OutDir, batchItemName(cfg.InputDir, item))
+		itemDir := filepath.Join(cfg.OutDir, names[item])
 		final := filepath.Join(itemDir, t.fileBase()+"."+ext)
 		if !cfg.Force {
 			if st, serr := os.Stat(final); serr == nil && st.Mode().IsRegular() {

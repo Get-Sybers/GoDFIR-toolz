@@ -37,7 +37,7 @@ byakugan cti-sightings   indicator-match alerts  -> sightings of the platform's 
 
 ## Input
 
-- `build` walks `BYAKUGAN_BUILD_INPUT_DIR` (default `/input`, mounted read-only) as the engine's `--batch` root: every processed source under it is one item. The engine discovers the framework layouts (`windows_logs/<item>/goevtx.jsonl`, `jsonl/<source>/timeline.jsonl`, `godfir-toolz/<tool>/<item>/`, …).
+- `build` walks `BYAKUGAN_BUILD_INPUT_DIR` (default `/input`, mounted read-only) as the engine's `--batch` root: every processed source under it is one item. The engine discovers sources by the files each tool writes, at any depth under the tool-named leaf (`processed/<tool>/[<collection>/]<host>/…`: `windowlicker/…/goevtx.jsonl`, `log2timeline/…/<host>/timeline.jsonl`, every `…/<tool>/…/<item>/<tool>.jsonl` under `windowlicker/` or `daemonhunter/`, `zeek/…/<capture>/`, `anamnesis/…/<image>/car.db`; the older flat leaves too), one isolated store each; `_`-prefixed staging is never a source.
 - `timeline` reads `BYAKUGAN_TIMELINE_INPUT_DIR` (default `/input`): a source's car directory, or a tree of them to aggregate — one item.
 - `verify` reads `BYAKUGAN_VERIFY_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` under it is one item.
 - `car-vocab` reads nothing.

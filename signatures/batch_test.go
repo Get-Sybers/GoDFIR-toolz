@@ -258,3 +258,23 @@ func TestContractEmbedded(t *testing.T) {
 		t.Error("embedded contract.yml lacks the required keys")
 	}
 }
+
+func TestBatchItemNamesDropTheToolsExtensions(t *testing.T) {
+	tool := batchTool{name: "signatures", subtool: "suricata",
+		dropExts: map[string]bool{".pcap": true, ".pcapng": true, ".cap": true}}
+	names := tool.batchItemNames("/in", []string{"/in/cap.pcap", "/in/case/net.PCAPNG", "/in/x.cap"})
+	for item, want := range map[string]string{"/in/cap.pcap": "cap", "/in/case/net.PCAPNG": "case_net", "/in/x.cap": "x"} {
+		if names[item] != want {
+			t.Errorf("%s -> %q, want %q", item, names[item], want)
+		}
+	}
+	// colliding captures keep their full names; a tool with no dropExts keeps every name
+	names = tool.batchItemNames("/in", []string{"/in/cap.pcap", "/in/cap.pcapng"})
+	if names["/in/cap.pcap"] != "cap.pcap" || names["/in/cap.pcapng"] != "cap.pcapng" {
+		t.Errorf("colliding captures not kept apart: %v", names)
+	}
+	yara := batchTool{name: "signatures", subtool: "yara"}
+	if got := yara.batchItemNames("/in", []string{"/in/f.pcap"})["/in/f.pcap"]; got != "f.pcap" {
+		t.Errorf("yara dropped an extension it does not own: %q", got)
+	}
+}
