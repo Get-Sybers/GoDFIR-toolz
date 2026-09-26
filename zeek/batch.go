@@ -314,13 +314,12 @@ func batchItemNames(root string, items []string) map[string]string {
 		names[item] = name
 		owners[name] = append(owners[name], item)
 	}
-	for name, its := range owners {
+	for _, its := range owners {
 		if len(its) > 1 {
 			for _, item := range its {
 				names[item] = batchItemName(root, item)
 			}
 		}
-		_ = name
 	}
 	return names
 }

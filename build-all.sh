@@ -109,10 +109,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ---- standalone only ---------------------------------------------------------
-# A submodule checkout carries a `.git` FILE (a gitlink into the superproject)
-# where a standalone clone has a directory: that is another repository's copy
-# of this one, and its build goes through that repository's tooling.
-if [[ -f "$REPO_ROOT/.git" ]]; then
+# A submodule checkout carries a `.git` FILE whose gitdir points into the
+# superproject's .git/modules/ tree: that is another repository's copy of this
+# one, and its build goes through that repository's tooling. A worktree carries
+# a `.git` file too (gitdir under .git/worktrees/) and is a standalone clone
+# like any other, so only the modules/ shape is refused.
+if [[ -f "$REPO_ROOT/.git" ]] && grep -qE '^gitdir: .*/\.git/modules/' "$REPO_ROOT/.git" 2>/dev/null; then
     die "this checkout is a submodule of another repository — build-all.sh is standalone-only." \
         "build through that repository's own tooling (DX_DFIR: dxdfir build-docker), which drives the godfir_build role."
 fi
