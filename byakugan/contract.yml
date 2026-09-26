@@ -75,7 +75,7 @@ env:
   BYAKUGAN_STIX_EXPORT_INPUT_DIR:   {required: false, default: /input,  desc: 'the hits tree — EVERY regular file under it is a hits input (detect JSONL, an ES _search response, alert documents), read-only'}
   BYAKUGAN_STIX_EXPORT_OUT_DIR:     {required: false, default: /output, desc: 'where bundle.json is written'}
   BYAKUGAN_STIX_EXPORT_BUNDLES_DIR: {required: false, default: "",      desc: 'a materialised CAR tree whose stix_bundle.json files (the projection, BYAKUGAN_BUILD_STIX) pass through merged object-for-object; empty = none'}
-  BYAKUGAN_STIX_EXPORT_RULES_DIR:   {required: false, default: /rules,  desc: 'the rules-as-code directory resolving indicator patterns; the image bakes a build-validated set at /rules (the default — the ENGINE ships none, the image carries them), and the rules mount overrides it with an operator set'}
+  BYAKUGAN_STIX_EXPORT_RULES_DIR:   {required: false, default: /rules,  desc: 'the rules-as-code directory resolving indicator patterns; the ENGINE REPO ships the canonical set (its rules/, baked from the clone at /rules and build-validated), and the rules mount overrides it with an operator set'}
   BYAKUGAN_STIX_EXPORT_CASE:        {required: false, default: "",      desc: 'the case id scoping sighting/observed-data ids (default: the hits'' run id)'}
   BYAKUGAN_STIX_EXPORT_TLP:         {required: false, default: "",      desc: 'white|green|amber|red|none marking on exported objects (engine default: amber)'}
   BYAKUGAN_STIX_EXPORT_CONFIG:      {required: false, default: "",      desc: 'a JSON/YAML exchange config file (docs/STIX-Exchange.md in the engine repo)'}
@@ -116,7 +116,7 @@ env:
 mounts:
   - {name: input,  path: /input,  mode: ro, env: BYAKUGAN_<SUBTOOL>_INPUT_DIR, required: false, desc: 'required by EVERY sub-tool except cti-pull (the one input-less run; the engine itself refuses a missing INPUT_DIR with exit 2)'}
   - {name: output, path: /output, mode: rw, env: BYAKUGAN_<SUBTOOL>_OUT_DIR,   required: true}
-  - {name: rules,  path: /rules,  mode: ro, env: BYAKUGAN_STIX_EXPORT_RULES_DIR, required: false, desc: 'operator rules-as-code overriding the baked /rules set (stix-export pattern resolution; rules/README.md in this build context)'}
+  - {name: rules,  path: /rules,  mode: ro, env: BYAKUGAN_STIX_EXPORT_RULES_DIR, required: false, desc: 'operator rules-as-code overriding the baked /rules set (stix-export pattern resolution; rules/README.md in the engine repo at the pin)'}
   - {name: certs,  path: /certs,  mode: ro, required: false, desc: 'the Elastic stack CA (e.g. the compose certs volume); needed only for push mode over TLS'}
   - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: 'HOME under a read-only rootfs (tmpfs)'}
 

@@ -2,15 +2,16 @@
 # get-sybers/byakugan — the external Byakugan MITRE CAR engine, cloned + built
 # into the image at the pinned ref, behind the engine's own dispatcher
 # (byakugan build|timeline|verify|load|car-vocab, plus the STIX/CTI exchange:
-# stix-export|stix-behaviour|cti-pull|cti-sightings). The deployment's Elastic
-# detection rules-as-code are baked at /rules (rules/, gated by
-# validate-rules.py; a runtime mount overrides). Shape B; declared deviation
-# python=true; no shell. Dispatch semantics, env blocks and run docs: README.md.
+# stix-export|stix-behaviour|cti-pull|cti-sightings). The engine repo ships
+# the Elastic detection rules-as-code (its rules/), baked from the clone at
+# /rules and gated at build by its own rules/validate.py; a runtime mount
+# overrides. Shape B; declared deviation python=true; no shell. Dispatch
+# semantics, env blocks and run docs: README.md.
 ARG BASE=debian:trixie-slim
 ARG GO_BASE=golang:1.24-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/byakugan
 # the ONE place the engine version is set; consumers build without a REF arg and inherit it
-ARG BYAKUGAN_REF=3d72230c1d30e6642c3143907b1ff4df50ce1c88
+ARG BYAKUGAN_REF=6700d85d965b5fc09608bcafcadd2c54373dc82b
 ARG TOOL_VERSION=0.3.1
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
@@ -48,17 +49,18 @@ RUN set -eux; \
 COPY --from=engine /src /opt/byakugan
 COPY byakugan/byakugan-entry.py /usr/local/bin/byakugan
 COPY byakugan/contract.yml /opt/byakugan/contract.yml
-COPY byakugan/rules/ /rules/
-COPY byakugan/validate-rules.py /tmp/validate-rules.py
+# the engine repo ships the rules-as-code: its rules/ rides the clone, baked
+# at /rules where stix-export defaults its pattern resolution
+COPY --from=engine /src/rules/ /rules/
 COPY hardening/harden.yml /tmp/hardening/harden.yml
 RUN chmod 0755 /usr/local/bin/byakugan && chmod 0644 /opt/byakugan/contract.yml
-# the baked rules-as-code gate (rules/README.md): a malformed, dropped or
-# unpinned rule FAILS THE BUILD; a runtime mount over /rules overrides the set
+# the baked rules-as-code gate (the engine's own rules/validate.py, riding
+# the clone): a malformed, dropped or unpinned rule FAILS THE BUILD; a
+# runtime mount over /rules overrides the set
 RUN set -eux; \
-    python3 /tmp/validate-rules.py --rules-dir /rules >/dev/null; \
+    python3 /opt/byakugan/rules/validate.py --rules-dir /rules >/dev/null; \
     find /rules -type d -exec chmod 0755 {} +; \
-    find /rules -type f -exec chmod 0644 {} +; \
-    rm -f /tmp/validate-rules.py
+    find /rules -type f -exec chmod 0644 {} +
 # sanity gate before the hardener strips the shell this RUN needs
 RUN BYAKUGAN_VERSION=${TOOL_VERSION} BYAKUGAN_REF=${BYAKUGAN_REF} PYTHONPATH=/opt/byakugan /usr/local/bin/byakugan --version
 RUN set -eux; \

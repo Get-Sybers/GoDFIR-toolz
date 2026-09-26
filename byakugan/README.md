@@ -42,23 +42,24 @@ byakugan cti-sightings   indicator-match alerts  -> sightings of the platform's 
 - `verify` reads `BYAKUGAN_VERIFY_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` under it is one item.
 - `car-vocab` reads nothing.
 - `load` reads `BYAKUGAN_LOAD_INPUT_DIR` (default `/input`, mounted read-only): a materialised CAR tree — every directory holding `car_<object>.jsonl` / `car_relationships.jsonl` (and, from a `BYAKUGAN_BUILD_DERIVE` build, `car_inferred.jsonl` and `car_content.jsonl`) under it is one source, bulk-loaded into the `logs-car.*` data streams.
-- `stix-export` reads `BYAKUGAN_STIX_EXPORT_INPUT_DIR` (default `/input`, read-only): EVERY regular file under it is a hits input (detect JSONL, an ES `_search` response, alert documents); `_BUNDLES_DIR` names a materialised CAR tree whose `stix_bundle.json` projections pass through; `_RULES_DIR` (default `/rules`) is the rules-as-code resolving indicator patterns — the image bakes a build-validated set there ([rules/](rules/README.md); the engine itself ships none), and the `rules` mount overrides it with an operator set.
+- `stix-export` reads `BYAKUGAN_STIX_EXPORT_INPUT_DIR` (default `/input`, read-only): EVERY regular file under it is a hits input (detect JSONL, an ES `_search` response, alert documents); `_BUNDLES_DIR` names a materialised CAR tree whose `stix_bundle.json` projections pass through; `_RULES_DIR` (default `/rules`) is the rules-as-code resolving indicator patterns — the engine repo ships the canonical set ([its `rules/`](https://github.com/Get-Sybers/byakugan/blob/main/rules/README.md), baked there from the clone and build-validated), and the `rules` mount overrides it with an operator set.
 - `stix-behaviour` reads `BYAKUGAN_STIX_BEHAVIOUR_INPUT_DIR` (default `/input`, read-only): a materialised CAR tree; `_DETECTIONS_DIR` (required) is the detection-lane output dir (`suricata/`, `hayabusa/`, `yara/`).
 - `cti-pull` reads nothing on disk (the one input-less sub-tool) — OpenCTI over the wire, or `_FROM_BUNDLE` for the offline re-normalise.
 - `cti-sightings` reads `BYAKUGAN_CTI_SIGHTINGS_INPUT_DIR` (default `/input`, read-only): EVERY regular file under it is an alerts input.
 
 ## The baked rules-as-code (`/rules`)
 
-The image carries the deployment's Elastic detection rules-as-code at
-`/rules`, baked from [`rules/`](rules/README.md) in this build context: the
-pinned top-level detection set (one YAML per rule, ES|QL/EQL, each with its
+The image carries the Elastic detection rules-as-code at `/rules`, baked
+from the engine clone itself — the byakugan repo ships them
+([`rules/`](https://github.com/Get-Sybers/byakugan/blob/main/rules/README.md) at the `BYAKUGAN_REF` pin): the pinned top-level
+detection set (one YAML per rule, ES|QL/EQL, each with its
 tagged-evidence-line contract), the `car-detections/` lookup-index contract
-and the `cti/` indicator-match rule. [`validate-rules.py`](validate-rules.py)
+and the `cti/` indicator-match rule. The engine's own `rules/validate.py`
 gates them during the build — a malformed rule, or any drift from the pinned
-id set, fails the image. At run time `stix-export` resolves indicator
-patterns from them; mounting the `rules` mount shadows the baked set with an
-operator one. Detections outside the Byakugan engine are this repository's
-to bake — the same position as the signatures image's rulesets.
+id set, fails the image — and the engine's test suite holds the same gate
+plus the cti-* template cross-checks. At run time `stix-export` resolves
+indicator patterns from them; mounting the `rules` mount shadows the baked
+set with an operator one.
 
 ## Env
 
@@ -102,7 +103,7 @@ to bake — the same position as the signatures image's rulesets.
 | `BYAKUGAN_STIX_EXPORT_INPUT_DIR` | `/input` | the hits tree — every regular file under it is a hits input |
 | `BYAKUGAN_STIX_EXPORT_OUT_DIR` | `/output` | where `bundle.json` is written |
 | `BYAKUGAN_STIX_EXPORT_BUNDLES_DIR` | *(empty)* | a materialised CAR tree whose `stix_bundle.json` projections pass through |
-| `BYAKUGAN_STIX_EXPORT_RULES_DIR` | `/rules` | the rules-as-code (pattern resolution); the image bakes a validated set at `/rules`, the `rules` mount overrides it |
+| `BYAKUGAN_STIX_EXPORT_RULES_DIR` | `/rules` | the rules-as-code (pattern resolution); the engine repo's set bakes at `/rules`, the `rules` mount overrides it |
 | `BYAKUGAN_STIX_EXPORT_CASE` | *(empty)* | the case id scoping observation ids (default: the hits' run id) |
 | `BYAKUGAN_STIX_EXPORT_TLP` | *(empty)* | `white|green|amber|red|none` (engine default: `amber`) |
 | `BYAKUGAN_STIX_EXPORT_CONFIG` | *(empty)* | a JSON/YAML exchange config file |

@@ -42,9 +42,10 @@ release zip (sha256-verified against the release's published checksums)
 carries the binary (AGPL-3.0) and its bundled Sigma/Hayabusa rules (per-rule
 licences, largely DRL); both stay inside the image at `/opt/dxdfir/hayabusa`.
 
-## Elastic detection rules-as-code — this repository's own
+## Elastic detection rules-as-code — the Byakugan engine's own
 
-[`byakugan/rules/`](byakugan/rules/README.md) is first-party content (the
-deployment's rules, baked into the `byakugan` image at `/rules`); each rule's
+The rules baked into the `byakugan` image at `/rules` ship with the engine
+repository itself ([`rules/`](https://github.com/Get-Sybers/byakugan/blob/main/rules/README.md), riding the clone at the
+`BYAKUGAN_REF` pin) — first-party content of the program; each rule's
 `source` block records the registry entry it was ported from. No third-party
 terms attach.
