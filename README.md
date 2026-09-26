@@ -10,25 +10,44 @@ flags, verification evidence) lives in a `README.md` **inside the directory
 that builds it** — the remaining `.NET`-based per-tool images share
 [`godfir-tool/`](godfir-tool/README.md), their one recipe — and this page is the index.
 
-## The Go parsers (FROM scratch, a few MB, no runtime at all)
+## The Windows side: gowindowlicker (FROM scratch, one binary, no runtime at all)
 
-Twelve static Go binaries, one per artefact class. All are `FROM scratch`:
-one static binary, no shell, no python, no libc, `USER 2000:2000` — the
-hardening contract holds by construction, and the `docker export` scan
-verifies it the same way as for the .NET images.
+**One structured binary** — [gowindowlicker/](gowindowlicker/README.md) —
+carrying the whole Windows matrix: twelve parser packages, one per artefact
+class, the godaemonhunter shape (docs/linux decision 16) applied to the
+Windows side. **The parameter is the sub-tool**: bare invocation (or `lick`)
+is the sweep — every parser over one evidence tree, each into its own
+`<OUT_DIR>/<subtool>/` tree, one aggregate JSON summary line — and each
+parser also runs granularly as `gowindowlicker <subtool>` under its
+canonical `<SUBTOOL>_*` env block. **Tool names, env blocks, record shapes
+and record-file names are unchanged** (`goprefetch.jsonl`, `gore.jsonl`,
+`goevtx.jsonl`, … — byakugan sees the same records); only the packaging is
+one. The module is self-contained (the shared batch runtime is its
+[`batch/`](gowindowlicker/batch/) package, the promoted form of the
+byte-identical `batch.go` the per-tool directories used to carry), so the
+image builds from its own directory: one static ~8 MB binary, no shell, no
+python, no libc, `USER 2000:2000` — the hardening contract holds by
+construction, and the `docker export` scan verifies it the same way as for
+the .NET images.
 
-- [goprefetch/](goprefetch/README.md) — Windows prefetch: XP→Win11 `.pf`, MAM decompression in pure Go
-- [goese/](goese/README.md) — ESE databases: SRUM `SRUDB.dat` (IdMap/SID enrichment) and SUM `Current.mdb`
-- [gorb/](gorb/README.md) — Recycle Bin `$I` records, v1 + v2
-- [gomft/](gomft/README.md) — raw `$MFT`: MACB from 0x10 + 0x30, ADS, full paths
-- [goamcache/](goamcache/README.md) — `Amcache.hve`, with `.LOG` replay
-- [goappcompat/](goappcompat/README.md) — ShimCache from SYSTEM hives, with `.LOG` replay
-- [goevtx/](goevtx/README.md) — `.evtx` event logs → the JSON record shape byakugan's evtx maps consume
-- [gore/](gore/README.md) — batch-driven registry key/value dumps
-- [gosbe/](gosbe/README.md) — ShellBags (BagMRU) with reconstructed paths
-- [gole/](gole/README.md) — `.lnk` shell links
-- [gojle/](gojle/README.md) — AutomaticDestinations jump lists
-- [gowxt/](gowxt/README.md) — Windows Timeline ActivitiesCache.db
+- [goprefetch](gowindowlicker/prefetch/README.md) — Windows prefetch: XP→Win11 `.pf`, MAM decompression in pure Go
+- [goese](gowindowlicker/ese/README.md) — ESE databases: SRUM `SRUDB.dat` (IdMap/SID enrichment) and SUM `Current.mdb`
+- [gorb](gowindowlicker/rb/README.md) — Recycle Bin `$I` records, v1 + v2
+- [gomft](gowindowlicker/mft/README.md) — raw `$MFT`: MACB from 0x10 + 0x30, ADS, full paths
+- [goamcache](gowindowlicker/amcache/README.md) — `Amcache.hve`, with `.LOG` replay
+- [goappcompat](gowindowlicker/appcompat/README.md) — ShimCache from SYSTEM hives, with `.LOG` replay
+- [goevtx](gowindowlicker/evtx/README.md) — `.evtx` event logs → the JSON record shape byakugan's evtx maps consume
+- [gore](gowindowlicker/re/README.md) — batch-driven registry key/value dumps
+- [gosbe](gowindowlicker/sbe/README.md) — ShellBags (BagMRU) with reconstructed paths
+- [gole](gowindowlicker/le/README.md) — `.lnk` shell links
+- [gojle](gowindowlicker/jle/README.md) — AutomaticDestinations jump lists
+- [gowxt](gowindowlicker/wxt/README.md) — Windows Timeline ActivitiesCache.db
+
+Unlike godaemonhunter there is no stream vocabulary yet: decision 17 admits
+a model word only when byakugan maps feed on a parser directly, and today
+that holds for goevtx, goprefetch, goese, gojle and gore while the other
+artefact classes arrive through plaso's `l2t_*` maps. The sub-tool names and
+the sweep are the calling interface until the direct Windows maps land.
 
 ## The Linux side: godaemonhunter (docs/linux — the same shape, second OS)
 
@@ -135,7 +154,7 @@ Per image:
 | `env_args` | ARG names a launcher passes through from the environment when set. The default pin **values** live in the Dockerfiles as ARG defaults — never here — so each pin exists in exactly one place |
 | `engine_ref` | the ARG carrying a clone-at-build engine pin; marks the entry as an engine image (`conform.sh` then requires the `com.get-sybers.engine-ref` label) |
 | `aliases` | alternate names the build set accepts for this image (the substituted EZ-tool names among them) |
-| `subtool_aliases` | names that resolve to this image with a "that's a sub-tool now" note (godaemonhunter's daemon parsers) |
+| `subtool_aliases` | names that resolve to this image with a "that's a sub-tool now" note (godaemonhunter's daemon parsers, gowindowlicker's Windows parsers and their EZ-tool names) |
 | `tool` | `false` = not a tool container, exempt from the hardened-tool contract (default `true`) |
 
 Two top-level maps complete the namespace's story: **`unbuildable`** names
@@ -154,7 +173,7 @@ filesystem, so posture cannot drift from the images either.
 
 ```sh
 ./build-all.sh                              # everything in images.yml, in manifest order
-./build-all.sh gore gomft                   # a subset (names case-insensitive; the EZ-tool aliases resolve)
+./build-all.sh gowindowlicker godaemonhunter # a subset (names case-insensitive; a sub-tool or EZ-tool name resolves to its image)
 ./build-all.sh sqlecmd bstrings             # the .NET per-tool images by name
 ./build-all.sh byakugan plaso signatures zeek
 ```
@@ -204,10 +223,11 @@ Two things dominate wall-clock time on real evidence:
    assembly load/JIT warm-up per invocation of a .NET image. Every parser
    takes `-d`; one container over a directory of 400 event logs pays that
    cost once instead of 400 times.
-2. **The Go parsers are cheap.** The Go images are 4–5 MB (vs ~300 MB for a
-   .NET tool image), start as fast as the container runtime allows, and
-   parsed the reference `SRUDB.dat` (10 tables, 27k rows, enrichment on) in
-   under a second.
+2. **The Go parsers are cheap.** The Go images are a few MB — gowindowlicker
+   carries the whole Windows dozen in one ~8 MB static binary (vs ~300 MB
+   for a .NET tool image) — start as fast as the container runtime allows,
+   and parsed the reference `SRUDB.dat` (10 tables, 27k rows, enrichment on)
+   in under a second.
 
 ## The container framework
 

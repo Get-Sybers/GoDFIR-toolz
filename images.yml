@@ -18,55 +18,18 @@ images:
   - name: plaso
     aliases: [log2timeline, psort]
 
-  # ---- the Windows Go parsers (each FROM scratch, its own subdir the context)
-  - name: goprefetch
-    context: goprefetch
+  # ---- the Windows Go parsers: one image (FROM scratch, self-contained
+  #      module — its own subdir the context), every parser a sub-tool
+  - name: gowindowlicker
+    context: gowindowlicker
     dockerfile: Dockerfile
-    aliases: [prefetch, pecmd]
-  - name: goese
-    context: goese
-    dockerfile: Dockerfile
-    aliases: [esedump, srum, srumecmd, sumecmd]
-  - name: gorb
-    context: gorb
-    dockerfile: Dockerfile
-    aliases: [rbcmd]
-  - name: gomft
-    context: gomft
-    dockerfile: Dockerfile
-    aliases: [mftecmd]
-  - name: goevtx
-    context: goevtx
-    dockerfile: Dockerfile
-    aliases: [evtxecmd]
-  - name: goamcache
-    context: goamcache
-    dockerfile: Dockerfile
-    aliases: [amcacheparser]
-  - name: goappcompat
-    context: goappcompat
-    dockerfile: Dockerfile
-    aliases: [appcompatcacheparser]
-  - name: gore
-    context: gore
-    dockerfile: Dockerfile
-    aliases: [recmd]
-  - name: gosbe
-    context: gosbe
-    dockerfile: Dockerfile
-    aliases: [sbecmd]
-  - name: gole
-    context: gole
-    dockerfile: Dockerfile
-    aliases: [lecmd]
-  - name: gojle
-    context: gojle
-    dockerfile: Dockerfile
-    aliases: [jlecmd]
-  - name: gowxt
-    context: gowxt
-    dockerfile: Dockerfile
-    aliases: [wxtcmd]
+    aliases: [windowlicker, lick]
+    subtool_aliases: [goprefetch, prefetch, pecmd,
+                      goese, esedump, srum, srumecmd, sumecmd,
+                      gorb, rbcmd, gomft, mftecmd, goevtx, evtxecmd,
+                      goamcache, amcacheparser, goappcompat, appcompatcacheparser,
+                      gore, recmd, gosbe, sbecmd, gole, lecmd,
+                      gojle, jlecmd, gowxt, wxtcmd]
 
   # ---- the Linux matrix (repo-root context: godaemonhunter copies the sibling pinfo/)
   - name: godaemonhunter

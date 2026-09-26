@@ -1,5 +1,25 @@
 # Changelog — get_sybers.godfir_toolz
 
+## 0.2.0
+
+- **`gowindowlicker`** — the twelve Windows Go parsers move under one
+  directory, one module and one FROM-scratch image, the godaemonhunter shape
+  (docs/linux decision 16) applied to the Windows side: every parser a
+  package (`gowindowlicker/prefetch`, `gowindowlicker/rb`, …) and a sub-tool
+  of one ~8 MB static binary; bare invocation (or `lick`) is the sweep —
+  every parser over one evidence tree, each into its own
+  `<OUT_DIR>/<subtool>/` tree, one aggregate JSON summary line; the argv
+  debug modes ride the dispatcher (`gowindowlicker gorb -f FILE`). Tool
+  names, `<SUBTOOL>_*` env blocks, record shapes and record-file names are
+  unchanged — byakugan sees the same records; only the packaging is one. The
+  byte-identical per-tool `batch.go` is promoted to the module's shared
+  `batch/` package (`<TOOL>_FORMAT`/CSV kept — pinfo adoption stays a
+  separate phase, docs/linux §11.2). The standalone per-parser images,
+  contracts and Dockerfiles are retired; `images.yml` replaces the twelve
+  entries with one `gowindowlicker` entry whose `subtool_aliases` carry the
+  parser names and their EZ-tool names, so `build-all.sh goprefetch` (or
+  `pecmd`) resolves to the one image with the "that's a sub-tool now" note.
+
 ## 0.1.0
 
 The repository becomes the plug-and-play BUILD galaxy for the `get-sybers/*`
