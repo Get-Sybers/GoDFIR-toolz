@@ -76,7 +76,7 @@ outputs:
   yara:
     layout: "<OUT_DIR>/<item>/yara.jsonl — one record per rule hit {tool, rule, tags, target (relative to INPUT_DIR), strings[{offset,name,data}]}; records = hits"
   suricata:
-    layout: "<OUT_DIR>/<item>/eve.json + suricata's fast/stats logs + suricata.jsonl (the index that marks the item done); records = EVE lines"
+    layout: "<OUT_DIR>/<item>/eve.json + suricata's fast/stats logs + suricata.jsonl (the index that marks the item done); records = EVE lines. <item> drops the capture extension (captures/cap.pcap -> captures_cap; two captures differing only by extension keep their full names)"
   hayabusa:
     layout: "<OUT_DIR>/<item>/timeline.jsonl + hayabusa.jsonl (the index); records = detections"
   scan:

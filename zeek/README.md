@@ -42,7 +42,9 @@ Per capture, `<OUT_DIR>/<item>/<log>.json` (or `<log>.log` with
 `packet_filter`, …) — plus `<OUT_DIR>/<item>/zeek.jsonl`, the index of
 produced logs and their record counts (`{"log":"conn.json","records":N}` per
 line). `<item>` is the capture path relative to `ZEEK_INPUT_DIR` with path
-separators and whitespace folded to `_`. The index is written last and marks
+separators and whitespace folded to `_` and the capture extension dropped
+(`captures/cap.pcap` → `captures_cap/`; two captures differing only by
+extension keep their full names). The index is written last and marks
 the item done: a capture whose index exists is skipped on the next run unless
 `ZEEK_FORCE` is set, and a forced rerun clears the previous logs first.
 

@@ -10,6 +10,12 @@
   collections never share a store; the older flat leaves keep building
   beside them, and the exchange's behaviour bridge reads the signatures
   image's per-item detection folders. Image 0.3.2.
+- **A capture's output folder drops its extension** — `zeek` and the
+  `signatures` suricata sub-tool name the per-capture folder
+  `captures_cap/`, not `captures_cap.pcap/` (the extension says nothing
+  about the evidence and the CAR engine names its source after the
+  folder); two captures differing only by extension keep their full names
+  rather than one being skipped as the other's "done" output.
 - **`plaso`'s `psort` renders beside the storage file.** Its per-item
   folder is the storage file's name without `.plaso`, collapsing
   log2timeline's own `<item>/<item>.plaso` to `<item>`: with `OUT_DIR` at

@@ -125,6 +125,25 @@ func TestBatchItemName(t *testing.T) {
 	}
 }
 
+func TestBatchItemNamesDropTheCaptureExtension(t *testing.T) {
+	names := batchItemNames("/in", []string{"/in/cap.pcap", "/in/case/net.PCAPNG", "/in/x.cap"})
+	want := map[string]string{"/in/cap.pcap": "cap", "/in/case/net.PCAPNG": "case_net", "/in/x.cap": "x"}
+	for item, w := range want {
+		if names[item] != w {
+			t.Errorf("%s -> %q, want %q", item, names[item], w)
+		}
+	}
+	// two captures differing only by extension keep their full names — never
+	// one silently skipped as the other's "done" output
+	names = batchItemNames("/in", []string{"/in/cap.pcap", "/in/cap.pcapng", "/in/other.pcap"})
+	if names["/in/cap.pcap"] != "cap.pcap" || names["/in/cap.pcapng"] != "cap.pcapng" {
+		t.Errorf("colliding captures not kept apart: %v", names)
+	}
+	if names["/in/other.pcap"] != "other" {
+		t.Errorf("non-colliding capture kept its extension: %v", names)
+	}
+}
+
 func TestRunBatchLifecycle(t *testing.T) {
 	in, out, work := t.TempDir(), t.TempDir(), t.TempDir()
 	if err := os.MkdirAll(filepath.Join(in, "sub dir"), 0o755); err != nil {

@@ -117,7 +117,7 @@ exists is skipped on the next run unless `FORCE` is set.
 | Sub-tool | Per item | `records` |
 |---|---|---|
 | `yara` | `<OUT_DIR>/<item>/yara.jsonl` — `{tool, rule, tags, target, strings[{offset,name,data}]}` per hit | hits |
-| `suricata` | `<OUT_DIR>/<item>/eve.json` + suricata's own logs + `suricata.jsonl` (index) | EVE lines |
+| `suricata` | `<OUT_DIR>/<item>/eve.json` + suricata's own logs + `suricata.jsonl` (index) — `<item>` drops the capture extension (`cap.pcap` → `cap/`; two captures differing only by extension keep their full names) | EVE lines |
 | `hayabusa` | `<OUT_DIR>/<item>/timeline.jsonl` + `hayabusa.jsonl` (index) | detections |
 | `scan` | `<OUT_DIR>/<item>/scan.jsonl` — goyara's hit records | hits |
 
