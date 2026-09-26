@@ -1,5 +1,23 @@
 # Changelog — get_sybers.godfir_toolz
 
+## 0.3.0
+
+- **`byakugan` carries the STIX/CTI exchange** — the engine pin advances to
+  the merged `byakugan.exchange` (Byakugan #124) and the image version to
+  0.3.0: four new dispatcher sub-tools beside `build|timeline|verify|load|`
+  `car-vocab` — `stix-export` (detection hits → STIX 2.1 sightings +
+  indicators, the projection's `stix_bundle.json` merged through),
+  `stix-behaviour` (the detection lanes joined to CAR entities as sightings
+  over spindle-keyed observed-data), `cti-pull` (OpenCTI indicators → the
+  `cti-*` Elastic `_bulk` copy; the one input-less sub-tool) and
+  `cti-sightings` (indicator-match alerts → sightings pushed back). The
+  contract declares each sub-tool's env block, the shared
+  `BYAKUGAN_OPENCTI_*` wire (the token rides env only, never argv), the
+  optional `/rules` mount (the deployment's rules-as-code — the engine
+  ships none), and the widened `network: optional` note; the `input` mount
+  is `required: false` now, for cti-pull's sake, with the engine itself
+  refusing a missing input everywhere else.
+
 ## 0.2.0
 
 - **`gowindowlicker`** — the Windows matrix as one structured binary: the

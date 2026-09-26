@@ -13,9 +13,17 @@ description: >
   vocabulary, `byakugan load` bulk-loads a materialised CAR tree into the
   DX_DFIR Elastic stack as its logs-car.* data streams — offline
   Elasticsearch _bulk NDJSON bundles by default, or pushed over HTTPS itself
-  when BYAKUGAN_LOAD_ES_URL is set. Each batch run prints one JSON summary
-  line.
-subtools: [build, timeline, verify, car-vocab, load]
+  when BYAKUGAN_LOAD_ES_URL is set. The STIX/CTI exchange is the engine's
+  too (byakugan.exchange): `byakugan stix-export` turns detection hits into
+  STIX 2.1 sightings + indicators with the projection's bundles merged
+  through, `byakugan stix-behaviour` joins the detection lanes to the CAR
+  entities they touch as sightings over spindle-keyed observed-data,
+  `byakugan cti-pull` copies OpenCTI's indicators into the cti-* Elastic
+  _bulk shape, and `byakugan cti-sightings` turns indicator-match alerts
+  into sightings of the platform's own indicators, pushed back. Each batch
+  run prints one JSON summary line.
+subtools: [build, timeline, verify, car-vocab, load,
+           stix-export, stix-behaviour, cti-pull, cti-sightings]
 engine:
   repository: https://github.com/Get-Sybers/byakugan
   ref_label: com.get-sybers.engine-ref
@@ -59,14 +67,60 @@ env:
   BYAKUGAN_LOAD_FORCE:            {required: false, default: "0", type: bool, desc: '1/true/yes/on re-renders bundles and, in push mode, re-pushes even when the manifest/load report already show the run complete'}
   BYAKUGAN_LOAD_ARGS:             {required: false, default: "", desc: 'extra byakugan.elastic.load argv, space-separated'}
   BYAKUGAN_LOAD_LOG_LEVEL:        {required: false, default: info, desc: 'error|warn|info|debug, stderr only'}
+  # --- the OpenCTI wire, shared by the exchange sub-tools (push/pull modes only) ---------------
+  BYAKUGAN_OPENCTI_URL:           {required: false, default: "", desc: 'the OpenCTI endpoint for stix-export/cti-sightings PUSH and cti-pull; with PUSH (or a pull without FROM_BUNDLE) this is the network opt-in that bridges a run under `network: optional`'}
+  BYAKUGAN_OPENCTI_TOKEN:         {required: false, default: "", desc: 'the OpenCTI bearer token — a secret: pass it via the lane''s secret_env (0600 env-file), never argv; the engine never echoes it'}
+  BYAKUGAN_OPENCTI_CONNECTOR_ID:  {required: false, default: "", desc: 'the OpenCTI connector id for pushes; a deterministic default otherwise'}
+  # --- stix-export: detection hits -> STIX 2.1 sightings + indicators (byakugan.exchange) ------
+  BYAKUGAN_STIX_EXPORT_INPUT_DIR:   {required: false, default: /input,  desc: 'the hits tree — EVERY regular file under it is a hits input (detect JSONL, an ES _search response, alert documents), read-only'}
+  BYAKUGAN_STIX_EXPORT_OUT_DIR:     {required: false, default: /output, desc: 'where bundle.json is written'}
+  BYAKUGAN_STIX_EXPORT_BUNDLES_DIR: {required: false, default: "",      desc: 'a materialised CAR tree whose stix_bundle.json files (the projection, BYAKUGAN_BUILD_STIX) pass through merged object-for-object; empty = none'}
+  BYAKUGAN_STIX_EXPORT_RULES_DIR:   {required: false, default: /rules,  desc: 'the deployment''s rules-as-code directory resolving indicator patterns (the engine ships NO rules); the default applies only when the rules mount is present — hits without a rules directory are refused (exit 2), bundle-only exports need none'}
+  BYAKUGAN_STIX_EXPORT_CASE:        {required: false, default: "",      desc: 'the case id scoping sighting/observed-data ids (default: the hits'' run id)'}
+  BYAKUGAN_STIX_EXPORT_TLP:         {required: false, default: "",      desc: 'white|green|amber|red|none marking on exported objects (engine default: amber)'}
+  BYAKUGAN_STIX_EXPORT_CONFIG:      {required: false, default: "",      desc: 'a JSON/YAML exchange config file (docs/STIX-Exchange.md in the engine repo)'}
+  BYAKUGAN_STIX_EXPORT_PUSH:        {required: false, default: "0", type: bool, desc: '1/true/yes/on also pushes the bundle to OpenCTI (needs the BYAKUGAN_OPENCTI_* wire)'}
+  BYAKUGAN_STIX_EXPORT_ARGS:        {required: false, default: "",      desc: 'extra exchange argv, space-separated'}
+  BYAKUGAN_STIX_EXPORT_LOG_LEVEL:   {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+  # --- stix-behaviour: detection lanes joined to CAR entities -> behaviour sightings -----------
+  BYAKUGAN_STIX_BEHAVIOUR_INPUT_DIR:      {required: false, default: /input,  desc: 'the materialised CAR tree (car_relationships.jsonl marks each finished source), read-only'}
+  BYAKUGAN_STIX_BEHAVIOUR_OUT_DIR:        {required: false, default: /output, desc: 'where behaviour-sightings.json is written'}
+  BYAKUGAN_STIX_BEHAVIOUR_DETECTIONS_DIR: {required: true,  default: "",      desc: 'the detection-lane output dir (its suricata/ hayabusa/ yara/ subdirs) — REQUIRED; bind it read-only (its path is env-named for the mount check)'}
+  BYAKUGAN_STIX_BEHAVIOUR_CASE:           {required: true,  default: "",      desc: 'the case id scoping sighting/observation ids — REQUIRED'}
+  BYAKUGAN_STIX_BEHAVIOUR_TLP:            {required: false, default: "",      desc: 'white|green|amber|red|none (engine default: amber)'}
+  BYAKUGAN_STIX_BEHAVIOUR_PRODUCER:       {required: false, default: "",      desc: 'the producer identity name (engine default: DX_DFIR)'}
+  BYAKUGAN_STIX_BEHAVIOUR_ATTACK_INDEX:   {required: false, default: "",      desc: 'an ATT&CK index or STIX bundle path; empty = the engine''s committed index'}
+  BYAKUGAN_STIX_BEHAVIOUR_ARGS:           {required: false, default: "",      desc: 'extra exchange argv, space-separated'}
+  BYAKUGAN_STIX_BEHAVIOUR_LOG_LEVEL:      {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+  # --- cti-pull: OpenCTI indicators -> the cti-* Elastic _bulk copy (needs NO input mount) ------
+  BYAKUGAN_CTI_PULL_OUT_DIR:     {required: false, default: /output, desc: 'where cti-bulk.ndjson is written'}
+  BYAKUGAN_CTI_PULL_SINCE:       {required: false, default: "",      desc: 'incremental: only indicators modified after this ISO-8601 timestamp'}
+  BYAKUGAN_CTI_PULL_PAGE_SIZE:   {required: false, default: "",      desc: 'indicators per GraphQL page (engine default: 200)'}
+  BYAKUGAN_CTI_PULL_MAX_PAGES:   {required: false, default: "",      desc: 'stop after this many pages (safety valve)'}
+  BYAKUGAN_CTI_PULL_INDEX:       {required: false, default: "",      desc: 'the cti-* index the bulk lines target (engine default: cti-opencti)'}
+  BYAKUGAN_CTI_PULL_FROM_BUNDLE: {required: false, default: "",      desc: 'normalise an already-pulled STIX bundle at this path instead of contacting OpenCTI — the fully offline mode'}
+  BYAKUGAN_CTI_PULL_BUNDLE_OUT:  {required: false, default: "",      desc: 'also keep the pulled indicator bundle at this path (re-normalise later with FROM_BUNDLE)'}
+  BYAKUGAN_CTI_PULL_CONFIG:      {required: false, default: "",      desc: 'a JSON/YAML exchange config file'}
+  BYAKUGAN_CTI_PULL_ARGS:        {required: false, default: "",      desc: 'extra exchange argv, space-separated'}
+  BYAKUGAN_CTI_PULL_LOG_LEVEL:   {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
+  # --- cti-sightings: indicator-match alerts -> sightings of the platform's indicators ---------
+  BYAKUGAN_CTI_SIGHTINGS_INPUT_DIR: {required: false, default: /input,  desc: 'the alerts tree — EVERY regular file under it is an alerts input (an ES _search over .alerts-security.alerts-*, a JSON array, JSON Lines), read-only'}
+  BYAKUGAN_CTI_SIGHTINGS_OUT_DIR:   {required: false, default: /output, desc: 'where sightings.json is written'}
+  BYAKUGAN_CTI_SIGHTINGS_CASE:      {required: false, default: "",      desc: 'the case id scoping the sighting ids (default: the alerts'' rule execution id)'}
+  BYAKUGAN_CTI_SIGHTINGS_TLP:       {required: false, default: "",      desc: 'white|green|amber|red|none (engine default: amber)'}
+  BYAKUGAN_CTI_SIGHTINGS_CONFIG:    {required: false, default: "",      desc: 'a JSON/YAML exchange config file'}
+  BYAKUGAN_CTI_SIGHTINGS_PUSH:      {required: false, default: "0", type: bool, desc: '1/true/yes/on also pushes the sightings back to OpenCTI (needs the BYAKUGAN_OPENCTI_* wire)'}
+  BYAKUGAN_CTI_SIGHTINGS_ARGS:      {required: false, default: "",      desc: 'extra exchange argv, space-separated'}
+  BYAKUGAN_CTI_SIGHTINGS_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
 
 mounts:
-  - {name: input,  path: /input,  mode: ro, env: BYAKUGAN_<SUBTOOL>_INPUT_DIR, required: true}
+  - {name: input,  path: /input,  mode: ro, env: BYAKUGAN_<SUBTOOL>_INPUT_DIR, required: false, desc: 'required by EVERY sub-tool except cti-pull (the one input-less run; the engine itself refuses a missing INPUT_DIR with exit 2)'}
   - {name: output, path: /output, mode: rw, env: BYAKUGAN_<SUBTOOL>_OUT_DIR,   required: true}
+  - {name: rules,  path: /rules,  mode: ro, env: BYAKUGAN_STIX_EXPORT_RULES_DIR, required: false, desc: 'the deployment''s rules-as-code (stix-export pattern resolution; the engine ships none)'}
   - {name: certs,  path: /certs,  mode: ro, required: false, desc: 'the Elastic stack CA (e.g. the compose certs volume); needed only for push mode over TLS'}
   - {name: tmp,    path: /tmp,    mode: rw, required: false, desc: 'HOME under a read-only rootfs (tmpfs)'}
 
-network: optional        # none by default; used only by `load`, and only when BYAKUGAN_LOAD_ES_URL / BYAKUGAN_LOAD_KIBANA_URL are set — build/timeline/verify/car-vocab remain fully offline
+network: optional        # none by default; bridged only by `load` (BYAKUGAN_LOAD_ES_URL / _KIBANA_URL) and the exchange's OpenCTI wire (stix-export/cti-sightings with PUSH, cti-pull without FROM_BUNDLE) — build/timeline/verify/car-vocab, and every exchange run without those opt-ins, remain fully offline
 # Exit 1 is the general non-success of a run that produced no output: nothing
 # to do (status `nothing`) or, for verify, the gate failed (status `failed`).
 # A consumer reads the summary `status` to tell them apart, never the code
@@ -75,7 +129,7 @@ exit_codes: {0: success, 1: nothing_or_failed, 2: config_error, 3: partial}
 
 summary_schema:
   required: [tool, subtool, version, engine_ref, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
-  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline, the passed/failed/not_exercised/os_families_covered/os_families_total tally for verify, the per-stream document counts and the mode (bundle|push) for load); car-vocab's stdout is the vocabulary JSON itself, one line. verify's `status` is the verdict and the only way to tell its two exit-1 outcomes apart: `ok` (exit 0, the gate passed), `failed` (exit 1, `failed` = the checks that failed, named in `failures`), `nothing` (exit 1, no materialised CAR under the input dir). load mirrors the uniform table instead: `ok` (exit 0), `nothing` (exit 1, no materialised CAR under the input dir), `partial` (exit 3, at least one stream loaded and at least one failed)"
+  note: "`engine` carries the engine's own summary (the per-source result list for build, the entries/objects/relationships counts for timeline, the passed/failed/not_exercised/os_families_covered/os_families_total tally for verify, the per-stream document counts and the mode (bundle|push) for load, and the exchange summary — validation errors/warnings, the hits/join report, the bundle shape, the push/pull result — for the stix-*/cti-* sub-tools); car-vocab's stdout is the vocabulary JSON itself, one line. verify's `status` is the verdict and the only way to tell its two exit-1 outcomes apart: `ok` (exit 0, the gate passed), `failed` (exit 1, `failed` = the checks that failed, named in `failures`), `nothing` (exit 1, no materialised CAR under the input dir). load mirrors the uniform table instead: `ok` (exit 0), `nothing` (exit 1, no materialised CAR under the input dir), `partial` (exit 3, at least one stream loaded and at least one failed). An exchange run's `status` is `ok` (exit 0) or `failed` (exit 1: the bundle failed validation or a push/pull was refused — `failures` names the validation errors)"
 
 outputs:
   build:
@@ -88,6 +142,14 @@ outputs:
     layout: "stdout: {object: [car_actions]} as one JSON line"
   load:
     layout: "<OUT_DIR>/elastic/*.ndjson — one Elasticsearch _bulk NDJSON bundle per data stream (logs-car.<object>-<namespace> x13, logs-car.rel-<namespace>, logs-car.inferred-<namespace>, logs-car.content-<namespace>) with a deterministic per-document _id; <OUT_DIR>/elastic/manifest.json — per-stream document counts, ids and each bundle sha256; <OUT_DIR>/load.txt — the human-readable load report, also written to stderr; bundle mode (BYAKUGAN_LOAD_ES_URL unset) only renders these, push mode (BYAKUGAN_LOAD_ES_URL set) also POSTs them, treats an already-indexed document (409) as already_present, and verifies per-stream counts; records = documents bundled or indexed; the deterministic ids make a re-render or re-push an idempotent no-op"
+  stix-export:
+    layout: "<OUT_DIR>/bundle.json — one validated STIX 2.1 bundle: sightings + indicators from the hits, `indicates` -> MITRE's own ATT&CK ids, connected observations, the projection bundles merged object-for-object; records = bundle objects; deterministic ids make a re-export the same version of the same objects"
+  stix-behaviour:
+    layout: "<OUT_DIR>/behaviour-sightings.json — one validated STIX 2.1 bundle: one sighting of the ATT&CK attack-pattern per (detection, CAR entity, technique) over observed-data keyed on the matched row's spindle guid; records = bundle objects"
+  cti-pull:
+    layout: "<OUT_DIR>/cti-bulk.ndjson — Elasticsearch _bulk lines keyed on the STIX id (a re-pull upserts) for the cti-* index; plus the pulled indicator bundle at BUNDLE_OUT when set; records = indicators copied"
+  cti-sightings:
+    layout: "<OUT_DIR>/sightings.json — one validated STIX 2.1 bundle: sightings of the platform's own indicator ids, alerts of the same match collapsed with their ids in the extension; records = bundle objects"
 
 hardening:
   declared: {shell: false, python: true, static_binary: false}
