@@ -3,7 +3,7 @@
 ## 0.3.2
 
 - **`byakugan` discovers DX_DFIR's per-collection, per-host processed
-  tree** — the engine pin advances to Byakugan #126 (`1a6d798`): sources
+  tree** — the engine pin advances to Byakugan #126 (`a0502d6`): sources
   are found by the files each tool writes, at any depth under the
   tool-named leaf (`processed/<tool>/[<collection>/]<host>/…`), one
   isolated store each and named after the path under the leaf so two
