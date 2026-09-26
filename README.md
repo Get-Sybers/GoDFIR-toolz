@@ -85,7 +85,9 @@ byakugan alignment, the phased sequence — is
 
 - [byakugan/](byakugan/README.md) — `get-sybers/byakugan`: the external
   Byakugan MITRE CAR engine, cloned recursively at the sha pinned in its
-  Dockerfile (`BYAKUGAN_REF`)
+  Dockerfile (`BYAKUGAN_REF`), with the deployment's Elastic detection
+  rules-as-code baked at `/rules` ([byakugan/rules/](byakugan/rules/README.md),
+  build-gated by `validate-rules.py`)
 - [plaso/](plaso/README.md) — `get-sybers/plaso`: minimal hardened Plaso at a
   pinned PyPI release, plus the psort wrapper
 - [signatures/](signatures/README.md) — `get-sybers/signatures`: the whole

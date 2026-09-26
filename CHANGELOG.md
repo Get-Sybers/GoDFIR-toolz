@@ -1,5 +1,21 @@
 # Changelog — get_sybers.godfir_toolz
 
+## 0.3.1
+
+- **`byakugan` bakes the Elastic detection rules-as-code** — the deployment's
+  detections move here from DX_DFIR's retired host-python package
+  (`byakugan/rules/`: the pinned top-level rule set, the `car-detections/`
+  lookup-index contract, the `cti/` indicator-match rule) and ride the image
+  at `/rules`, where `stix-export` already defaults its pattern resolution;
+  the `rules` mount now *overrides* the baked set instead of supplying the
+  only one. `byakugan/validate-rules.py` (the loader's rigor, moved with the
+  rules) gates them during the build: a malformed rule, or drift from its
+  `PINNED_IDS`, fails the image — the same bake-and-gate position as the
+  signatures image's rulesets. Detections outside the Byakugan engine are
+  this repository's to own. New `THIRD_PARTY_NOTICES.md` records the terms
+  of everything the builds fetch (DetectRaptor, ET Open, Hayabusa); image
+  0.3.1.
+
 ## 0.3.0
 
 - **`byakugan` carries the STIX/CTI exchange** — the engine pin advances to

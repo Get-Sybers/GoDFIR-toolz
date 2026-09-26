@@ -7,7 +7,8 @@ is that version and provides `dfir-timeline`) **+ the gomount→goyara
 userspace NTFS scan pipe** (both built from their own top-level modules;
 [goyara](../goyara/README.md) links libyara through cgo and has no image of its
 own). The DetectRaptor YARA merge and the ET Open Suricata ruleset are baked
-at build time. `sh`/`dash` stay as a declared deviation for the legacy
+at build time — their terms: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+`sh`/`dash` stay as a declared deviation for the legacy
 per-file YARA loop (`/opt/dxdfir/scan-list.sh`); bash, python, ansible, apt,
 pip, sudo and setuid binaries are gone and the image runs as uid 2000.
 
