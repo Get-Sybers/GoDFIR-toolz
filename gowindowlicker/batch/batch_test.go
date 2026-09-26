@@ -98,7 +98,7 @@ func TestParseBool(t *testing.T) {
 }
 
 func TestPrefix(t *testing.T) {
-	if got := Prefix("godfir-tool"); got != "GODFIR_TOOL" {
+	if got := Prefix("window-licker"); got != "WINDOW_LICKER" {
 		t.Errorf("Prefix = %q", got)
 	}
 }

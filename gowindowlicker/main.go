@@ -1,10 +1,10 @@
-// gowindowlicker — the Windows artefact dozen as ONE structured binary:
-// the godaemonhunter shape (docs/linux decision 16) applied to the Windows
-// side. Every Windows parser lives here as a package and a sub-tool of this
-// single static binary; the standalone per-parser binaries, images, contracts
-// and Dockerfiles are retired. Tool names, `<SUBTOOL>_*` env blocks, record
-// shapes and record-file names are unchanged — byakugan and the pipeline see
-// the same records; only the packaging is one.
+// gowindowlicker — the Windows artefact matrix as ONE structured binary:
+// every Windows parser lives here as a package and a sub-tool of this
+// single static binary. There are no standalone per-parser binaries or
+// images: gowindowlicker is the Windows tool. Each parser keeps its
+// canonical tool name, its `<SUBTOOL>_*` env block, its record shapes and
+// its record-file name (`goprefetch.jsonl`, `gore.jsonl`, …) — the
+// interface byakugan and the pipeline consume.
 //
 //	gowindowlicker                     every parser — the default sweep,
 //	                                   GOWINDOWLICKER_* driven
@@ -15,16 +15,11 @@
 //	gowindowlicker --version | --print-contract
 //
 // (`lick` stays accepted as the explicit word for the default run.) The
-// multi-tool dispatcher shape of docs/framework/04 §4.3 (the plaso,
-// signatures and godaemonhunter precedent). Unlike godaemonhunter there is
-// no stream vocabulary yet (docs/linux decision 17 admits a word only when
-// byakugan maps feed on a parser here): today byakugan consumes goevtx,
-// goprefetch, goese, gojle and gore directly and reaches the other artefact
-// classes through plaso's l2t maps, so a Windows stream word would strand
-// most of the matrix. The sub-tool names and the sweep are the interface
-// until the direct Windows maps land. There is also no layered knowledge
-// store: these parsers read self-contained artefacts, not a host's own
-// record-keeping, so every sub-run is independent.
+// multi-tool dispatcher shape of docs/framework/04 §4.3. The calling
+// vocabulary is the sub-tool names — there is no stream or model-word
+// vocabulary — and there is no layered knowledge store: the Windows
+// artefacts are self-contained, so every sub-run is independent and the
+// sweep has no layers.
 package main
 
 import (

@@ -3,16 +3,16 @@ tool: gowindowlicker
 image: get-sybers/gowindowlicker:latest
 entrypoint: multi-tool
 description: >
-  The Windows artefact dozen as one structured binary (the godaemonhunter
-  shape, docs/linux decision 16, applied to the Windows side): every Windows
-  parser a sub-tool of one static FROM-scratch image, retired as standalone
-  images. Bare invocation (or `lick`) is the sweep — every parser over the
-  same evidence tree, each into its own <OUT_DIR>/<subtool>/ tree, one
-  aggregate JSON summary line. Tool names, <SUBTOOL>_* env blocks, record
-  shapes and record-file names are unchanged; only the packaging is one.
-  There is no stream vocabulary yet (decision 17 admits a word only when
-  byakugan maps feed on a parser here) and no layered knowledge store: the
-  Windows artefacts are self-contained, so every sub-run is independent.
+  The Windows artefact matrix as one structured binary: every Windows
+  parser a sub-tool of one static FROM-scratch image — there are no
+  standalone per-parser images. Bare invocation (or `lick`) is the sweep —
+  every parser over the same evidence tree, each into its own
+  <OUT_DIR>/<subtool>/ tree, one aggregate JSON summary line. Each parser
+  keeps its canonical tool name, <SUBTOOL>_* env block, record shapes and
+  record-file names — the interface byakugan and the pipeline consume. The
+  calling vocabulary is the sub-tool names (no stream or model words) and
+  there is no layered knowledge store: the Windows artefacts are
+  self-contained, so every sub-run is independent.
 
 subtools: [lick, goprefetch, goese, gorb, gomft, goamcache, goappcompat, goevtx, gore, gosbe, gole, gojle, gowxt]
 

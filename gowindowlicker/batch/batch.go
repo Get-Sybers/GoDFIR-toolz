@@ -1,12 +1,10 @@
-// Package batch is the container-framework batch runtime the Windows Tier-1
-// tools share (docs/framework/03 environment contract, 04 self-orchestration)
-// — the module form of the batch.go every per-tool directory used to carry as
-// a byte-identical copy, semantics unchanged: the tool-specific glue (artefact
-// discovery and per-item processing) lives in each parser package's tool.go.
-// pinfo/batch is this runtime's Linux-side sibling; it dropped `<TOOL>_FORMAT`
-// (JSONL only, docs/linux decision 12) and added provenance stamping, while
-// this one keeps the Windows tools' contract exactly — CSV included — until
-// their pinfo adoption phase (docs/linux §11.2).
+// Package batch is the container-framework batch runtime the gowindowlicker
+// parser packages share (docs/framework/03 environment contract, 04
+// self-orchestration). The tool-specific glue (artefact discovery and
+// per-item processing) lives in each parser package's tool.go; this package
+// owns the environment contract, the discovery loop, the record files, the
+// idempotency rule, the single summary line and the uniform exit codes.
+// Records are JSONL or CSV, selected per tool by `<TOOL>_FORMAT`.
 //
 // With no arguments a bound tool runs in batch mode:
 //

@@ -103,8 +103,8 @@ func TestUnknownAndUsage(t *testing.T) {
 	if code := run([]string{"gonosuch"}, env(nil), &buf); code != 2 {
 		t.Fatalf("unknown subtool exit %d", code)
 	}
-	// stream words are godaemonhunter's vocabulary; nothing here accepts them
-	// until byakugan maps feed on a Windows parser directly.
+	// a stream/model word is not part of the calling vocabulary — only
+	// sub-tool names are accepted.
 	if code := run([]string{"process"}, env(nil), &buf); code != 2 {
 		t.Fatalf("stream word accepted: exit %d", code)
 	}

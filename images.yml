@@ -40,27 +40,27 @@ images:
     context: gomount
     dockerfile: Dockerfile
 
-  # ---- the .NET tools (GODFIR_TOOL casing = the published zip basename)
-  - name: sqlecmd
-    dockerfile: godfir-tool/Dockerfile
-    args: {GODFIR_TOOL: SQLECmd}
-  - name: bstrings
-    dockerfile: godfir-tool/Dockerfile
-    args: {GODFIR_TOOL: bstrings}
-  - name: iisgeolocate
-    dockerfile: godfir-tool/Dockerfile
-    args: {GODFIR_TOOL: iisGeolocate}
-  - name: recentfilecacheparser
-    dockerfile: godfir-tool/Dockerfile
-    args: {GODFIR_TOOL: RecentFileCacheParser}
-  - name: rla
-    dockerfile: godfir-tool/Dockerfile
-    args: {GODFIR_TOOL: rla}
-
 unbuildable:
   vscmount: >-
     VSCMount manipulates the Windows VSS device namespace and has no Linux
     container; use libvshadow (vshadowinfo/vshadowmount) on the host.
+  # the retired .NET per-tool lane — succeeded, no image builds these any more
+  # (CHANGELOG 0.2.0)
+  sqlecmd: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  bstrings: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  iisgeolocate: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  recentfilecacheparser: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  rla: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
 
 non_tool_repos:
   - get-sybers/molecule

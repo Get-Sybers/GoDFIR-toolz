@@ -1,19 +1,17 @@
-# `get-sybers/gowindowlicker` — the Windows artefact dozen as one structured binary
+# `get-sybers/gowindowlicker` — the Windows artefact matrix as one structured binary
 
 Every Windows Go parser is a package of this module and a sub-tool of this
-single static binary — the godaemonhunter shape
-([docs/linux](../docs/linux/README.md) decision 16) applied to the Windows
-side, and the multi-tool dispatcher shape of
-[docs/framework/04 §4.3](../docs/framework/04-self-orchestration.md) (the
-plaso, signatures and godaemonhunter precedent). It is the **only** shipped
-shape: the parsers live here as packages, and there are no standalone
-per-parser binaries or images. gowindowlicker *is* the Windows tool.
+single static binary — the multi-tool dispatcher shape of
+[docs/framework/04 §4.3](../docs/framework/04-self-orchestration.md). It is
+the **only** shipped shape: the parsers live here as packages, and there are
+no standalone per-parser binaries or images. gowindowlicker *is* the
+Windows tool.
 
-**Tool names, `<SUBTOOL>_*` env blocks, record shapes and record-file names
-are unchanged** — byakugan and the pipeline see the same records
-(`goprefetch.jsonl`, `gore.jsonl`, `goevtx.jsonl`, …); only the packaging is
-one. One binary, one image, one run, one structured output tree, one JSON
-summary line.
+**Each parser keeps its canonical tool name, its `<SUBTOOL>_*` env block,
+its record shapes and its record-file name** (`goprefetch.jsonl`,
+`gore.jsonl`, `goevtx.jsonl`, …) — the interface byakugan and the pipeline
+consume. One binary, one image, one run, one structured output tree, one
+JSON summary line.
 
 ## The sub-tool is the parameter
 
@@ -25,14 +23,10 @@ gowindowlicker <subtool> <args>    that parser's argv debug pass-through
 gowindowlicker --version | --print-contract
 ```
 
-`lick` stays accepted as the explicit word for the default run. Unlike
-godaemonhunter there is **no stream vocabulary yet**: docs/linux decision 17
-admits a model word only when byakugan maps feed on a parser here, and today
-byakugan consumes `goevtx`, `goprefetch`, `goese`, `gojle` and `gore`
-directly while the other artefact classes arrive through plaso's `l2t_*`
-maps — a Windows stream word would strand most of the matrix. There is also
-no layered knowledge store: these parsers read self-contained artefacts, not
-a host's own record-keeping, so every sub-run is independent and the sweep
+`lick` stays accepted as the explicit word for the default run. The calling
+vocabulary is the sub-tool names — there is **no stream or model-word
+vocabulary** — and there is no layered knowledge store: the Windows
+artefacts are self-contained, so every sub-run is independent and the sweep
 has no layers.
 
 Sub-tools — each one a package of this module with its own README
@@ -124,10 +118,8 @@ Scoped, the sub-tool is the only thing that changes:
 docker run --rm … get-sybers/gowindowlicker:latest gorb
 ```
 
-(The module is self-contained — its own directory is the build context; the
-shared batch runtime lives here as the [`batch/`](batch/) package, the
-promoted form of the byte-identical `batch.go` the per-tool directories used
-to carry.)
+(The module is self-contained — its own directory is the build context, and
+the shared batch runtime lives here as the [`batch/`](batch/) package.)
 
 ## argv pass-through (debug only)
 

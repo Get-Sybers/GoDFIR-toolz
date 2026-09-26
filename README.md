@@ -7,28 +7,24 @@ renamed+locked, runs as uid 2000.
 
 Every image's full documentation (what it parses, build one-liner, run shape,
 flags, verification evidence) lives in a `README.md` **inside the directory
-that builds it** — the remaining `.NET`-based per-tool images share
-[`godfir-tool/`](godfir-tool/README.md), their one recipe — and this page is the index.
+that builds it** — and this page is the index.
 
 ## The Windows side: gowindowlicker (FROM scratch, one binary, no runtime at all)
 
 **One structured binary** — [gowindowlicker/](gowindowlicker/README.md) —
 carrying the whole Windows matrix: twelve parser packages, one per artefact
-class, the godaemonhunter shape (docs/linux decision 16) applied to the
-Windows side. **The parameter is the sub-tool**: bare invocation (or `lick`)
-is the sweep — every parser over one evidence tree, each into its own
+class. **The parameter is the sub-tool**: bare invocation (or `lick`) is
+the sweep — every parser over one evidence tree, each into its own
 `<OUT_DIR>/<subtool>/` tree, one aggregate JSON summary line — and each
 parser also runs granularly as `gowindowlicker <subtool>` under its
-canonical `<SUBTOOL>_*` env block. **Tool names, env blocks, record shapes
-and record-file names are unchanged** (`goprefetch.jsonl`, `gore.jsonl`,
-`goevtx.jsonl`, … — byakugan sees the same records); only the packaging is
-one. The module is self-contained (the shared batch runtime is its
-[`batch/`](gowindowlicker/batch/) package, the promoted form of the
-byte-identical `batch.go` the per-tool directories used to carry), so the
-image builds from its own directory: one static ~8 MB binary, no shell, no
-python, no libc, `USER 2000:2000` — the hardening contract holds by
-construction, and the `docker export` scan verifies it the same way as for
-the .NET images.
+canonical `<SUBTOOL>_*` env block. **Each parser keeps its canonical tool
+name, env block, record shapes and record-file name**
+(`goprefetch.jsonl`, `gore.jsonl`, `goevtx.jsonl`, …) — the interface
+byakugan and the pipeline consume. The module is self-contained (the
+shared batch runtime is its [`batch/`](gowindowlicker/batch/) package), so
+the image builds from its own directory: one static ~8 MB binary, no
+shell, no python, no libc, `USER 2000:2000` — the hardening contract holds
+by construction, and the `docker export` scan verifies it.
 
 - [goprefetch](gowindowlicker/prefetch/README.md) — Windows prefetch: XP→Win11 `.pf`, MAM decompression in pure Go
 - [goese](gowindowlicker/ese/README.md) — ESE databases: SRUM `SRUDB.dat` (IdMap/SID enrichment) and SUM `Current.mdb`
@@ -43,11 +39,9 @@ the .NET images.
 - [gojle](gowindowlicker/jle/README.md) — AutomaticDestinations jump lists
 - [gowxt](gowindowlicker/wxt/README.md) — Windows Timeline ActivitiesCache.db
 
-Unlike godaemonhunter there is no stream vocabulary yet: decision 17 admits
-a model word only when byakugan maps feed on a parser directly, and today
-that holds for goevtx, goprefetch, goese, gojle and gore while the other
-artefact classes arrive through plaso's `l2t_*` maps. The sub-tool names and
-the sweep are the calling interface until the direct Windows maps land.
+The calling vocabulary is the sub-tool names — there is no stream or
+model-word vocabulary and no layered knowledge store: the Windows artefacts
+are self-contained, so every sub-run is independent.
 
 ## The Linux side: godaemonhunter (docs/linux — the same shape, second OS)
 
@@ -107,12 +101,6 @@ DX_DFIR's `docker/` — that repo now keeps only its Elastic stack. Like
 `anamnesis`, they build with the **repo root as context**, so each consumes
 the canonical `hardening/harden.yml` directly — no synced copy.
 
-## The .NET images
-
-- [godfir-tool/](godfir-tool/README.md) — one parameterized Dockerfile building the
-  remaining `.NET`-based per-tool images (`sqlecmd`, `bstrings`,
-  `iisgeolocate`, `recentfilecacheparser`, `rla`)
-
 ## The image inventory
 
 **`images.yml`** at the repo root is the single source of truth for every
@@ -153,7 +141,7 @@ Per image:
 | `args` | `--build-arg` map baked into the build (a consumer's run-as `DFIR_UID`/`DFIR_GID` args combine on top and win) |
 | `env_args` | ARG names a launcher passes through from the environment when set. The default pin **values** live in the Dockerfiles as ARG defaults — never here — so each pin exists in exactly one place |
 | `engine_ref` | the ARG carrying a clone-at-build engine pin; marks the entry as an engine image (`conform.sh` then requires the `com.get-sybers.engine-ref` label) |
-| `aliases` | alternate names the build set accepts for this image (the substituted EZ-tool names among them) |
+| `aliases` | alternate names the build set accepts for this image |
 | `subtool_aliases` | names that resolve to this image with a "that's a sub-tool now" note (godaemonhunter's daemon parsers, gowindowlicker's Windows parsers and their EZ-tool names) |
 | `tool` | `false` = not a tool container, exempt from the hardened-tool contract (default `true`) |
 
@@ -174,7 +162,6 @@ filesystem, so posture cannot drift from the images either.
 ```sh
 ./build-all.sh                              # everything in images.yml, in manifest order
 ./build-all.sh gowindowlicker godaemonhunter # a subset (names case-insensitive; a sub-tool or EZ-tool name resolves to its image)
-./build-all.sh sqlecmd bstrings             # the .NET per-tool images by name
 ./build-all.sh byakugan plaso signatures zeek
 ```
 
@@ -219,15 +206,13 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges --network none \
 Two things dominate wall-clock time on real evidence:
 
 1. **Batch per directory, not per file.** Measured here: ~280–340 ms of
-   container start overhead per `docker run` before any parsing, plus .NET
-   assembly load/JIT warm-up per invocation of a .NET image. Every parser
+   container start overhead per `docker run` before any parsing. Every parser
    takes `-d`; one container over a directory of 400 event logs pays that
    cost once instead of 400 times.
 2. **The Go parsers are cheap.** The Go images are a few MB — gowindowlicker
-   carries the whole Windows dozen in one ~8 MB static binary (vs ~300 MB
-   for a .NET tool image) — start as fast as the container runtime allows,
-   and parsed the reference `SRUDB.dat` (10 tables, 27k rows, enrichment on)
-   in under a second.
+   carries the whole Windows dozen in one ~8 MB static binary — start as
+   fast as the container runtime allows, and parsed the reference
+   `SRUDB.dat` (10 tables, 27k rows, enrichment on) in under a second.
 
 ## The container framework
 
@@ -245,8 +230,7 @@ its version, revision, release and contract version). argv is a debug
 pass-through the consumer never uses. Multi-tool images (`plaso`,
 `signatures`, `byakugan`) front a dispatcher that takes the sub-tool name as
 its first argument and self-orchestrates that sub-tool from its own env
-block; `gomount` and the `godfir-tool`-built images are declared argv
-deviations.
+block; `gomount` is a declared argv deviation.
 
 Per tool, `conform.sh <tool>` checks the layout, the Dockerfile standards,
 `contract.yml` and the README against the white paper (`--build` also builds
@@ -297,8 +281,6 @@ knobs with `-e` from each Dockerfile:
 
 ## License
 
-MIT (this recipe and the Go parsers). The `godfir-tool/`-built images fetch Eric
-Zimmerman's tools from their published releases at build time — the upstream
-tools are themselves MIT-licensed (attribution kept here for that reason);
-`go-prefetch` and `go-ese` are Velociraptor components fetched as pinned Go
-modules (`go.sum`) at build time.
+MIT (this recipe and the Go parsers). `go-prefetch` and `go-ese` are
+Velociraptor components fetched as pinned Go modules (`go.sum`) at build
+time.
