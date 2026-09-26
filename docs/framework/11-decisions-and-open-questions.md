@@ -25,7 +25,7 @@ table points.
 | 14 | The CVE gate uses `cve-scan.sh`: fail on fixable findings at or above `high`, unfixed reported only, dated waivers in `hardening/cve-waivers.yml` that block when expired; the threshold ratchets down and never up | [§8.4–8.7](08-zero-cve-program.md) |
 | 15 | **The CVE gate is enabled and enforced only after every image has migrated; it is the final phase and is never run against a partially-migrated image set. During migration `cve-scan.sh` is a manual triage tool, not a release gate** | [§8.0](08-zero-cve-program.md), [§10.4](10-migration-roadmap.md) |
 | 16 | anamnesis is the Tier-0 reference implementation | [§1.6](01-architecture-and-boundary.md), [§10.2](10-migration-roadmap.md) |
-| 17 | goyara is a component of `signatures`, built inside it, with no image of its own to harden | [§10.2](10-migration-roadmap.md) |
+| 17 | goyara is a component of `signatures` — its module lives at `signatures/goyara/`, built inside that image, with no image of its own to harden | [§10.2](10-migration-roadmap.md) |
 | 18 | The migration is phased and keeps the pipeline green: argv modes persist until lanes switch; DX_DFIR's asserts persist until the producer gate covers every image | [§10.4](10-migration-roadmap.md) |
 
 ## 11.2 Open questions
@@ -60,7 +60,7 @@ independently of the matrix it shipped in.
 ### 3. gomount and goyara: first-class images or components of `signatures`?
 
 gomount has its own Dockerfile and a declared Shape-B deviation but is absent
-from `images.yml`; goyara is built inside `signatures`. Either they become
+from `images.yml`; goyara is built inside `signatures` and its module lives under `signatures/goyara/`. Either they become
 first-class entries in the inventory (each gated on its own), or they are
 formally listed as components of `signatures` (documented in
 `signatures/contract.yml`, gated as part of that image). The `stream` verb

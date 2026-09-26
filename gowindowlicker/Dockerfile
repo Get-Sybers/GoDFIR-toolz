@@ -3,7 +3,7 @@
 # (every parser a sub-tool; lick is the all-parsers sweep, the default).
 # Self-contained module: builds from this directory as context.
 
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26
 ARG TOOL_VERSION=0.1.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev

@@ -104,7 +104,7 @@ the new labels and `contract.yml`, which every tool adds.
   first-class image in `images.yml` or a formal component of `signatures`
   (where its `stream` verb is already baked) — an open question
   ([11](11-decisions-and-open-questions.md)).
-- **goyara** — has no Dockerfile; it is built *inside* `signatures` (libyara
+- **goyara** — has no Dockerfile; its module lives at `signatures/goyara/` and is built *inside* `signatures` (libyara
   via cgo). It stays a component of `signatures`, not a standalone image, and
   `signatures/contract.yml` documents it. There is no independent image to
   harden. Its inventory status is settled alongside gomount's.

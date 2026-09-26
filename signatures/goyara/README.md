@@ -48,7 +48,7 @@ docker run --rm -v "$PWD:/src" -w /src golang:trixie bash -c '
   export DEBIAN_FRONTEND=noninteractive PATH=$PATH:/usr/local/go/bin
   apt-get update -qq
   apt-get install -y -qq ntfs-3g libyara-dev pkg-config
-  bash goyara/test/e2e.sh'
+  bash signatures/goyara/test/e2e.sh'
 ```
 
 It asserts exactly ONE JSON match record, for rule `detectraptor_smoke` on

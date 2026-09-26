@@ -9,7 +9,7 @@ set -u -o pipefail
 # ----------------------------------------------------------------------------- config
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GOYARA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"          # the goyara Go module root
-REPO_DIR="$(cd "$GOYARA_DIR/.." && pwd)"            # GoDFIR-toolz repo root
+REPO_DIR="$(cd "$GOYARA_DIR/../.." && pwd)"         # GoDFIR-toolz repo root
 GOMOUNT_DIR="${GOMOUNT_DIR:-$REPO_DIR/gomount}"     # the gomount Go module root
 WORK="${WORK:-/work}"                               # writable scratch (also holds the image)
 IMG="${IMG:-$WORK/ntfs.img}"
