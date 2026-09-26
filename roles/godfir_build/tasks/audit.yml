@@ -1,17 +1,4 @@
 ---
-# The FULL namespace audit (entry point, tasks_from: audit) — the ansible
-# successor of the retired python guard's --audit:
-#   - every manifest tool image is PRESENT and still carries the hardened
-#     contract on this host;
-#   - NO unexpected namespace image exists — the allow-list is the manifest
-#     images plus its non_tool_repos; anything else under the namespace is
-#     something added that should not be (a supply-chain red flag).
-# One aggregated violations report, so a failing audit names everything
-# wrong at once. Reuse:
-#   - ansible.builtin.include_role:
-#       name: get_sybers.godfir_toolz.godfir_build
-#       tasks_from: audit
-
 - name: "godfir-audit | assert the root inventory contract"
   ansible.builtin.include_tasks: inventory.yml
 
@@ -37,6 +24,7 @@
     images: true
   register: godfir_build_audit_host
 
+# the sweep normalises registry-qualified tags before comparing; violations name the tag as tagged
 - name: "godfir-audit | resolve the violations"
   ansible.builtin.set_fact:
     godfir_build_audit_violations: >-
@@ -55,11 +43,6 @@
           {%- endif -%}
         {%- endif -%}
       {%- endfor -%}
-      {#- The namespace sweep covers REGISTRY-QUALIFIED tags too: an optional
-          registry segment (a first path component with a dot or colon, or
-          localhost) is normalized away before comparing, so
-          ghcr.io/<ns>/evil can not hide from the audit behind its prefix.
-          The violation names the tag AS TAGGED. -#}
       {%- set ns_tags = godfir_build_audit_host.images | default([])
             | map(attribute='RepoTags') | select('sequence') | flatten
             | select('string')

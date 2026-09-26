@@ -122,13 +122,51 @@ ways, both reading the same files:
 No image list exists anywhere else — a new tool is added in `images.yml`
 (and its own directory), in one place.
 
+### Manifest schema
+
+Per image:
+
+| field | meaning |
+| ----- | ------- |
+| `name` | the image identity — `get-sybers/<name>:latest` — and, for single-tool directories, the tool directory name |
+| `context` | build context relative to this repository's root; default `.` — the repo root, which keeps `hardening/harden.yml` and the shared entry scripts in reach of the Dockerfiles that COPY them |
+| `dockerfile` | Dockerfile path relative to the context; default `<name>/Dockerfile` |
+| `args` | `--build-arg` map baked into the build (a consumer's run-as `DFIR_UID`/`DFIR_GID` args combine on top and win) |
+| `env_args` | ARG names a launcher passes through from the environment when set. The default pin **values** live in the Dockerfiles as ARG defaults — never here — so each pin exists in exactly one place |
+| `engine_ref` | the ARG carrying a clone-at-build engine pin; marks the entry as an engine image (`conform.sh` then requires the `com.get-sybers.engine-ref` label) |
+| `aliases` | alternate names the build set accepts for this image (the substituted EZ-tool names among them) |
+| `subtool_aliases` | names that resolve to this image with a "that's a sub-tool now" note (godaemonhunter's daemon parsers) |
+| `tool` | `false` = not a tool container, exempt from the hardened-tool contract (default `true`) |
+
+Two top-level maps complete the namespace's story: **`unbuildable`** names
+tools people ask for that deliberately have no image — the build role
+refuses them with the stated reason instead of "unknown tool" — and
+**`non_tool_repos`** lists `get-sybers/*` repos that legitimately exist but
+are not tool containers, allow-listed so a namespace audit ignores them
+instead of flagging a supply-chain red flag.
+
+Hardening posture is never listed here: every image self-declares it in
+`/etc/dfir-hardened` (schema=1: `static_binary` / `shell` / `python` /
+`pkg_mgr`) and the build gates verify the declaration against the actual
+filesystem, so posture cannot drift from the images either.
+
 ## Building
 
 ```sh
 ./build-all.sh                              # everything in images.yml, in manifest order
 ./build-all.sh gore gomft                   # a subset (names case-insensitive; the EZ-tool aliases resolve)
+./build-all.sh sqlecmd bstrings             # the .NET per-tool images by name
 ./build-all.sh byakugan plaso signatures zeek
 ```
+
+`build-all.sh` is a thin launcher of `playbooks/build_images.yml` for
+standalone use of this repo only — the inventory lives in `images.yml` and
+the build logic in the `godfir_build` role; the script only forwards names
+and the optional stamp overrides. Clone-at-build engine pins live as ARG
+defaults in the tool Dockerfiles; each entry's `env_args` in `images.yml`
+names the pins overridable from the environment (e.g.
+`BYAKUGAN_REF=v1.2 ./build-all.sh byakugan` — the role reads them itself),
+and `GODFIR_REVISION` / `GODFIR_RELEASE` override the source stamps.
 
 Each image's README carries its standalone `docker build` one-liner (run from
 the repo root, like the commands above).
@@ -220,7 +258,22 @@ The Go parser images satisfy the same contract by construction (`FROM
 scratch` — there is nothing to remove) and carry the same declaration and
 label set. A consuming pipeline can verify the contract without a shell in
 the image by exporting the filesystem and asserting the declaration against
-the absence of the removed binaries — `conform.sh --build` does exactly that.
+the absence of the removed binaries — `conform.sh --build` does exactly that,
+and the `godfir_build` role runs the same scan after every build.
+
+`harden.yml` runs by ansible **inside** the image build
+(`ansible-playbook -c local`, then the stage is squashed) and takes its
+knobs with `-e` from each Dockerfile:
+
+| var | default | meaning |
+| --- | ------- | ------- |
+| `harden_user` | `dfir` | runtime user name |
+| `harden_uid` / `harden_gid` | `2000` / the uid | fixed uid/gid |
+| `harden_remove_pkg_mgr` | `true` | remove apt/dpkg + pip |
+| `harden_extra_remove` | `[]` | image-specific paths to delete |
+| `harden_tool` | `unknown` | recorded in `/etc/dfir-hardened` (equals the `com.get-sybers.tool` label) |
+| `harden_static_binary` | `false` | the entrypoint is a static binary with no libc (Shape B keeps glibc) |
+| `harden_shell` / `harden_python` | `false` | the image intentionally keeps a shell / python — a declared deviation its Dockerfile justifies. The build gate asserts these booleans against the actual filesystem and **fails the build on any mismatch** (a declared-absent shell that is still present, and vice versa), so a Dockerfile that strips the shell *after* this playbook runs still declares `shell=false` here |
 
 ## License
 

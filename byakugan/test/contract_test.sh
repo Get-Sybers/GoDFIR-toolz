@@ -1,23 +1,11 @@
 #!/usr/bin/env bash
-# test/contract_test.sh — the framework conformance smoke test for the byakugan
-# multi-tool image (docs/framework 06.5). Processed evidence cannot be
-# committed, so the fixture set is empty: the test builds the image (unless
-# IMAGE is given), runs `build` over an empty processed tree and asserts the
-# nothing-to-do exit 1 with one JSON summary line carrying every summary_schema
-# key, reruns it (same result, no files), runs with a bad environment
-# (missing input mount) asserting exit 2, runs with no sub-tool named asserting
-# exit 2, runs `car-vocab` asserting exit 0 and one JSON line, runs `verify`
-# over an empty car tree asserting the nothing-to-do exit 1 with no report, and
-# runs `load` (bundle mode, no BYAKUGAN_LOAD_ES_URL — never a network) over an
-# empty car tree asserting the nothing-to-do exit 1 with subtool "load", plus a
-# bad environment (bogus log level) asserting exit 2. `load`'s success path
-# (a materialised car tree -> elastic/ bundles) is not exercised here: the
-# engine-side sub-tool is not implemented yet (a separate phase), and the
-# car_<object>.jsonl row shape is owned by the externally-cloned engine, not
-# this repo, so no fixture can be authored against it in advance.
-#
-#   test/contract_test.sh                                   # docker build + run
-#   IMAGE=get-sybers/byakugan:latest test/contract_test.sh      # reuse a built image
+# The framework conformance smoke test for the byakugan multi-tool image
+# (docs/framework 06.5). Processed evidence cannot be committed, so every
+# sub-tool is asserted over empty trees (nothing-to-do exits, summary lines,
+# idempotency, config errors; load in bundle mode — never a network).
+# `load`'s success path is not exercised: the engine-side sub-tool is a
+# separate phase and the externally-cloned engine owns the row shape, so no
+# fixture can be authored in advance. IMAGE=<ref> reuses a built image.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

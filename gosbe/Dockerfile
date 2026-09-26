@@ -1,12 +1,5 @@
 # syntax=docker/dockerfile:1
 # get-sybers/gosbe — Windows ShellBags (BagMRU) parser (static Go on Velociraptor's regparser).
-# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
-# batches over GOSBE_INPUT_DIR into GOSBE_OUT_DIR (one folder per NTUSER.DAT /
-# UsrClass.dat hive, .LOG1/.LOG2 replayed into GOSBE_WORK_DIR)
-# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
-# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
-#
-#   docker build -t get-sybers/gosbe:latest -f gosbe/Dockerfile gosbe
 
 ARG GO_VERSION=1.24
 ARG TOOL_VERSION=0.2.0
@@ -20,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gosbe .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /gosbe --version
 
 FROM scratch

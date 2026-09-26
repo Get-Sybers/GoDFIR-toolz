@@ -1,12 +1,5 @@
 # syntax=docker/dockerfile:1
 # get-sybers/gowxt — Windows Timeline (ActivitiesCache.db) parser (static Go on modernc.org/sqlite).
-# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
-# batches over GOWXT_INPUT_DIR into GOWXT_OUT_DIR (one folder per database,
-# the SQLite working copy lives in GOWXT_WORK_DIR)
-# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
-# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
-#
-#   docker build -t get-sybers/gowxt:latest -f gowxt/Dockerfile gowxt
 
 ARG GO_VERSION=1.24
 ARG TOOL_VERSION=0.2.0
@@ -20,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gowxt .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /gowxt --version
 
 FROM scratch

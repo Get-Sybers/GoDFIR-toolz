@@ -19,7 +19,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /goevtx .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /goevtx --version
 
 FROM scratch

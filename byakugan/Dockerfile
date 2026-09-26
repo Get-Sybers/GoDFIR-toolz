@@ -1,49 +1,24 @@
 # syntax=docker/dockerfile:1
-# get-sybers/byakugan — the external Byakugan MITRE CAR engine in ONE hardened
-# image. The engine is cloned + built INTO the image at the ref DX_DFIR's
-# sources.yml pins, so the only thing the DX_DFIR checkout holds is how it
-# INVOKES this image.
-#
-# The ENTRYPOINT is the engine's own multi-tool dispatcher, byakugan.cli
-# (docs/framework 04 §4.3), reached through the byakugan-entry.py shim —
-# `byakugan build|timeline|verify|load` with no further arguments
-# self-orchestrates that operation from its BYAKUGAN_<SUBTOOL>_* env block and
-# prints one JSON summary line; `byakugan car-vocab` prints the car_action
-# vocabulary; a sub-tool followed by arguments is the pass-through to the
-# engine's own CLI. The sub-tool set and the processed-layout discovery are
-# the engine's: the cloned ref must ship byakugan/cli.py.
-# Shape B, declared deviation: python=true (the engine is python: python3 +
-# python3-yaml stay). No shell: bash, dash and sh are removed after the
-# build-time hardener runs. static_binary=false (CPython). ca-certificates
-# also stays in the runtime stage: TLS trust for the load sub-tool's push
-# mode (precedent: signatures/Dockerfile runtime stage).
-#
-#   docker build -t get-sybers/byakugan:latest -f byakugan/Dockerfile .
-#   (--build-arg BYAKUGAN_REF=<40-hex sha> overrides the baked pin)
-#
-# The byakugan engine pin — the ONE place the engine version is set; consumers
-# (DX_DFIR included) build without a REF build-arg and inherit it.
+# get-sybers/byakugan — the external Byakugan MITRE CAR engine, cloned + built
+# into the image at the pinned ref, behind the engine's own dispatcher
+# (byakugan build|timeline|verify|load|car-vocab). Shape B; declared deviation
+# python=true; no shell. Dispatch semantics, env blocks and run docs: README.md.
 ARG BASE=debian:trixie-slim
 ARG GO_BASE=golang:1.24-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/byakugan
-ARG BYAKUGAN_REF=f77cd53c70b44bf156a2b07d820a6187303129b9
+# the ONE place the engine version is set; consumers build without a REF arg and inherit it
+ARG BYAKUGAN_REF=691d8861356647555ab474a63113a2e9565599ca
 ARG TOOL_VERSION=0.2.1
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
-# --- stage 1: build the Go parse engine -------------------------------------
-# byakugan-parse is stdlib-only Go (go/go.mod has no external requires), so
-# CGO_ENABLED=0 gives a fully static binary that runs regardless of the runtime
-# stage's glibc, and GOTOOLCHAIN=local keeps the build offline (no toolchain
-# download). The engine is cloned RECURSIVELY: it reconstructs its object model
-# live from the pinned nested submodules (third_party/car + attack-datasources),
-# so a plain clone would leave the model sources missing.
+# stdlib-only Go → static binary; GOTOOLCHAIN=local keeps the build offline.
+# The clone is RECURSIVE: the engine rebuilds its object model from the pinned
+# nested submodules (third_party/car + attack-datasources).
 FROM ${GO_BASE} AS engine
 ARG BYAKUGAN_REPO
 ARG BYAKUGAN_REF
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOFLAGS=-trimpath
-# git + CA certs installed explicitly (like anamnesis) — never assume the
-# golang base happens to ship them.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends git ca-certificates; \
@@ -53,44 +28,33 @@ RUN set -eux; \
     git -C /src submodule update --init --recursive; \
     (cd /src/go && go build -o bin/byakugan-parse ./cmd/byakugan-parse); \
     test -x /src/go/bin/byakugan-parse; \
-    # drop every .git dir (repo + submodules) — the model YAML/JSON and the built
-    # binary are all that ship; the history does not.
+    # ship the model + binary, never the history (repo AND submodule .git dirs)
     find /src -name .git -prune -exec rm -rf {} +
 
-# --- stage 2: python runtime + in-image hardening ---------------------------
 FROM ${BASE} AS hardened
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
 ARG BYAKUGAN_REF
 ARG TOOL_VERSION
-# python3 + pyyaml (the engine's ONLY runtime dependency, from apt so there is no
-# pip); ca-certificates gives the load sub-tool's push mode a trust store for its
-# Elasticsearch/Kibana TLS calls (signatures/Dockerfile runtime-stage precedent);
-# ansible-core is the build-time hardener, removed below.
+# python3-yaml from apt (no pip); ca-certificates = TLS trust for the load sub-tool's push mode
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends python3 python3-yaml ca-certificates ansible-core; \
     rm -rf /var/lib/apt/lists/*
-# The engine SOURCE TREE (package + its pinned model submodules + the static Go
-# parse binary): the engine resolves its model dir relative to the package, so
-# it must run from this tree via PYTHONPATH, never from site-packages.
+# the engine resolves its model dir relative to the package: run from this tree via PYTHONPATH, never site-packages
 COPY --from=engine /src /opt/byakugan
 COPY byakugan/byakugan-entry.py /usr/local/bin/byakugan
 COPY byakugan/contract.yml /opt/byakugan/contract.yml
 COPY hardening/harden.yml /tmp/hardening/harden.yml
 RUN chmod 0755 /usr/local/bin/byakugan && chmod 0644 /opt/byakugan/contract.yml
-# Build-stage sanity gate: the dispatcher runs and reports the version and the
-# pinned engine ref (before the hardener strips the shell this RUN needs).
+# sanity gate before the hardener strips the shell this RUN needs
 RUN BYAKUGAN_VERSION=${TOOL_VERSION} BYAKUGAN_REF=${BYAKUGAN_REF} PYTHONPATH=/opt/byakugan /usr/local/bin/byakugan --version
-# harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
-# values below: python stays (declared); every shell and ansible go.
 RUN set -eux; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=byakugan -e harden_static_binary=false -e harden_shell=false -e harden_python=true; \
     PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel, byakugan.elastic.load, byakugan.elastic.projection, byakugan.elastic.inverse_projection'; \
-    # remove the build-time hardener + every shell; KEEP python3 + python3-yaml +
-    # the baked engine tree (python is the tool, like plaso).
+    # every shell goes; python3 + python3-yaml + the baked engine tree stay (python IS the tool)
     rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
            /etc/ansible /root/.ansible /tmp/hardening \
            /usr/bin/bash /bin/bash /usr/bin/bashbug /usr/bin/perl* \
@@ -104,10 +68,7 @@ ARG BYAKUGAN_REF
 ARG TOOL_VERSION
 ARG GODFIR_REVISION
 ARG GODFIR_RELEASE
-# PYTHONPATH: run the engine from its baked source tree. BYAKUGAN_PARSE_BIN: the
-# static Go parse binary (the engine reads this env first). HOME=/tmp: the only
-# writable path on the read-only rootfs. BYAKUGAN_VERSION/BYAKUGAN_REF: what
-# `byakugan --version` and the summary line report.
+# PYTHONPATH = the baked source tree; BYAKUGAN_PARSE_BIN is read by the engine first; HOME=/tmp is the one writable path
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     HOME=/tmp \
     XDG_CACHE_HOME=/tmp/.cache \

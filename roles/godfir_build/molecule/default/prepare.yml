@@ -1,6 +1,4 @@
 ---
-# A clean slate: any fixture image left behind by an aborted run is removed,
-# so the scenario is deterministic from the first converge.
 - name: Prepare
   hosts: localhost
   gather_facts: false
@@ -16,4 +14,5 @@
         - get-sybers/badshell:latest
         - get-sybers/nodecl:latest
         - get-sybers/evil:latest
+        - ghcr.io/get-sybers/evil:latest
         - get-sybers/friendly:latest

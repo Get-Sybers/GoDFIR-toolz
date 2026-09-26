@@ -1,19 +1,9 @@
 #!/usr/bin/env bash
-# test/contract_test.sh — the framework conformance smoke test for gomount, a
-# declared argv deviation (contract.yml: entrypoint argv, streaming verbs), so
-# there is no batch summary line to assert. The test builds the image (unless
-# IMAGE is given) and asserts what the framework still requires of it:
-#   1. the built image runs as 2000:2000 and carries the label set;
-#   2. /etc/dfir-hardened is the schema=1 record declaring shell=true
-#      python=false pkg_mgr=false, and the filesystem matches (no python,
-#      no apt/dpkg/sudo, no setuid bits);
-#   3. the argv modes behave: no arguments prints usage and exits 1, and
-#      `stream` on a missing image exits non-zero with nothing on stdout.
-# The FUSE mount and userspace read verbs are exercised by test/mount-test.sh
-# and test/userspace-test.sh on a host that provides /dev/fuse and mkntfs.
-#
-#   test/contract_test.sh                                  # docker build + run
-#   IMAGE=get-sybers/gomount:latest test/contract_test.sh      # reuse a built image
+# The framework conformance smoke test for gomount — a declared argv
+# deviation, so it asserts the hardening contract and the argv modes instead
+# of a batch summary line. The mount and userspace verbs live in
+# test/mount-test.sh and test/userspace-test.sh (they need /dev/fuse +
+# mkntfs). IMAGE=<ref> reuses a built image.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

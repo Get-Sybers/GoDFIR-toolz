@@ -46,7 +46,16 @@ volume's place in the stack (`p1` | `vg/lv` | `disk`), the filesystem UUID
 and label, the inode/mftid, a `staged` path when it differs, a `skip`
 reason for files held back by `--max-file-size`, and the residue
 kind/detail on `--residue` rows.
-The artefact sets are defined in `materialise-sets.yml`, embedded at build time.
+The artefact sets are defined in `materialise-sets.yml`, embedded at build
+time (`go:embed`) — adding a set or a sibling suffix is a data edit, never a
+Go change. Each named set lists one or more **primary** artefacts to copy
+out of a volume, plus the **sibling** suffixes that must travel with each
+primary (registry transaction logs, SQLite WAL/SHM) so the downstream go*
+tool sees a complete artefact. Paths are volume-relative; `\` and `/`
+separators are both accepted and matching is case-insensitive. A `*` path
+component matches every immediate child (a profile under `\Users`, a
+`*.mdb` leaf); `**` pulls a whole tree (the `linux-core` set of docs/linux
+§5.4 uses it for the daemon parsers' artefact surface).
 A selector that matches nothing copies nothing and is not an error.
 
 The **direct backend** is the `mount` subcommand: it exports the volume as one
@@ -87,6 +96,9 @@ it runs as uid 2000; `sh` ships with the base and is declared
 
 ```sh
 docker build -t get-sybers/gomount:latest -f gomount/Dockerfile gomount
+# golang:trixie / debian:trixie-slim track the latest stable toolchain and base;
+# the build's apt-get update pulls the latest patched ntfs-3g + fuse3 (mkntfs
+# ships inside ntfs-3g on trixie — there is no separate ntfsprogs package)
 
 # rootless podman (the container is already a user namespace):
 podman run --rm -it --device /dev/fuse -v "$PWD/evidence:/evidence:ro" \
@@ -147,3 +159,35 @@ self-declaration against the filesystem, and the argv modes (usage on no
 arguments, a non-zero exit with nothing on stdout for a missing image);
 `test/mount-test.sh` and `test/userspace-test.sh` exercise the verbs on a
 host that provides `/dev/fuse` and `mkntfs`.
+
+Both integration tests build their NTFS fixture with `mkntfs` (a
+partitionless superfloppy in a plain file), so no real evidence image is
+ever needed, and both prove the source image's sha256 unchanged across every
+operation (the read-only proof). `GOMOUNT_BIN` overrides the binary under
+test; otherwise the scripts use `gomount` on PATH or build it from the
+checkout.
+
+- **`mount-test.sh`** proves the whole unprivileged mount stack: decode →
+  volume ReaderAt → single-file FUSE export → exec'd `ntfs-3g -o ro` → a
+  real, browsable, read-only mount. It asserts the mount appears as fs type
+  `fuse`/`fuse.ntfs-3g` and **not** `fuseblk` (fuseblk = block/loop device =
+  privileged; fuse over a regular file is what `FS_USERNS_MOUNT` allows
+  unprivileged), that the seeded file lists and reads through the mount, and
+  the sha256 proof. The container's default caps exclude `CAP_SYS_ADMIN`,
+  so the script re-execs its mount phase inside one fresh user+mount
+  namespace (`unshare -U -m -r`) where the process holds `CAP_SYS_ADMIN`
+  over its own mount namespace (kernel ≥ 4.18); owning ONE namespace for the
+  whole phase keeps the mount visible to the `ls`/`stat`/`umount` that
+  follow. `--no-self-unshare` tells gomount the script already owns a
+  suitable userns. Exit 3 = the environment cannot provide unprivileged
+  FUSE (an environment report says why — not a gomount bug); the unprivileged
+  recipe is `docker run --rm --device /dev/fuse --security-opt
+  apparmor=unconfined --security-opt seccomp=unconfined
+  get-sybers/gomount:latest bash /test/mount-test.sh`.
+- **`userspace-test.sh`** proves the pure-userspace path (`ls`/`cat`/`stat`/
+  `stream` straight from the in-process parser): no mount, no FUSE, no
+  separate process, no privilege — a parser bug is a Go panic, never host
+  RCE. Because it runs anywhere a Go program runs, it has **no environment
+  SKIP path**: given `ntfs-3g` (for the fixture builders) it must reach a
+  verdict, in CI included. It asserts `ls -l` (exact size), byte-identical
+  `cat`, sane `stat`, `stream --jsonl` records, and the sha256 proof.

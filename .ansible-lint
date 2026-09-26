@@ -1,13 +1,7 @@
 ---
 profile: production
 
-# The collection content is the godfir_build role + the build_images playbook;
-# hardening/harden.yml IS ansible and lints too. The per-tool contract.yml
-# files, their JSON-schema and the test fixtures are DATA (the environment
-# contract each image ships, long inline maps included), not ansible —
-# ansible-lint auto-discovers the YAML but has no business linting it; the
-# contracts have their own gate (conform.sh against hardening/contract.schema.yml
-# and each tool's contract_test).
+# contract.yml files, their schema and the test fixtures are DATA with their own gate (conform.sh)
 exclude_paths:
   - .git/
   - "*/contract.yml"
@@ -15,14 +9,11 @@ exclude_paths:
   - "*/materialise-sets.yml"
   - hardening/contract.schema.yml
 
-# The task names use the Get-Sybers house prefix
-# "<role>-<stage> | lowercase description"; the leading-uppercase idiom is
-# deliberately not applied to the prefixed form.
+# house task-name prefix "<role>-<stage> | lowercase description"
 skip_list:
   - name[casing]
 
-# community.docker is the collection's declared dependency (galaxy.yml); a
-# lint environment that is ansible-core only mocks its modules for resolution.
+# community.docker is the collection's declared dependency (galaxy.yml)
 mock_modules:
   - community.docker.docker_image
   - community.docker.docker_image_build

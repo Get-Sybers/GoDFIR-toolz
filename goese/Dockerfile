@@ -1,12 +1,5 @@
 # syntax=docker/dockerfile:1
 # get-sybers/goese — ESE database dumper for SRUM / SUM (static Go on Velociraptor's go-ese).
-# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
-# batches over GOESE_INPUT_DIR into GOESE_OUT_DIR (one folder per SRUM/SUM
-# database, one file per table plus a goese.jsonl index)
-# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
-# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
-#
-#   docker build -t get-sybers/goese:latest -f goese/Dockerfile goese
 
 ARG GO_VERSION=1.24
 ARG TOOL_VERSION=0.2.0
@@ -20,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /goese .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /goese --version
 
 FROM scratch

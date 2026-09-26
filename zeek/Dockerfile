@@ -1,32 +1,19 @@
 # syntax=docker/dockerfile:1
-# get-sybers/zeek — Zeek LTS for offline capture parsing, stripped to the zeek
-# binary + its scripts, fronted by zeek-run, a static Go batch entrypoint.
-# Self-orchestrating, env-driven, run-once-exit: with no arguments zeek-run
-# batches over ZEEK_INPUT_DIR into ZEEK_OUT_DIR (one folder per capture) and
-# prints one JSON summary line; any argument is handed to zeek verbatim.
-# Shape B: keeps glibc (zeek is a dynamic C++ binary). No shell, no python:
-# ansible (the build-time hardener), python and every shell are removed from
-# the runtime stage; zkg/zeekctl are stripped.
-#
-# zeek-lts comes from the OpenSUSE security:zeek OBS repo, fetched from the
-# MASTER server (downloadcontent.opensuse.org — direct content, no mirrorbrain
-# geo-redirect, so a mid-sync mirror can never serve a stale deb), with the
-# package version pinned (ZEEK_VERSION; empty = repo-current) and the repo
-# signing key verified against a pinned fingerprint before it is trusted
-# (ZEEK_KEY_FPR, fail-closed).
-#
-#   docker build -t get-sybers/zeek:latest -f zeek/Dockerfile .
+# get-sybers/zeek — Zeek LTS for offline capture parsing behind zeek-run, a
+# static Go batch entrypoint. Shape B: glibc stays; no shell, no python,
+# zkg/zeekctl stripped. Batch semantics, env and run docs: README.md.
 ARG BASE=debian:trixie-slim
 ARG GO_VERSION=1.25
 ARG ZEEK_PACKAGE=zeek-lts
 ARG ZEEK_VERSION=8.0.10-0
+# the OBS MASTER server (direct content, no mirrorbrain geo-redirect: a mid-sync
+# mirror can never serve a stale deb); the repo key is pinned fail-closed below
 ARG ZEEK_REPO=https://downloadcontent.opensuse.org/repositories/security:/zeek/Debian_13
 ARG ZEEK_KEY_FPR=F9FA0223B56B116C363737EF5DA57BDD6DD785CA
 ARG TOOL_VERSION=8.0.10
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
-# --- the static batch entrypoint ---------------------------------------------
 FROM golang:${GO_VERSION}-alpine AS runner
 ARG TOOL_VERSION
 WORKDIR /src
@@ -34,10 +21,9 @@ COPY zeek/go.mod zeek/go.sum ./
 RUN go mod download
 COPY zeek/*.go zeek/contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /zeek-run .
-# Build-stage sanity gate: the entrypoint runs and prints its version.
+# build-stage sanity gate
 RUN /zeek-run --version
 
-# --- zeek + in-image hardening -------------------------------------------------
 FROM ${BASE} AS hardened
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
@@ -61,8 +47,6 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends "${ZEEK_PACKAGE}${ZEEK_VERSION:+=${ZEEK_VERSION}}"; \
     apt-get purge -y curl gnupg; apt-get autoremove -y --purge
 COPY hardening/harden.yml /tmp/hardening/harden.yml
-# harden.yml writes the /etc/dfir-hardened self-declaration (schema=1) from the
-# values below; the shell and python it declares absent are removed right after.
 RUN set -eux; \
     ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \

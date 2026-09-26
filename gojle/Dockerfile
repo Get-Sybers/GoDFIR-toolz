@@ -1,11 +1,5 @@
 # syntax=docker/dockerfile:1
 # get-sybers/gojle — Windows jump list (AutomaticDestinations) parser (static Go on richardlehane/mscfb).
-# Self-orchestrating, env-driven, run-once-exit: with no arguments the binary
-# batches over GOJLE_INPUT_DIR into GOJLE_OUT_DIR (one folder per jump list)
-# and prints one JSON summary line; argv (-f/-d …) is the debug pass-through.
-# FROM scratch: static binary, no shell/python/pkg-mgr/libc, runs as uid 2000.
-#
-#   docker build -t get-sybers/gojle:latest -f gojle/Dockerfile gojle
 
 ARG GO_VERSION=1.24
 ARG TOOL_VERSION=0.2.0
@@ -19,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go contract.yml ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gojle .
-# Build-stage sanity gate: the binary runs and prints its version.
+# build-stage sanity gate
 RUN /gojle --version
 
 FROM scratch

@@ -1,13 +1,5 @@
-# materialise-sets.yml — the artefact-set catalogue for `gomount materialise`.
-#
-# Each named set lists one or more PRIMARY artefacts to copy out of an NTFS
-# volume, plus the SIBLING suffixes that must travel with each primary (registry
-# transaction logs, SQLite WAL/SHM) so the downstream go* tool sees a complete
-# artefact. Paths are volume-relative; "\" and "/" separators are both accepted
-# and matching is case-insensitive. A "*" path component matches every immediate
-# child — a user profile under \Users, a ConnectedDevicesPlatform profile, or a
-# *.mdb leaf. Add a set or a sibling suffix by editing this data file; the Go
-# code reads it (go:embed) and is never edited to add an artefact.
+# The artefact-set catalogue for `gomount materialise` — format and matching
+# rules: README.md (a data file, read via go:embed; never edit Go to add an artefact).
 sets:
   registry-core:
     primaries:
@@ -42,9 +34,7 @@ sets:
       - '\Windows\System32\sru\SRUDB.dat'
     siblings: []
 
-  # SUM: *.mdb databases live under a literal SUM directory. The SUM/ parent is
-  # preserved in the output (goese only treats a *.mdb as a SUM database when its
-  # immediate parent directory is literally named SUM).
+  # the SUM/ parent stays in the output: goese treats *.mdb as SUM only under a literal SUM directory
   sum:
     primaries:
       - '\Windows\System32\LogFiles\SUM\*.mdb'
@@ -55,10 +45,7 @@ sets:
       - '\Users\*\AppData\Local\ConnectedDevicesPlatform\*\ActivitiesCache.db'
     siblings: ['-wal', '-shm']
 
-  # docs/linux §5.4 — the Linux root-filesystem artefact set the daemon
-  # parsers (godaemonhunter) consume: the OS's own record-keeping plus the
-  # told-side configuration surface. "**" pulls a whole tree; SQLite
-  # siblings ride the -wal/-shm rule.
+  # docs/linux §5.4: the root-filesystem surface the daemon parsers consume
   linux-core:
     primaries:
       - 'var/log/**'

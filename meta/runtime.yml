@@ -1,5 +1,2 @@
 ---
-# The collection ships data (images.yml, build contexts, contracts, the
-# hardening playbook) rather than plugins; the floor matches the consumers
-# that drive builds from it (DX_DFIR's collection requires the same).
 requires_ansible: ">=2.16.0"

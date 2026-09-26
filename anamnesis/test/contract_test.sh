@@ -1,17 +1,9 @@
 #!/usr/bin/env bash
-# test/contract_test.sh — the framework conformance smoke test for the
-# anamnesis image (docs/framework 06.5). A memory image cannot be committed, so
-# the fixture set is empty: the test builds the image (unless IMAGE is given),
-# runs it in batch mode over an empty input dir and asserts the exit code and
-# that stdout is exactly one JSON line carrying every summary_schema key,
-# reruns to assert idempotency (no files appear), runs with a bad
-# environment (missing input mount) and asserts exit 2, and asserts the
-# empty symbol-cache mount point ships in the image (the engine is always
-# offline; the operator bind-mounts a persistent host directory over it
-# read-write — the contract's `symbols` mount).
-#
-#   test/contract_test.sh                                  # docker build + run
-#   IMAGE=get-sybers/anamnesis:latest test/contract_test.sh    # reuse a built image
+# The framework conformance smoke test for anamnesis (docs/framework 06.5).
+# A memory image cannot be committed, so the fixture set is empty (the
+# batch/idempotency/config-error asserts run over an empty tree) and the
+# empty symbol-cache mount point must ship in the image. IMAGE=<ref> reuses
+# a built image.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

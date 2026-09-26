@@ -1,56 +1,9 @@
 #!/usr/bin/env bash
 #
-# goyara — end-to-end PIPE test: gomount stream <image> | goyara --rules <rules>.
-#
-# Proves the whole signature-scanning path end-to-end WITHOUT any real evidence
-# image and — the point of both tools — WITHOUT any mount, FUSE, kernel driver,
-# KVM, /dev/fuse, /dev/kvm, or privilege:
-#
-#   plain file (mkntfs superfloppy) --gomount decode--> io.ReaderAt
-#     --gomount NTFS volume select + BPB--> volume ReaderAt
-#       --gomount go-ntfs in-process walk--> TAR (one entry per regular file) on stdout
-#         --pipe--> goyara reads the tar on stdin
-#           --goyara scan each file's bytes with compiled libyara rules-->
-#             one JSON match record per rule hit on stdout.
-#
-# gomount owns ALL disk/NTFS parsing; goyara does none — it consumes the tar and
-# scans. There is no separate mount process, no ntfs-3g, no fusermount3, no
-# namespace. A parser bug is a Go panic and a rules/file bug is a libyara return
-# code, never host RCE — so, like gomount's userspace test, this has no
-# environment SKIP path: given the ntfs-3g package (for the fixture builders
-# mkntfs/ntfscp), libyara (for goyara's cgo build), and a Go toolchain, it MUST
-# run to a verdict here and in CI.
-#
-# UNPRIVILEGED recipe (no --privileged, no caps, no devices):
-#   docker run --rm -v "$PWD:/src" -w /src golang:trixie bash -c '
-#     export DEBIAN_FRONTEND=noninteractive PATH=$PATH:/usr/local/go/bin
-#     apt-get update -qq
-#     apt-get install -y -qq ntfs-3g libyara-dev pkg-config
-#     bash goyara/test/e2e.sh'
-#
-# ASSERTIONS (all must hold for exit 0):
-#   A. goyara emits EXACTLY ONE JSON match record.
-#   B. that record's "rule"          == detectraptor_smoke.
-#   C. that record's "target"        == /hit.txt   (the file carrying the marker).
-#   D. goyara's stderr summary shows matches>=1 AND files_scanned>=2.
-#   E. sha256(source image) is UNCHANGED across the whole pipe (read-only proof).
-#
-# EXIT CODES:  0 = pipeline proven   2 = ran but an assertion / prerequisite FAILED
-#
-# Contract exercised (goyara reads the tar on STDIN; takes no positional tar arg):
-#   gomount stream <image>                       walk the volume, tar to stdout
-#   goyara --rules <file.yar> --json <-|OUT>     scan stdin's tar; records to stdout/OUT
-#                                                (- = stdout). Summary JSON to stderr.
-#
-# The marker file (hit.txt) is deliberately LARGE (>1 cluster) so its NTFS $DATA
-# is NON-RESIDENT: the marker bytes then live only in the file's data clusters,
-# NOT inside the $MFT record. gomount's whole-volume walk streams the NTFS system
-# metafiles too (/$MFT, /$LogFile, ...); a small RESIDENT hit.txt would put the
-# marker inside /$MFT as well and the walk would surface TWO matches. A
-# non-resident hit.txt keeps the marker to exactly one streamed entry, which is
-# what assertion A checks. A diagnostic pass below prints the marker's true
-# entry-count across the whole stream so this property is visible, not assumed.
-
+# goyara end-to-end PIPE test: gomount stream <image> | goyara --rules <...>
+# over an mkntfs fixture — no evidence image, no mount, no privilege, and NO
+# environment SKIP path. Full design, assertions and the non-resident marker
+# subtlety: ../README.md "The end-to-end pipe test". Exit 0 proven, 2 failed.
 set -u -o pipefail
 
 # ----------------------------------------------------------------------------- config

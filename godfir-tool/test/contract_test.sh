@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
-# test/contract_test.sh — the framework conformance smoke test for the
-# godfir-tool recipe, whose built images are declared argv deviations
-# (contract.yml: entrypoint argv), so there is no batch summary line to assert.
-# The test builds one image (GODFIR_TOOL, default SQLECmd; the release is
-# downloaded at build time) unless IMAGE is given, and asserts what the
-# framework still requires of it:
-#   1. the built image runs as 2000:2000 and carries the label set;
-#   2. /etc/dfir-hardened is the schema=1 record declaring shell=false
-#      python=false, and the filesystem matches (no shell, no python, no
-#      apt/dpkg/sudo);
-#   3. the entrypoint runs: `--help` returns without a runtime crash.
-#
-#   test/contract_test.sh                                   # docker build + run
-#   GODFIR_TOOL=rla test/contract_test.sh                       # another tool
-#   IMAGE=get-sybers/sqlecmd:latest test/contract_test.sh       # reuse a built image
+# The framework conformance smoke test for the godfir-tool recipe — its
+# images are declared argv deviations, so it asserts the hardening contract
+# and that the entrypoint runs, not a batch summary line. GODFIR_TOOL=<name>
+# picks the tool (default SQLECmd); IMAGE=<ref> reuses a built image.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
