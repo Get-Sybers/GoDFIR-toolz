@@ -49,7 +49,7 @@
   the 628-byte `utmpx`, gocron `var/at/tabs`, `var/at/jobs` and
   `etc/periodic`, goshell the per-session histories, gousers
   `master.passwd`, gohost a staged `localtime` symlink's zone name. A new
-  `pinfo/plist` package decodes XML and binary property lists (clean-room;
+  `pinfo/plist` package decodes XML (UTF-8 or UTF-16) and binary property lists (clean-room;
   proven against a reference encoder's bytes). gomount's catalogue gains
   the `macos-core` and `macos-system` sets; the image pull asks for
   `linux-core` and `macos-core`, then — when `gomount identify` shows a

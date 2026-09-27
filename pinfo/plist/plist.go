@@ -304,11 +304,54 @@ func (d *binDecoder) object(ref uint64, depth int) (any, error) {
 
 // ---- XML ---------------------------------------------------------------------------
 
-// DecodeXML parses the XML form: one value under <plist>.
+// utf16ToUTF8 transcodes a UTF-16 byte stream (big- or little-endian).
+func utf16ToUTF8(b []byte, bigEndian bool) []byte {
+	units := make([]uint16, 0, len(b)/2)
+	for i := 0; i+1 < len(b); i += 2 {
+		if bigEndian {
+			units = append(units, binary.BigEndian.Uint16(b[i:]))
+		} else {
+			units = append(units, binary.LittleEndian.Uint16(b[i:]))
+		}
+	}
+	return []byte(string(utf16.Decode(units)))
+}
+
+// charsetReader converts the encodings a plist's XML declaration may name:
+// UTF-8 (and ASCII) as is, UTF-16 transcoded; anything else is refused
+// with a clear error rather than misread.
+func charsetReader(charset string, in io.Reader) (io.Reader, error) {
+	switch strings.ToLower(strings.TrimSpace(charset)) {
+	case "", "utf-8", "utf8", "us-ascii", "ascii":
+		return in, nil
+	case "utf-16", "utf-16le", "utf-16be":
+		raw, err := io.ReadAll(in)
+		if err != nil {
+			return nil, err
+		}
+		be := strings.HasSuffix(strings.ToLower(charset), "be")
+		if len(raw) >= 2 && raw[0] == 0xfe && raw[1] == 0xff {
+			be, raw = true, raw[2:]
+		} else if len(raw) >= 2 && raw[0] == 0xff && raw[1] == 0xfe {
+			be, raw = false, raw[2:]
+		}
+		return bytes.NewReader(utf16ToUTF8(raw, be)), nil
+	}
+	return nil, fmt.Errorf("plist: xml encoding %q is not supported (UTF-8 and UTF-16 are)", charset)
+}
+
+// DecodeXML parses the XML form: one value under <plist>. A UTF-16 file
+// (a byte-order mark, or an encoding declaration) is transcoded first.
 func DecodeXML(b []byte) (any, error) {
+	if len(b) >= 2 && ((b[0] == 0xfe && b[1] == 0xff) || (b[0] == 0xff && b[1] == 0xfe)) {
+		b = utf16ToUTF8(b[2:], b[0] == 0xfe)
+		// the declaration inside now names an encoding the bytes no longer have
+		b = bytes.Replace(b, []byte(`encoding="UTF-16"`), []byte(`encoding="UTF-8"`), 1)
+		b = bytes.Replace(b, []byte(`encoding="utf-16"`), []byte(`encoding="UTF-8"`), 1)
+	}
 	dec := xml.NewDecoder(bytes.NewReader(b))
 	dec.Strict = false
-	dec.CharsetReader = func(charset string, in io.Reader) (io.Reader, error) { return in, nil }
+	dec.CharsetReader = charsetReader
 	var top any
 	got := false
 	for {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 )
 
 // pyBinary is Python plistlib's binary rendering of
@@ -184,5 +185,34 @@ func TestAccessorsOverDslocalShapes(t *testing.T) {
 	}
 	if _, ok := Int(d["missing"]); ok {
 		t.Fatal("a missing key must not read as an int")
+	}
+}
+
+func TestXMLUTF16(t *testing.T) {
+	src := "<?xml version=\"1.0\" encoding=\"UTF-16\"?><plist version=\"1.0\"><dict><key>Label</key><string>héllo</string></dict></plist>"
+	for _, bigEndian := range []bool{true, false} {
+		var b []byte
+		if bigEndian {
+			b = append(b, 0xfe, 0xff)
+		} else {
+			b = append(b, 0xff, 0xfe)
+		}
+		for _, u := range utf16.Encode([]rune(src)) {
+			if bigEndian {
+				b = append(b, byte(u>>8), byte(u))
+			} else {
+				b = append(b, byte(u), byte(u>>8))
+			}
+		}
+		v, err := Decode(b)
+		if err != nil {
+			t.Fatalf("utf-16 be=%v: %v", bigEndian, err)
+		}
+		if String(Dict(v)["Label"]) != "héllo" {
+			t.Fatalf("utf-16 be=%v: %v", bigEndian, v)
+		}
+	}
+	if _, err := Decode([]byte(`<?xml version="1.0" encoding="ISO-8859-1"?><plist version="1.0"><dict/></plist>`)); err == nil || !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("an unsupported encoding must be refused clearly: %v", err)
 	}
 }
