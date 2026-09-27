@@ -26,6 +26,14 @@ streams: [authentication, user_session, process, service, flow, file, module]
 
 subtools: [hunt, gohost, gousers, gonetwork, gomachost, gomacusers, gojournal, goauditd, gowtmp, gosyslog, gounit, gocron, goshell, gotrash, goctl, golaunchd]
 
+# The layers, for a driver that runs the parsers one container at a time
+# over a staged host tree (DX_DFIR's loose-host path): layer1 builds the
+# knowledge store and runs first, layer2 runs with it mounted. This is the
+# registry hunt runs — a driver reads it from here rather than carrying a
+# copy; the binary's tests hold the two in step.
+layer1: [gohost, gousers, gonetwork, gomachost, gomacusers]
+layer2: [gojournal, goauditd, gowtmp, gosyslog, gounit, gocron, goshell, gotrash, goctl, golaunchd]
+
 # hunt's own block. A parser sub-tool run (`godaemonhunter gowtmp`) reads
 # that tool's canonical <SUBTOOL>_* block instead (GOWTMP_INPUT_DIR,
 # GOWTMP_OUT_DIR, …) — each parser package's README (wtmp/README.md and
@@ -35,7 +43,7 @@ env:
   GODAEMONHUNTER_OUT_DIR:       {required: false, default: /output, desc: 'output root: knowledge/ (Layer 1) + one <subtool>/ tree per daemon parser'}
   GODAEMONHUNTER_KNOWLEDGE_DIR: {required: false, default: "",      desc: 'override the knowledge store location; empty = <OUT_DIR>/knowledge, built by Layer 1 in the same run'}
   GODAEMONHUNTER_WORK_DIR:      {required: false, default: /work,   desc: 'scratch (writable tmpfs), shared by every sub-run; a disk image''s linux-core / macos-core surface is pulled here while its parsers run, so bind a disk-backed dir for large images'}
-  GODAEMONHUNTER_IMAGE:         {required: false, default: "",      desc: 'run ON one disk image: its path relative to INPUT_DIR (E01/Ex01, raw, VMDK, VHDX, VHD, QCOW2, VDI). The baked-in gomount pulls the linux-core and macos-core surfaces (docs/linux §5.4; whichever the OS volume holds — a Mac''s APFS Data volume or HFS+ volume resolves like a Linux root) into WORK_DIR, the layered run goes over that as over a staged root tree, the knowledge store lands at <KNOWLEDGE_DIR>/<image>/ and the records under <OUT_DIR>/<subtool>/<image>/, nothing is exported. Empty = the loose tree itself plus every image directly under it; a sub-tool run reads <SUBTOOL>_IMAGE and writes <OUT_DIR>/<image>/'}
+  GODAEMONHUNTER_IMAGE:         {required: false, default: "",      desc: 'run ON one disk image: its path relative to INPUT_DIR (E01/Ex01, raw, VMDK, VHDX, VHD, QCOW2, VDI, DMG (.dmg), sparseimage (.sparseimage)). The baked-in gomount pulls the linux-core and macos-core surfaces (docs/linux §5.4; whichever the OS volume holds — a Mac''s APFS Data volume or HFS+ volume resolves like a Linux root) into WORK_DIR, the layered run goes over that as over a staged root tree, the knowledge store lands at <KNOWLEDGE_DIR>/<image>/ and the records under <OUT_DIR>/<subtool>/<image>/, nothing is exported. Empty = the loose tree itself plus every image directly under it; a sub-tool run reads <SUBTOOL>_IMAGE and writes <OUT_DIR>/<image>/'}
   GODAEMONHUNTER_FORCE:         {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have valid output, in every sub-run'}
   GODAEMONHUNTER_LOG_LEVEL:     {required: false, default: info,    desc: 'error|warn|info|debug, stderr only, applied to every sub-run'}
 

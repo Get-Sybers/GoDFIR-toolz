@@ -116,6 +116,18 @@ func TestImageSelectionRejectsParts(t *testing.T) {
 			t.Errorf("selectedImages(%q) accepted a part of another image / a non-image", name)
 		}
 	}
+	// the Apple disk images gomount reads are items too
+	for _, name := range []string{"installer.dmg", "backup.sparseimage", "host.E01", "disk.vmdk"} {
+		if err := os.WriteFile(filepath.Join(in, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if imgs, err := selectedImages(in, name); err != nil || len(imgs) != 1 {
+			t.Errorf("selectedImages(%q) = %v, %v; want the one image", name, imgs, err)
+		}
+		if !isImageItem(name) {
+			t.Errorf("isImageItem(%q) = false", name)
+		}
+	}
 	_ = stub
 }
 
