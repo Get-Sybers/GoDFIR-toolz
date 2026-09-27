@@ -151,6 +151,7 @@ func TestImageItemRules(t *testing.T) {
 		{"disk.vmdk", true}, {"disk-flat.vmdk", false}, {"disk-s001.vmdk", false},
 		{"host.E01", true}, {"host.E02", false}, {"host.EAA", false}, {"host.Ex01", true},
 		{"vm.vhdx", true}, {"vm.qcow2", true}, {"notes.txt", false},
+		{"installer.dmg", true}, {"backup.sparseimage", true}, {"Installer.DMG", true},
 	} {
 		if got := isImageItem(tc.name); got != tc.want {
 			t.Errorf("isImageItem(%q) = %v, want %v", tc.name, got, tc.want)
