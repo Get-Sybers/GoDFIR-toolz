@@ -12,12 +12,13 @@ ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
 FROM ${GO_IMAGE} AS build
+ARG TOOL_VERSION
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 # static, trimmed, CGO off — gomount only execs ntfs-3g, never links it
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /gomount .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gomount .
 # sanity gate: no args must print usage and exit 1 (a panic exits differently and fails the build)
 RUN /gomount >/dev/null 2>&1; [ $? -eq 1 ]
 

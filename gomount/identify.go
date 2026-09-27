@@ -7,7 +7,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,7 +30,7 @@ type identifyDoc struct {
 
 type identifyImage struct {
 	Path   string `json:"path"`
-	Format string `json:"format"` // "e01" | "raw"
+	Format string `json:"format"` // "e01" | "vmdk" | "vhdx" | "vhd" | "qcow2" | "vdi" | "raw"
 	Size   int64  `json:"size"`
 }
 
@@ -189,20 +188,5 @@ func osGuess(fsys fsx.FS) string {
 	return ""
 }
 
-// sniffFormat labels the image container by its first bytes.
-func sniffFormat(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	var hdr [8]byte
-	if _, err := io.ReadFull(f, hdr[:]); err != nil {
-		return "raw"
-	}
-	if bytes.Equal(hdr[:], []byte{0x45, 0x56, 0x46, 0x09, 0x0d, 0x0a, 0xff, 0x00}) ||
-		bytes.Equal(hdr[:], []byte{0x45, 0x56, 0x46, 0x32, 0x0d, 0x0a, 0x81, 0x00}) {
-		return "e01"
-	}
-	return "raw"
-}
+// sniffFormat labels the image container by its content (image.Format).
+func sniffFormat(path string) string { return image.Format(path) }

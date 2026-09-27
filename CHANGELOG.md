@@ -1,5 +1,32 @@
 # Changelog — get_sybers.godfir_toolz
 
+## 0.4.0 (unreleased)
+
+- **The parsers run ON the disk image.** `gowindowlicker` and
+  `godaemonhunter` take a disk image as an item (`GOWINDOWLICKER_IMAGE` /
+  `GODAEMONHUNTER_IMAGE`, or every image directly under the input tree; a
+  sub-tool run reads `<SUBTOOL>_IMAGE`): the baked-in gomount pulls the
+  parsers' artefact sets out of the OS volume into the work dir, the batch
+  loop runs over that as over a loose folder, records land under
+  `<OUT_DIR>/<subtool>/<image>/…` (the hunt's knowledge store under
+  `<KNOWLEDGE_DIR>/<image>/`), the scratch goes — nothing is exported, nothing
+  is mounted. Both images now build from the repo root (they copy the
+  sibling `gomount/`), and their summaries carry `images` and `failures`.
+- **gomount reads VM disks.** VMDK (monolithic and split sparse extents,
+  streamOptimized, text descriptors with flat/zero extents, snapshot chains
+  through `parentFileNameHint`, descriptor-less `-sNNN` sets), VHDX and VHD
+  (fixed, dynamic, differencing), QCOW2 (backing files, compressed clusters)
+  and VDI (dynamic, differencing) — detected by content, never by name.
+  The decoders are ported from [VMkatz](https://github.com/nikaiw/VMkatz)
+  (MIT); `identify` labels the container.
+- **gomount `materialise` speaks the batch contract**: ONE JSON summary line
+  on stdout and the 0/1/2/3 exit table (0 ok, 1 nothing pulled, 2 config
+  error, 3 partial), so a lane can run it per image like any dispatcher.
+  New sets: `winevt`, `prefetch`, `mft`, `recent`, `recyclebin`, and
+  `windows-core` (every Windows set in one); `linux-core` gains
+  `usr/lib/os-release`, `utmp` and `.Trash-*`. The Dockerfile stamps
+  `main.version`.
+
 ## 0.3.2
 
 - **`byakugan` discovers DX_DFIR's per-collection, per-host processed

@@ -113,7 +113,9 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   row per (file, timestamp kind) with allocation state (--residue adds the
   recovered rows, --hash content digests).
 
-  <image>       E01/Ex01 (segmented) or raw/dd/img disk image (opened read-only)
+  <image>       a disk image, opened read-only and detected by content: E01/Ex01
+                (segmented), raw/dd/img, VMDK (sparse, streamOptimized, descriptor
+                + flat/split extents, snapshot chains), VHDX, VHD, QCOW2 or VDI
   --volume N    1-based volume in the resolved stack; 0 = auto (largest NTFS,
                 else the volume holding /etc/os-release, else largest known)
   --lv vg/lv    address an LVM2 logical volume by name
@@ -124,8 +126,9 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   --filter GLOB stream: glob the base name, or the path when it holds '/' (default: all)
   --jsonl       stream: one JSON object per file {path,size,mtime,mftid} instead of a tar
   --out DIR     materialise: output directory for the pulled artefacts (required)
-  --set NAME    materialise: named artefact set to pull, repeatable (registry-core,
-                amcache, shimcache, ntuser, usrclass, srum, sum, timeline)
+  --set NAME    materialise: named artefact set to pull, repeatable (windows-core,
+                registry-core, amcache, shimcache, ntuser, usrclass, srum, sum,
+                timeline, winevt, prefetch, mft, recent, recyclebin, linux-core)
   --select GLOB materialise: ad-hoc volume-path glob to pull, repeatable
   --siblings    materialise: also pull each artefact's named siblings (default true)
   --manifest    materialise: write <out>/materialise.jsonl for the pulled files
@@ -134,8 +137,10 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   writes a tar of the filtered files to stdout for a downstream tool (e.g. goyara),
   a per-file {path,size,mtime,mftid} JSONL with --jsonl, and a {files,bytes,errors}
   summary on stderr. materialise copies targeted artefacts (and their siblings)
-  to <out>/<volume-path> at mode 0400 for the model-B go* tools' -d <dir>. Every
-  verb opens the image read-only and never writes to it.
+  to <out>/<volume-path> at mode 0400 for the model-B go* tools' -d <dir>, and
+  prints ONE JSON summary line on stdout (the batch contract: 0 ok, 1 nothing
+  pulled, 2 config error, 3 partial). Every verb opens the image read-only and
+  never writes to it.
 
   DIRECT-backend flags: --mount-point (default /mnt/ntfs), --read-only (default true),
   --work PATH (FUSE work dir), --no-self-unshare, --foreground (default true).

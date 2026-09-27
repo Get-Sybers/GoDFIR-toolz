@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	yaml "github.com/Velocidex/yaml/v2"
 
@@ -98,8 +99,56 @@ func (m *multiFlag) Set(v string) error {
 	return nil
 }
 
+// batchSummary is the ONE machine-readable line materialise prints on
+// stdout — the batch contract every DX_DFIR lane gates on (the same keys
+// the multi-tool dispatchers emit), with the batch exit table: 0 ok,
+// 1 nothing pulled, 2 config error, 3 partial (the image or some files
+// failed). The other verbs stay argv-native and print no summary.
+type batchSummary struct {
+	Tool      string         `json:"tool"`
+	Subtool   string         `json:"subtool"`
+	Version   string         `json:"version"`
+	Status    string         `json:"status"`
+	Inputs    int            `json:"inputs"`
+	Processed int            `json:"processed"`
+	Skipped   int            `json:"skipped"`
+	Failed    int            `json:"failed"`
+	Records   int            `json:"records"`
+	Outputs   []string       `json:"outputs"`
+	Exit      int            `json:"exit"`
+	Started   string         `json:"started"`
+	DurationS float64        `json:"duration_s"`
+	Failures  []batchFailure `json:"failures,omitempty"`
+	Error     string         `json:"error,omitempty"`
+}
+
+type batchFailure struct {
+	Item  string `json:"item"`
+	Error string `json:"error"`
+}
+
+// version is stamped by the build (-ldflags "-X main.version=…").
+var version = "dev"
+
 func runMaterialise(argv []string) int {
-	fs := flag.NewFlagSet("materialise", flag.ExitOnError)
+	started := time.Now()
+	sum := batchSummary{Tool: "gomount", Subtool: "materialise", Version: version,
+		Outputs: []string{}, Started: started.UTC().Format("2006-01-02T15:04:05Z")}
+	finish := func(status string, code int) int {
+		sum.Status, sum.Exit = status, code
+		sum.DurationS = float64(time.Since(started).Milliseconds()) / 1000
+		b, _ := json.Marshal(sum)
+		fmt.Fprintln(os.Stdout, string(b))
+		return code
+	}
+	configErr := func(msg string) int {
+		fmt.Fprintln(os.Stderr, "gomount materialise: "+msg)
+		sum.Error = msg
+		return finish("config_error", 2)
+	}
+
+	fs := flag.NewFlagSet("materialise", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
 	volume := fs.Int("volume", 0, "1-based volume in the resolved stack (default 0 = auto-select)")
 	lvName := fs.String("lv", "", "address an LVM logical volume as vg/lv")
 	out := fs.String("out", "", "output directory for the pulled artefacts (required, writable)")
@@ -111,47 +160,49 @@ func runMaterialise(argv []string) int {
 	fs.Var(&sets, "set", "named artefact set to pull (repeatable)")
 	fs.Var(&selects, "select", "ad-hoc volume-path glob to pull (repeatable)")
 	fs.Usage = usage
-	_ = fs.Parse(argv)
+	if err := fs.Parse(argv); err != nil {
+		return configErr(err.Error())
+	}
 
 	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "gomount materialise: usage: materialise [--volume N | --lv vg/lv] --out DIR [--set NAME]... [--select GLOB]... [--siblings=true] [--manifest] [--max-file-size N] [--residue] <image>")
-		return 1
+		return configErr("usage: materialise [--volume N | --lv vg/lv] --out DIR [--set NAME]... [--select GLOB]... [--siblings=true] [--manifest] [--max-file-size N] [--residue] <image>")
 	}
 	if *out == "" {
-		fmt.Fprintln(os.Stderr, "gomount materialise: --out DIR is required")
-		return 1
+		return configErr("--out DIR is required")
 	}
 	if len(sets) == 0 && len(selects) == 0 {
-		fmt.Fprintln(os.Stderr, "gomount materialise: nothing to do: give at least one --set or --select")
-		return 1
+		return configErr("nothing to do: give at least one --set or --select")
 	}
 
 	catalogue, err := loadArtefactSets()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
-		return 1
+		return configErr(err.Error())
 	}
 	// A set that matches no files is fine; a set name that does not exist is an
 	// operator typo, so fail loudly before touching the image.
 	for _, name := range sets {
 		if _, ok := catalogue[name]; !ok {
-			fmt.Fprintf(os.Stderr, "gomount materialise: unknown --set %q (known: %s)\n", name, strings.Join(sortedSetNames(catalogue), ", "))
-			return 1
+			return configErr(fmt.Sprintf("unknown --set %q (known: %s)", name, strings.Join(sortedSetNames(catalogue), ", ")))
 		}
 	}
 	for _, g := range selects {
 		// Validate the normalised form the matcher uses (Windows "\" separators
 		// become "/"), so a valid selector is not rejected as a bad pattern.
 		if _, err := path.Match(strings.ReplaceAll(g, "\\", "/"), ""); err != nil {
-			fmt.Fprintf(os.Stderr, "gomount materialise: invalid --select pattern %q: %v\n", g, err)
-			return 1
+			return configErr(fmt.Sprintf("invalid --select pattern %q: %v", g, err))
 		}
 	}
 
+	sum.Inputs = 1
+	sum.Outputs = []string{*out}
 	fsys, rawFS, ref, closer, err := openVolume(fs.Arg(0), *volume, *lvName)
 	if err != nil {
+		// the one item failed before a byte was read: partial, like a
+		// dispatcher's failed item, never a silent zero
 		fmt.Fprintf(os.Stderr, "gomount: %v\n", err)
-		return 1
+		sum.Failed = 1
+		sum.Failures = []batchFailure{{Item: fs.Arg(0), Error: err.Error()}}
+		return finish("partial", 3)
 	}
 	defer closer()
 
@@ -179,8 +230,7 @@ func runMaterialise(argv []string) int {
 	}
 
 	if err := os.MkdirAll(*out, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "gomount: create --out dir: %v\n", err)
-		return 1
+		return configErr(fmt.Sprintf("create --out dir: %v", err))
 	}
 
 	newRecord := func(e fileEntry) materialiseRecord {
@@ -230,10 +280,21 @@ func runMaterialise(argv []string) int {
 	}
 
 	fmt.Fprintf(os.Stderr, "gomount materialise: %d file(s), %d byte(s) -> %s\n", files, bytesCopied, *out)
-	if errCount+walkErrs > 0 {
-		return 2
+	sum.Records = files
+	switch {
+	case errCount+walkErrs > 0:
+		sum.Processed, sum.Failed = 1, 0
+		sum.Failures = []batchFailure{{Item: fs.Arg(0), Error: fmt.Sprintf("%d file(s) failed to copy or walk (see stderr)", errCount+walkErrs)}}
+		if files == 0 {
+			sum.Processed, sum.Failed = 0, 1
+		}
+		return finish("partial", 3)
+	case files == 0:
+		return finish("nothing", 1)
+	default:
+		sum.Processed = 1
+		return finish("ok", 0)
 	}
-	return 0
 }
 
 // targetSet de-duplicates resolved files by their canonical volume path — the
