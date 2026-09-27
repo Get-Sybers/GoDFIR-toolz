@@ -283,11 +283,13 @@ func runMaterialise(argv []string) int {
 	sum.Records = files
 	switch {
 	case errCount+walkErrs > 0:
-		sum.Processed, sum.Failed = 1, 0
-		sum.Failures = []batchFailure{{Item: fs.Arg(0), Error: fmt.Sprintf("%d file(s) failed to copy or walk (see stderr)", errCount+walkErrs)}}
-		if files == 0 {
-			sum.Processed, sum.Failed = 0, 1
+		// the one item failed in part: failed=1 (what drives "partial" in
+		// the batch runtimes), processed=1 when some of it landed
+		sum.Failed = 1
+		if files > 0 {
+			sum.Processed = 1
 		}
+		sum.Failures = []batchFailure{{Item: fs.Arg(0), Error: fmt.Sprintf("%d file(s) failed to copy or walk (see stderr)", errCount+walkErrs)}}
 		return finish("partial", 3)
 	case files == 0:
 		return finish("nothing", 1)

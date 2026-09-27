@@ -151,17 +151,15 @@ func OpenImage(path string) (ra io.ReaderAt, size int64, closer func() error, er
 }
 
 // looksLikeEWF reports whether path is an EWF/E01 set, by the first-segment
-// signature (authoritative) and, failing a readable signature, by extension.
-func looksLikeEWF(f io.ReaderAt, path string) (bool, error) {
+// signature alone: every first segment carries it, and a name never decides
+// (a mislabelled raw file called .E01 stays raw).
+func looksLikeEWF(f io.ReaderAt, _ string) (bool, error) {
 	var hdr [8]byte
 	n, err := f.ReadAt(hdr[:], 0)
 	if err != nil && err != io.EOF {
 		return false, err
 	}
-	if n >= 8 && (bytes.Equal(hdr[:], sigEVF) || bytes.Equal(hdr[:], sigEVF2)) {
-		return true, nil
-	}
-	return ewfSegmentExt.MatchString(filepath.Ext(path)), nil
+	return n >= 8 && (bytes.Equal(hdr[:], sigEVF) || bytes.Equal(hdr[:], sigEVF2)), nil
 }
 
 // ewfSegments returns every segment file of the EWF set that path belongs to, in
@@ -225,8 +223,5 @@ func Format(path string) string {
 	if st, err := f.Stat(); err == nil && looksLikeVHD(f, st.Size()) {
 		return "vhd"
 	}
-	if ewfSegmentExt.MatchString(filepath.Ext(path)) {
-		return "e01"
-	}
-	return "raw"
+	return "raw" // a name alone never decides: a mislabelled raw stays raw
 }

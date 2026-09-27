@@ -25,12 +25,13 @@ RUN /godaemonhunter --version
 # gomount: CGO-free static reader of the disk image (its go.mod pins the Go
 # it needs; the toolchain downloads it when the base is older)
 FROM golang:alpine AS gomount-build
+ARG TOOL_VERSION
 ENV GOTOOLCHAIN=auto
 WORKDIR /src/gomount
 COPY gomount/go.mod gomount/go.sum ./
 RUN go mod download
 COPY gomount/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/gomount .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /out/gomount .
 
 FROM scratch
 COPY --from=build /godaemonhunter /godaemonhunter

@@ -139,5 +139,13 @@ func selectedImages(inputDir, selected string) ([]string, error) {
 	if !st.Mode().IsRegular() {
 		return nil, fmt.Errorf("IMAGE %s: not a file", selected)
 	}
+	// the same rule discovery applies: a VMDK's -flat/-sNNN extent or an
+	// EWF set's .E02… segment is a part of another item — name that item
+	if imagePart.MatchString(p) {
+		return nil, fmt.Errorf("IMAGE %s: a part of another image (a VMDK extent or an EWF segment) — name its descriptor or first segment", selected)
+	}
+	if !imageExt.MatchString(p) {
+		return nil, fmt.Errorf("IMAGE %s: not a disk image by name (%s)", selected, imageExt.String())
+	}
 	return []string{p}, nil
 }

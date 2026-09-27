@@ -40,8 +40,9 @@ summary_schema:
   required: [tool, subtool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s]
   note: >
     materialise prints exactly ONE summary line on stdout (inputs is always
-    1, the image; records = files pulled; failures lists the image with its
-    error on partial) and, with --manifest, writes <out>/materialise.jsonl —
+    1, the image; records = files pulled; on partial failed is 1, processed 1
+    when part of it landed, and failures names the image with its error) and,
+    with --manifest, writes <out>/materialise.jsonl —
     each row an ORIGIN RECORD (docs/linux §5.4): path/size/mtime plus image,
     volume (p1 | vg/lv | disk), fsuuid, label, inode/mftid, a staged path when
     it differs, a skip reason for files held back (--max-file-size), and the

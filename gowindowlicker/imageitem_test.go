@@ -115,6 +115,20 @@ func TestSubtoolRunsOnImage(t *testing.T) {
 	}
 }
 
+func TestImageSelectionRejectsParts(t *testing.T) {
+	stub := gomountStub(t)
+	in := t.TempDir()
+	for _, name := range []string{"disk-flat.vmdk", "disk-s002.vmdk", "host.E02", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(in, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := selectedImages(in, name); err == nil {
+			t.Errorf("selectedImages(%q) accepted a part of another image / a non-image", name)
+		}
+	}
+	_ = stub
+}
+
 func TestImageSelectionErrors(t *testing.T) {
 	stub := gomountStub(t)
 	in, out := t.TempDir(), t.TempDir()

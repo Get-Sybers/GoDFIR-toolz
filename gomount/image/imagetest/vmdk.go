@@ -185,7 +185,7 @@ func WriteFlatVMDK(path string, raw []byte, zeroSectors int) error {
 func WriteFixedVHD(path string, raw []byte) error {
 	ft := make([]byte, 512)
 	copy(ft[0:8], "conectix")
-	binary.BigEndian.PutUint32(ft[8:12], 2)          // features: reserved bit
+	binary.BigEndian.PutUint32(ft[8:12], 2)           // features: reserved bit
 	binary.BigEndian.PutUint32(ft[12:16], 0x00010000) // version
 	binary.BigEndian.PutUint64(ft[16:24], ^uint64(0)) // data offset: none (fixed)
 	binary.BigEndian.PutUint64(ft[40:48], uint64(len(raw)))

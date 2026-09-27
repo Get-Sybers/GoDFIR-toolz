@@ -426,12 +426,20 @@ func (e *sparseExtent) readGrain(idx int64, gte uint32) ([]byte, error) {
 		return nil, fmt.Errorf("vmdk: implausible compressed grain size %d", csize)
 	}
 	comp := make([]byte, csize)
-	if _, err := e.f.ReadAt(comp, base+12); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("vmdk: read compressed grain: %w", err)
+	n, rerr := e.f.ReadAt(comp, base+12)
+	if rerr != nil && !errors.Is(rerr, io.EOF) {
+		return nil, fmt.Errorf("vmdk: read compressed grain: %w", rerr)
 	}
-	out, err := inflateGrain(comp, e.grainBytes)
-	if err != nil {
-		return nil, err
+	// only what the file holds goes to the inflater; a grain cut short by a
+	// truncated extent (or whose stream does not decode) reads as zeros, the
+	// same policy as an uncompressed grain past the end of its file
+	out, ierr := inflateGrain(comp[:n], e.grainBytes)
+	if ierr != nil {
+		if int64(n) < csize {
+			out = make([]byte, e.grainBytes)
+		} else {
+			return nil, ierr
+		}
 	}
 	e.mu.Lock()
 	e.lastIdx, e.last = idx, out
@@ -443,16 +451,23 @@ func (e *sparseExtent) readGrain(idx int64, gte uint32) ([]byte, error) {
 // write) or, failing that, raw deflate; the result is padded to the grain.
 func inflateGrain(comp []byte, grainBytes int64) ([]byte, error) {
 	out := make([]byte, grainBytes)
-	zr, err := zlib.NewReader(bytes.NewReader(comp))
-	if err == nil {
+	// a zlib header (CMF/FLG check) means a zlib stream: decode it as one and
+	// never retry its bytes as raw deflate — that retry would hand corruption
+	// back as data
+	if len(comp) >= 2 && comp[0]&0x0f == 8 && (uint16(comp[0])<<8|uint16(comp[1]))%31 == 0 {
+		zr, err := zlib.NewReader(bytes.NewReader(comp))
+		if err != nil {
+			return nil, fmt.Errorf("vmdk: inflate grain: %w", err)
+		}
 		n, rerr := io.ReadFull(zr, out)
 		zr.Close()
-		if rerr == nil || errors.Is(rerr, io.ErrUnexpectedEOF) || errors.Is(rerr, io.EOF) {
-			for i := n; i < len(out); i++ {
-				out[i] = 0
-			}
-			return out, nil
+		if rerr != nil && !errors.Is(rerr, io.ErrUnexpectedEOF) && !errors.Is(rerr, io.EOF) {
+			return nil, fmt.Errorf("vmdk: inflate grain: %w", rerr)
 		}
+		for i := n; i < len(out); i++ {
+			out[i] = 0
+		}
+		return out, nil
 	}
 	fr := flate.NewReader(bytes.NewReader(comp))
 	n, rerr := io.ReadFull(fr, out)

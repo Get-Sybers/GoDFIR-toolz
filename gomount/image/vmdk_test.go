@@ -2,6 +2,7 @@ package image
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"math/rand"
 	"os"
@@ -178,5 +179,81 @@ func TestRawStillRaw(t *testing.T) {
 	readAll(t, p, raw)
 	if f := Format(p); f != "raw" {
 		t.Fatalf("Format(mislabelled): %q", f)
+	}
+	// a name never decides: a raw file called .E01 is still raw
+	e := filepath.Join(dir, "plain.E01")
+	if err := os.WriteFile(e, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	readAll(t, e, raw)
+	if f := Format(e); f != "raw" {
+		t.Fatalf("Format(mislabelled .E01): %q", f)
+	}
+}
+
+func TestVMDKCompressedGrainShortReadAndCorruption(t *testing.T) {
+	dir := t.TempDir()
+	raw := rawDisk(t, 16*4)
+	p := filepath.Join(dir, "cut.vmdk")
+	if err := imagetest.WriteSparseVMDK(p, raw, imagetest.VMDKOptions{Compressed: true}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ra, _, closer, err := OpenImage(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext := ra.(*vmdkDisk).extents[0].ra.(*sparseExtent)
+	gte, err := ext.grainOffset(3 * 16 * 512)
+	closer()
+	if err != nil || gte == 0 {
+		t.Fatalf("grain 3 offset: %d %v", gte, err)
+	}
+	marker := int(gte) * 512
+
+	// 1. the marker claims more bytes than the file holds past it: ReadAt
+	// comes back short, only what was read goes to the inflater, and the
+	// intact stream at the front still decodes to the right bytes
+	short := append([]byte(nil), b...)
+	binary.LittleEndian.PutUint32(short[marker+8:marker+12], uint32(16*512*2))
+	if err := os.WriteFile(p, short, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ra, _, closer, err = OpenImage(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, 16*512)
+	if _, err := ra.ReadAt(got, 3*16*512); err != nil && err != io.EOF {
+		t.Fatalf("short read of a compressed grain must not fail: %v", err)
+	}
+	closer()
+	if !bytes.Equal(got, raw[3*16*512:4*16*512]) {
+		t.Fatalf("short read: the intact stream must decode to the raw bytes")
+	}
+
+	// 2. the payload itself is corrupt (zeros over the stream): that is an
+	// error, never garbage handed back as evidence
+	corrupt := append([]byte(nil), b...)
+	for i := marker + 12; i < marker+12+64; i++ {
+		corrupt[i] = 0
+	}
+	if err := os.WriteFile(p, corrupt, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ra, _, closer, err = OpenImage(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closer()
+	if _, err := ra.ReadAt(got, 3*16*512); err == nil {
+		t.Fatalf("a corrupt compressed grain must surface an error")
+	}
+	// the grains before it are untouched
+	if _, err := ra.ReadAt(got, 0); err != nil || !bytes.Equal(got, raw[:len(got)]) {
+		t.Fatalf("intact grain corrupted: %v", err)
 	}
 }
