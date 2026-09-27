@@ -38,6 +38,7 @@ env:
   PLASO_IMAGE_EXPORT_WORK_DIR:      {required: false, default: /work,   desc: 'plaso temporary directory (writable tmpfs)'}
   PLASO_IMAGE_EXPORT_FORCE:         {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have an export'}
   PLASO_IMAGE_EXPORT_VSS:           {required: false, default: "1", type: bool, desc: 'export from every VSS store (--vss-stores all)'}
+  PLASO_IMAGE_EXPORT_VOLUMES:       {required: false, default: all, desc: "volumes of an APFS/LVM image to export from (--volumes: all, or plaso's identifier list/range; empty = all) — never plaso's interactive prompt, which unattended exports nothing"}
   PLASO_IMAGE_EXPORT_FILTER_FILE:   {required: false, default: "",  desc: 'path of a mounted plaso filter file (--filter_file); takes precedence over the artifact filters'}
   PLASO_IMAGE_EXPORT_ARTIFACT_FILTERS: {required: false, default: WindowsEventLogs, desc: 'comma-separated artifact definitions (--artifact_filters) used when no filter file is given'}
   PLASO_IMAGE_EXPORT_ARGS:          {required: false, default: "",  desc: 'extra image_export argv, space-separated'}
@@ -60,7 +61,7 @@ outputs:
   psort:
     layout: "<OUT_DIR>/<item>/timeline.jsonl + psort.log + psort.jsonl (the index); records = rendered events. <item> is the storage file's name without .plaso — and its folder's name when the file sits in a same-named folder (log2timeline's <item>/<item>.plaso), so OUT_DIR = the log2timeline output root renders every timeline beside its storage file in the one <item>/ folder"
   image_export:
-    layout: "<OUT_DIR>/<item>/export/<extracted tree> + image_export.log + image_export.jsonl (the index); records = files exported"
+    layout: "<OUT_DIR>/<item>/export/<extracted tree> + image_export.log (stdout/stderr) + image_export-plaso.log (plaso's own --logfile) + image_export.jsonl (the index); records = files exported"
   item_naming: "<item> is the input path relative to INPUT_DIR with path separators and whitespace folded to _"
 
 hardening:

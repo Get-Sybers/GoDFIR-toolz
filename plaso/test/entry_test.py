@@ -41,6 +41,25 @@ while [ $# -gt 0 ]; do
 done
 printf '{"a":1}\\n{"a":2}\\n{"a":3}\\n' > "$out"
 """
+# stub image_export: argparse-strict like the real one — it has no
+# --temporary_directory (log2timeline/psort do), so that flag is exit 2; the
+# export lands under -w, and the scratch dir the entry hands it via TMPDIR is
+# recorded so the test can see it points at the work dir
+STUB_IMAGE_EXPORT = """#!/bin/sh
+out=""
+argv="$*"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --temporary_directory|--temporary-directory) echo "image_export: error: unrecognized arguments: $1" >&2; exit 2 ;;
+    -w) out="$2"; shift ;;
+  esac
+  shift
+done
+mkdir -p "$out/Windows/System32/winevt/Logs"
+printf 'evtx' > "$out/Windows/System32/winevt/Logs/System.evtx"
+printf '%s' "$TMPDIR" > "$out/.tmpdir"
+printf '%s' "$argv" > "$out/.argv"
+"""
 
 
 class EntryTest(unittest.TestCase):
@@ -48,7 +67,7 @@ class EntryTest(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.bin = os.path.join(self.tmp, "bin")
         os.makedirs(self.bin)
-        for name, body in (("log2timeline", STUB_L2T), ("psort", STUB_PSORT)):
+        for name, body in (("log2timeline", STUB_L2T), ("psort", STUB_PSORT), ("image_export", STUB_IMAGE_EXPORT)):
             p = os.path.join(self.bin, name)
             with open(p, "w") as fh:
                 fh.write(body)
@@ -118,6 +137,33 @@ class EntryTest(unittest.TestCase):
         code, s = self.run_batch("psort")
         self.assertEqual((code, s["records"]), (0, 3))
         self.assertTrue(os.path.isfile(os.path.join(self.out, "case", "timeline.jsonl")))
+
+    def test_image_export_argv_and_scratch(self):
+        with open(os.path.join(self.inp, "disk.E01"), "wb") as fh:
+            fh.write(b"EVF")
+        code, s = self.run_batch("image_export")
+        self.assertEqual((code, s["status"], s["inputs"], s["processed"], s["failed"]), (0, "ok", 1, 1, 0), s)
+        export = os.path.join(self.out, "disk.E01", "export")
+        self.assertTrue(os.path.isfile(os.path.join(export, "Windows", "System32", "winevt", "Logs", "System.evtx")))
+        self.assertTrue(os.path.isfile(os.path.join(self.out, "disk.E01", "image_export.jsonl")))
+        with open(os.path.join(export, ".tmpdir")) as fh:
+            self.assertEqual(fh.read(), os.path.join(self.tmp, "work"))
+        with open(os.path.join(export, ".argv")) as fh:
+            argv = fh.read().split()
+        # non-interactive over APFS/LVM images; plaso's own log beside the item
+        # (its default is ./<tool>-<ts>.log.gz in the read-only rootfs)
+        self.assertEqual(argv[argv.index("--volumes") + 1], "all")
+        self.assertEqual(argv[argv.index("--logfile") + 1],
+                         os.path.join(self.out, "disk.E01", "image_export-plaso.log"))
+        # the env block drives it: a volume list passes through; empty means the default (all)
+        code, s = self.run_batch("image_export", PLASO_IMAGE_EXPORT_FORCE="1", PLASO_IMAGE_EXPORT_VOLUMES="1,3..5")
+        with open(os.path.join(export, ".argv")) as fh:
+            argv = fh.read().split()
+        self.assertEqual((code, argv[argv.index("--volumes") + 1]), (0, "1,3..5"))
+        code, s = self.run_batch("image_export", PLASO_IMAGE_EXPORT_FORCE="1", PLASO_IMAGE_EXPORT_VOLUMES="")
+        with open(os.path.join(export, ".argv")) as fh:
+            argv = fh.read().split()
+        self.assertEqual((code, argv[argv.index("--volumes") + 1]), (0, "all"))
 
     def test_config_errors(self):
         for env in ({"PLASO_PSORT_INPUT_DIR": os.path.join(self.tmp, "nope")},

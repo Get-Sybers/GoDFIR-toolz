@@ -68,6 +68,7 @@ Sub-tool specific — `log2timeline`: `PLASO_LOG2TIMELINE_INPUT_DIR`,
 | Variable | Default | Meaning |
 |---|---|---|
 | `PLASO_IMAGE_EXPORT_VSS` | `1` | export from every VSS store (`--vss-stores all`) |
+| `PLASO_IMAGE_EXPORT_VOLUMES` | `all` | volumes of an APFS/LVM image to export from (`--volumes`; empty = all) — never plaso's interactive prompt, which unattended exports nothing |
 | `PLASO_IMAGE_EXPORT_FILTER_FILE` | *(empty)* | a mounted plaso filter file (`--filter_file`); takes precedence |
 | `PLASO_IMAGE_EXPORT_ARTIFACT_FILTERS` | `WindowsEventLogs` | comma-separated artifact definitions (`--artifact_filters`) |
 
