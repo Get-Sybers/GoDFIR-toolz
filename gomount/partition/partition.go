@@ -130,7 +130,9 @@ func parseAPM(ra io.ReaderAt, size int64) ([]Partition, bool) {
 		return nil, false
 	}
 	count := int64(binary.BigEndian.Uint32(first[4:8]))
-	if count == 0 || count > 256 {
+	// the map occupies one block per entry from block 1: bound the count
+	// by the image, with a cap far above any real map
+	if count == 0 || count > 65536 || (1+count)*blk > size {
 		return nil, false
 	}
 	cstr := func(b []byte) string {

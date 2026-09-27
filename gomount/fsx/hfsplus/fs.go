@@ -113,7 +113,10 @@ func (f *FS) entry(r *catRec, name, fullPath string) fsx.Entry {
 	if err != nil {
 		t = r
 	} else if t != r {
-		e.Nlink = t.special // an indirect node's special field is its link count
+		// every link to one indirect node shares its identity: the node's
+		// id is the inode, its special field the link count
+		e.Inode = uint64(t.id)
+		e.Nlink = t.special
 		if e.Nlink == 0 {
 			e.Nlink = 1
 		}

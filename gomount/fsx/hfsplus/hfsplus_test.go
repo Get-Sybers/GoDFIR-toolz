@@ -143,19 +143,25 @@ func TestLinks(t *testing.T) {
 	if got := readAll(t, f, "/link-to-hosts"); string(got) != "/private/etc/hosts" {
 		t.Fatalf("symlink content: %q", got)
 	}
+	var inodes []uint64
 	for _, p := range []string{"/hard-a", "/hard-b"} {
 		e, err := f.Stat(p)
 		if err != nil || e.Size != 20 || e.Mode != 0x8000|0o600 || e.IsDir {
 			t.Fatalf("%s: %+v %v", p, e, err)
 		}
+		inodes = append(inodes, e.Inode)
 		if got := readAll(t, f, p); string(got) != "shared by two links\n" {
 			t.Fatalf("%s: %q", p, got)
 		}
 	}
-	// the private directory and its indirect node are listed, honestly
+	// the private directory and its indirect node are listed, honestly —
+	// and both links carry the indirect node's identity
 	ents, err := f.ReadDir("/␀␀␀␀HFS+ Private Data")
 	if err != nil || len(ents) != 1 || ents[0].Name != "iNode500" {
 		t.Fatalf("private dir: %+v %v", ents, err)
+	}
+	if inodes[0] != inodes[1] || inodes[0] != ents[0].Inode {
+		t.Fatalf("hard links must share the indirect node's inode: %v vs %d", inodes, ents[0].Inode)
 	}
 }
 
