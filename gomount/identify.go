@@ -30,7 +30,7 @@ type identifyDoc struct {
 
 type identifyImage struct {
 	Path   string `json:"path"`
-	Format string `json:"format"` // "e01" | "vmdk" | "vhdx" | "vhd" | "qcow2" | "vdi" | "raw"
+	Format string `json:"format"` // "e01" | "dmg" | "sparseimage" | "sparsebundle" | "vmdk" | "vhdx" | "vhd" | "qcow2" | "vdi" | "raw"
 	Size   int64  `json:"size"`
 }
 

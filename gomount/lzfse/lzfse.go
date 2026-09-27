@@ -105,7 +105,7 @@ func Decode(dst, src []byte) (int, error) {
 			if nRaw > len(dst)-dp {
 				nRaw = len(dst) - dp
 			}
-			n, err := DecodeLZVN(dst[dp:dp+nRaw], src[sp:sp+nPayload])
+			n, err := decodeLZVNAt(dst[:dp+nRaw], dp, src[sp:sp+nPayload])
 			if err != nil {
 				return dp + n, err
 			}
@@ -143,7 +143,7 @@ func Decode(dst, src []byte) (int, error) {
 			if lmdEnd > len(src) {
 				return dp, fmt.Errorf("lzfse: block payload exceeds source")
 			}
-			n, err := decodeBlock(dst[dp:], src, &h, blockStart, litEnd, lmdEnd)
+			n, err := decodeBlock(dst, dp, src, &h, blockStart, litEnd, lmdEnd)
 			dp += n
 			if err != nil {
 				return dp, err
@@ -434,8 +434,12 @@ func (s *inStream) valueDecode(state *uint16, t []valueEntry) int32 {
 }
 
 // decodeBlock decodes one lzfse compressed block's literals then its
-// (L, M, D) triples into dst. Returns the bytes written.
-func decodeBlock(dst, src []byte, h *blockHeader, blockStart, litEnd, lmdEnd int) (int, error) {
+// (L, M, D) triples into dst from position start on and returns the bytes
+// written past start. A match may reach back into dst[:start]: an LZFSE
+// stream's blocks share one history (the reference decoder bounds D by the
+// start of the whole output, not of the block), which a multi-block stream
+// such as a DMG's 1 MiB LZFSE chunk relies on.
+func decodeBlock(dst []byte, start int, src []byte, h *blockHeader, blockStart, litEnd, lmdEnd int) (int, error) {
 	litTable, err := initDecoderTable(litStates, litSymbols, h.literalFreq[:])
 	if err != nil {
 		return 0, err
@@ -468,22 +472,22 @@ func decodeBlock(dst, src []byte, h *blockHeader, blockStart, litEnd, lmdEnd int
 		return 0, err
 	}
 	lState, mState, dState := h.lState, h.mState, h.dState
-	lit, dp := 0, 0
+	lit, dp := 0, start
 	D := int32(-1)
 	for n := h.nMatches; n > 0; n-- {
 		if err := lmd.flush(); err != nil {
-			return dp, err
+			return dp - start, err
 		}
 		L := int(lmd.valueDecode(&lState, lTable))
 		if lit+L > int(h.nLiterals) { // the declared count, not the padded buffer
-			return dp, fmt.Errorf("lzfse: literal run exceeds the block's literals")
+			return dp - start, fmt.Errorf("lzfse: literal run exceeds the block's literals")
 		}
 		M := int(lmd.valueDecode(&mState, mTable))
 		if nd := lmd.valueDecode(&dState, dTable); nd != 0 {
 			D = nd
 		}
 		if int(D) > dp+L {
-			return dp, fmt.Errorf("lzfse: match distance %d reaches before the output", D)
+			return dp - start, fmt.Errorf("lzfse: match distance %d reaches before the output", D)
 		}
 		// literal run
 		if L > len(dst)-dp {
@@ -493,7 +497,7 @@ func decodeBlock(dst, src []byte, h *blockHeader, blockStart, litEnd, lmdEnd int
 		dp += L
 		lit += L
 		if dp >= len(dst) {
-			return dp, nil
+			return dp - start, nil
 		}
 		// match
 		if M > len(dst)-dp {
@@ -505,8 +509,8 @@ func decodeBlock(dst, src []byte, h *blockHeader, blockStart, litEnd, lmdEnd int
 		}
 		dp += M
 		if dp >= len(dst) {
-			return dp, nil
+			return dp - start, nil
 		}
 	}
-	return dp, nil
+	return dp - start, nil
 }

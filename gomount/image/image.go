@@ -47,6 +47,11 @@ var ewfSegmentExt = regexp.MustCompile(`(?i)^\.(e|s)x?[0-9a-z]{2}$`)
 //   - VMDK:       a sparse extent (KDMV) or a text descriptor — vmdk.go.
 //   - VHDX/VHD:   vhdxfile at 0 / conectix footer — vhdx.go, vhd.go.
 //   - QCOW2/VDI:  QFIû at 0 / the VDI magic at 0x40 — qcow2.go, vdi.go.
+//   - DMG (UDIF): the koly trailer in the last 512 bytes — dmg.go; ra is
+//     the virtual raw disk, its chunks decoded on demand.
+//   - .sparseimage ("sprs" at 0) and .sparsebundle (a directory whose
+//     Info.plist names the bundle type) — sparse.go. An encrypted Apple
+//     image ("encrcdsa") is recognised and refused.
 //
 // The returned ReaderAt must be read within [0,size); the callers in this tool
 // (partition table scan, boot-sector/BPB read, and the FUSE Read passthrough)
@@ -58,6 +63,23 @@ func OpenImage(path string) (ra io.ReaderAt, size int64, closer func() error, er
 	}
 
 	switch Format(path) {
+	case "sparsebundle":
+		f.Close()
+		b, err := openSparseBundle(path)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return b, b.size, b.Close, nil
+	case "sparseimage":
+		f.Close()
+		s, err := openSparseImage(path)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return s, s.size, s.Close, nil
+	case "encrypted-dmg":
+		f.Close()
+		return nil, 0, nil, errors.New("encrypted Apple disk image (encrcdsa): decryption is not supported")
 	case "vmdk":
 		f.Close()
 		d, err := openVMDK(path, 0)
@@ -93,6 +115,13 @@ func OpenImage(path string) (ra io.ReaderAt, size int64, closer func() error, er
 			return nil, 0, nil, err
 		}
 		return d, d.hdr.size, d.Close, nil
+	case "dmg":
+		f.Close()
+		d, err := openDMG(path)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return d, d.size, d.Close, nil
 	}
 
 	isEWF, err := looksLikeEWF(f, path)
@@ -195,18 +224,36 @@ func ewfSegments(path string) ([]string, error) {
 	return segs, nil
 }
 
-// Format labels the image container by its content: "e01", "vmdk", "vhdx",
-// "vhd", "qcow2", "vdi" or "raw" (anything else, a mislabelled name included).
+// Format labels the image container by its content: "e01", "dmg",
+// "sparseimage", "sparsebundle", "encrypted-dmg", "vmdk", "vhdx", "vhd",
+// "qcow2", "vdi" or "raw" (anything else, a mislabelled name included — an
+// uncompressed .dmg with no koly trailer is a raw image).
 func Format(path string) string {
 	f, err := os.Open(path)
 	if err != nil {
 		return ""
 	}
 	defer f.Close()
+	st, statErr := f.Stat()
+	if statErr == nil && st.IsDir() {
+		if _, ok := bundleInfo(path); ok {
+			return "sparsebundle"
+		}
+		return ""
+	}
 	var hdr [8]byte
 	n, _ := f.ReadAt(hdr[:], 0)
 	if n >= 8 && (bytes.Equal(hdr[:], sigEVF) || bytes.Equal(hdr[:], sigEVF2)) {
 		return "e01"
+	}
+	if statErr == nil && looksLikeDMG(f, st.Size()) {
+		return "dmg"
+	}
+	if n >= 4 && bytes.Equal(hdr[:4], sigSprs) {
+		return "sparseimage"
+	}
+	if statErr == nil && looksLikeEncryptedDMG(f, st.Size()) {
+		return "encrypted-dmg"
 	}
 	if sparse, desc := looksLikeVMDK(f); sparse || desc {
 		return "vmdk"
@@ -220,7 +267,7 @@ func Format(path string) string {
 	if looksLikeVDI(f) {
 		return "vdi"
 	}
-	if st, err := f.Stat(); err == nil && looksLikeVHD(f, st.Size()) {
+	if statErr == nil && looksLikeVHD(f, st.Size()) {
 		return "vhd"
 	}
 	return "raw" // a name alone never decides: a mislabelled raw stays raw

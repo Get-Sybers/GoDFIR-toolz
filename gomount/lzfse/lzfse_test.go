@@ -89,6 +89,42 @@ func TestLZFSEContainerBlocks(t *testing.T) {
 	}
 }
 
+// The blocks of one LZFSE stream share a history: a match in a later block
+// may reach into the output of an earlier one (Apple's decoder bounds the
+// distance by the start of the whole output). A DMG's LZFSE chunk — 1 MiB
+// in several blocks — depends on it; APFS's 64 KiB decmpfs chunks never did.
+func TestLZFSEMatchAcrossBlocks(t *testing.T) {
+	var src bytes.Buffer
+	hdr := make([]byte, 8)
+	binary.LittleEndian.PutUint32(hdr, magicUncompressed)
+	binary.LittleEndian.PutUint32(hdr[4:], 6)
+	src.Write(hdr)
+	src.WriteString("raw...")
+	// sml_d: L=0, M=3+3=6 (bits 5-3 = 011), D=6 — entirely the raw block's bytes
+	lzvn := []byte{0x18, 0x06, 0x06}
+	h2 := make([]byte, 12)
+	binary.LittleEndian.PutUint32(h2, magicLZVN)
+	binary.LittleEndian.PutUint32(h2[4:], 6)
+	binary.LittleEndian.PutUint32(h2[8:], uint32(len(lzvn)))
+	src.Write(h2)
+	src.Write(lzvn)
+	end := make([]byte, 4)
+	binary.LittleEndian.PutUint32(end, magicEndOfStream)
+	src.Write(end)
+	dst := make([]byte, 12)
+	n, err := Decode(dst, src.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(dst[:n]); got != "raw...raw..." {
+		t.Fatalf("got %q", got)
+	}
+	// but never before the start of the whole output
+	if _, err := DecodeLZVN(make([]byte, 6), []byte{0x18, 0x07, 0x06}); err == nil {
+		t.Fatal("a match before the output start must error")
+	}
+}
+
 // The FSE tables: a frequency table spread over the states decodes every
 // symbol back — checked by the invariant the encoder relies on, that each
 // state's entry consumes k bits and lands on a valid next state.

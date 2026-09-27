@@ -5,9 +5,11 @@ entrypoint: argv
 description: >
   Standalone volume reader for disk images — E01/Ex01, raw/dd/img, VMDK
   (sparse, streamOptimized, descriptor + flat/split extents, snapshot
-  chains), VHDX, VHD, QCOW2 and VDI, detected by content — reading NTFS,
-  the Linux filesystems (ext2/3/4, XFS v5, vfat), APFS (every volume of
-  a container, sealed System volumes, decmpfs zlib/LZVN/LZFSE content;
+  chains), VHDX, VHD, QCOW2, VDI, and Apple's DMG (UDIF: zero/raw/ADC/
+  zlib/bzip2/LZFSE chunks; LZMA refused), .sparseimage and .sparsebundle,
+  detected by content — reading NTFS, the Linux filesystems (ext2/3/4,
+  XFS v5, vfat), APFS (every volume of a container, sealed System
+  volumes, decmpfs zlib/LZVN/LZFSE content;
   FileVault content excluded) and HFS+/HFSX (the wrapper too; hard links,
   xattrs, decmpfs) through one resolved volume stack: partitions (MBR,
   GPT, Apple Partition Map), LVM2 volume groups (--lv vg/lv), the volumes
@@ -25,7 +27,8 @@ description: >
   can run it per image like any dispatcher. The same binary is baked into
   get-sybers/signatures for its scan sub-tool. The VMDK/VHD/VHDX/QCOW2/VDI
   decoders are ported from VMkatz (github.com/nikaiw/VMkatz, MIT); the
-  LZVN/LZFSE decoders from Apple's lzfse (github.com/lzfse/lzfse, BSD-3).
+  LZVN/LZFSE decoders from Apple's lzfse (github.com/lzfse/lzfse, BSD-3);
+  the DMG/sparse readers are clean-room.
 
 env: {}
 

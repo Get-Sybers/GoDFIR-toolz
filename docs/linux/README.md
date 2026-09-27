@@ -592,6 +592,13 @@ raw/dd and E01/Ex01. VHD/VHDX/VMDK follow as candidates in the same seam
 (Velocidex-ecosystem readers exist) — they serve the VM_files lane and are not
 on the Linux critical path.
 
+**Built:** QCOW2, VHD, VHDX, VMDK and VDI (ported from VMkatz), and Apple's
+disk images — DMG (UDIF: the `koly` trailer, `mish` block tables, zero/raw/
+ADC/zlib/bzip2/LZFSE chunks decoded on demand; LZMA refused), `.sparseimage`
+and `.sparsebundle` (clean-room, `gomount/image/dmg.go`, `sparse.go`) — all
+detected by content, each presenting the raw disk it holds to the partition
+layer.
+
 ### 5.4 `materialise --set linux-core` and `timeline`
 
 
