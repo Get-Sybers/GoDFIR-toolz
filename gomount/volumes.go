@@ -15,6 +15,7 @@ import (
 	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
 	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/apfs"
 	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/ext4"
+	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/hfsplus"
 	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/vfat"
 	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/xfs"
 	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
@@ -248,7 +249,17 @@ func selectVolume(vols []volumeRef, volume int, lvName string) (volumeRef, error
 			}
 		}
 	}
-	for _, v := range vols { // 3: the Linux root — /etc/os-release
+	for _, v := range vols { // 3: a Mac on HFS+ — the volume holding SystemVersion.plist
+		if v.FSType != "hfsplus" || v.ra == nil {
+			continue
+		}
+		if fsys, err := fsx.Open(v.ra, v.Size); err == nil {
+			if _, serr := fsys.Stat("/System/Library/CoreServices/SystemVersion.plist"); serr == nil {
+				return v, nil
+			}
+		}
+	}
+	for _, v := range vols { // 4: the Linux root — /etc/os-release
 		if v.FSType == "" || v.FSType == "lvm2-pv" || v.FSType == "apfs-container" || v.FSType == "apfs" || v.ra == nil {
 			continue
 		}
@@ -258,7 +269,7 @@ func selectVolume(vols []volumeRef, volume int, lvName string) (volumeRef, error
 			}
 		}
 	}
-	for i, v := range vols { // 4: largest recognised filesystem
+	for i, v := range vols { // 5: largest recognised filesystem
 		if v.FSType == "" || v.FSType == "lvm2-pv" || v.FSType == "apfs-container" {
 			continue
 		}

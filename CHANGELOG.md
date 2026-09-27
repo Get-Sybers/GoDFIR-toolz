@@ -33,6 +33,24 @@
   content does not read), `identify` guesses `macos (data)` / `macos
   (system)` and labels the Apple partition GUIDs. Snapshots, Fusion
   containers and LZBITMAP are out of scope.
+- **gomount reads HFS+.** A clean-room backend (`gomount/fsx/hfsplus`)
+  for the Mac filesystem before APFS: the volume header, directly or
+  through the classic HFS wrapper; the catalog, extents-overflow and
+  attributes B-trees; forks that spill into the overflow tree; symbolic
+  links; file and directory hard links through the private metadata
+  directories; extended attributes; decmpfs content through the shared
+  `gomount/fsx/decmpfs` package (the APFS backend now uses it too). HFSX
+  is case-sensitive, HFS+ case-folded on lookup. The partition layer reads
+  the **Apple Partition Map** (PowerPC-era disks, older external media,
+  uncompressed DMGs), and `--volume 0` prefers an HFS+ volume holding
+  `SystemVersion.plist` ahead of the Linux rule. Fixtures come from
+  `gomount/fsx/hfsplus/hfstest` (`mkhfs`): no Linux build host can format
+  HFS+, so the volume is written from the format — with a real index
+  level, fragmented forks, links and every decmpfs shape — and both Mac
+  backends are also tested against volumes Apple's own tools wrote: the
+  raw disks of Homebrew's `transmission-2.61.dmg` and `container-apfs.dmg`
+  cask fixtures (BSD-2, `THIRD_PARTY_NOTICES.md`), committed under
+  `gomount/fsx/testdata/`.
 - **gomount `materialise` speaks the batch contract**: ONE JSON summary line
   on stdout and the 0/1/2/3 exit table (0 ok, 1 nothing pulled, 2 config
   error, 3 partial), so a lane can run it per image like any dispatcher.

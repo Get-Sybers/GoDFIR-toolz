@@ -15,13 +15,24 @@ Devillers) — see `image/`.
 The **userspace backend** parses filesystems in-process and mounts nothing:
 no FUSE, no kernel driver, no privilege. NTFS is read with
 [go-ntfs](https://www.velocidex.com/golang/go-ntfs); the Linux filesystems —
-**ext2/3/4, XFS v5 and vfat** — and **APFS** with gomount's own clean-room
-[`fsx`](fsx) backends (docs/linux §5.1), and every verb resolves ONE volume
-stack first (docs/linux §5.2): partitions, **LVM2 volume groups** (linear
-and striped LVs, addressed as `--lv vg/lv`), the volumes of an **APFS
-container** (`identify` lists each as `<partition>/apfsN` with its name,
-role and UUID; `--volume 0` prefers the Data volume), or a bare whole-disk
-filesystem. The APFS backend ([`fsx/apfs`](fsx/apfs)) reads the newest
+**ext2/3/4, XFS v5 and vfat** — and the Mac filesystems — **APFS** and
+**HFS+/HFSX** — with gomount's own clean-room [`fsx`](fsx) backends
+(docs/linux §5.1), and every verb resolves ONE volume stack first
+(docs/linux §5.2): partitions (MBR, GPT, **Apple Partition Map**), **LVM2
+volume groups** (linear and striped LVs, addressed as `--lv vg/lv`), the
+volumes of an **APFS container** (`identify` lists each as
+`<partition>/apfsN` with its name, role and UUID; `--volume 0` prefers the
+Data volume), or a bare whole-disk filesystem. The HFS+ backend
+([`fsx/hfsplus`](fsx/hfsplus)) reads the volume header — directly or
+through the classic HFS wrapper Apple's tools always wrote — the catalog,
+extents-overflow and attributes B-trees, file and directory hard links
+through the private metadata directories, symlinks, extended attributes
+and decmpfs content; its fixtures are built by
+[`fsx/hfsplus/hfstest`](fsx/hfsplus/hfstest) (`go run
+./fsx/hfsplus/hfstest/mkhfs -o hfs.img [-hfsx] [-wrapper] [-apm]`), since
+no Linux build host can format one, and both Mac backends are also tested
+against volumes Apple's tools wrote (Homebrew's cask fixtures, reassembled
+under `fsx/testdata/`). The APFS backend ([`fsx/apfs`](fsx/apfs)) reads the newest
 checkpoint, the object maps, the fixed and variable B-trees, the sealed
 (hashed, headerless) file-system tree of a System volume with its extents
 in the fext tree, and file content including **decmpfs** compression —
@@ -136,7 +147,8 @@ gomount umount [--mount-point PATH] [--work PATH]
 ```
 
 `--volume` is 1-based; `0` auto-selects the largest NTFS volume (the
-userspace verbs then prefer a Mac's Data volume, then the Linux root).
+userspace verbs then prefer a Mac's APFS Data volume, then an HFS+ system
+volume, then the Linux root).
 `--no-self-unshare` assumes the caller already established the user namespace.
 
 ## Contract

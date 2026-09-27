@@ -49,7 +49,7 @@ type Entry struct {
 // the durable names fstab/crypttab rows use (Origin.FSUUID / Origin.Label,
 // the drive-serial role of rule 2).
 type Info struct {
-	Type      string // "ext4", "ext2", "xfs", "vfat", "ntfs"
+	Type      string // "ext4", "ext2", "xfs", "vfat", "ntfs", "apfs", "hfsplus"
 	UUID      string // filesystem UUID (vfat: the 32-bit serial, xxxx-xxxx)
 	Label     string
 	BlockSize int64

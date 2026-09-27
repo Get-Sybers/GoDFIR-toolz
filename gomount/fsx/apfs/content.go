@@ -2,41 +2,18 @@ package apfs
 
 import (
 	"bytes"
-	"compress/zlib"
-	"encoding/binary"
 	"fmt"
 	"io"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/lzfse"
+	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/decmpfs"
 )
 
 // File content: a data fork is the file extents of the inode's private
 // (data-stream) id, holes reading as zeros. A decmpfs-compressed file
 // (bsd_flags UF_COMPRESSED) keeps its bytes in the "com.apple.decmpfs"
-// attribute — a 16-byte header, then inline data for the chunk types — or
-// in the "com.apple.ResourceFork" attribute's data stream as a table of
-// 64 KiB chunks (zlib, LZVN, LZFSE or raw). Each chunk is decoded on
-// demand, so a multi-gigabyte compressed file never lands in memory whole.
-const (
-	decmpfsMagic        = 0x636d7066 // "fpmc" as stored, "cmpf" little-endian
-	decmpfsHeader       = 16
-	cmpTypeUncompressed = 1
-	cmpZlibInline       = 3
-	cmpZlibRsrc         = 4
-	cmpZeros            = 5
-	cmpLZVNInline       = 7
-	cmpLZVNRsrc         = 8
-	cmpRawInline        = 9
-	cmpRawRsrc          = 10
-	cmpLZFSEInline      = 11
-	cmpLZFSERsrc        = 12
-	cmpLZBitmapInline   = 13
-	cmpLZBitmapRsrc     = 14
-
-	chunkSize       = 65536
-	maxInlineStream = 64 << 20 // an inline attribute held in a data stream is read whole, up to this
-	zlibRsrcTable   = 0x104    // where the zlib resource fork's chunk table sits
-)
+// attribute or the "com.apple.ResourceFork" attribute's data stream; the
+// shared fsx/decmpfs package decodes them (zlib, LZVN, LZFSE, raw).
+const maxInlineStream = 64 << 20 // an inline attribute held in a data stream is read whole, up to this
 
 // extentReader serves a data stream's extents as one io.ReaderAt.
 type extentReader struct {
@@ -169,41 +146,26 @@ func (v *Volume) decmpfsAttr(in *inode) ([]byte, error) {
 // compressedSize reads the uncompressed size off the decmpfs header.
 func (v *Volume) compressedSize(in *inode) (int64, bool) {
 	b, err := v.decmpfsAttr(in)
-	if err != nil || len(b) < decmpfsHeader || binary.LittleEndian.Uint32(b) != decmpfsMagic {
+	if err != nil {
 		return 0, false
 	}
-	return int64(binary.LittleEndian.Uint64(b[8:])), true
+	h, ok := decmpfs.Parse(b)
+	if !ok {
+		return 0, false
+	}
+	return h.Size, true
 }
 
 func (v *Volume) decmpfsReader(in *inode) (io.ReaderAt, int64, error) {
-	hdr, err := v.decmpfsAttr(in)
+	attr, err := v.decmpfsAttr(in)
 	if err != nil {
 		return nil, 0, err
 	}
-	if len(hdr) < decmpfsHeader || binary.LittleEndian.Uint32(hdr) != decmpfsMagic {
+	h, ok := decmpfs.Parse(attr)
+	if !ok {
 		return nil, 0, fmt.Errorf("apfs: inode %d: decmpfs attribute without the cmpf header", in.id)
 	}
-	typ := binary.LittleEndian.Uint32(hdr[4:])
-	size := int64(binary.LittleEndian.Uint64(hdr[8:]))
-	if size < 0 {
-		return nil, 0, fmt.Errorf("apfs: inode %d: negative decmpfs size", in.id)
-	}
-	inline := hdr[decmpfsHeader:]
-	switch typ {
-	case cmpTypeUncompressed, cmpRawInline:
-		if int64(len(inline)) > size {
-			inline = inline[:size]
-		}
-		return bytes.NewReader(inline), int64(len(inline)), nil
-	case cmpZeros:
-		return &extentReader{v: v, size: size}, size, nil
-	case cmpZlibInline, cmpLZVNInline, cmpLZFSEInline:
-		out, err := decodeChunk(typ, inline, size)
-		if err != nil {
-			return nil, 0, fmt.Errorf("apfs: inode %d: %w", in.id, err)
-		}
-		return bytes.NewReader(out), int64(len(out)), nil
-	case cmpZlibRsrc, cmpLZVNRsrc, cmpRawRsrc, cmpLZFSERsrc:
+	fork := func() (io.ReaderAt, int64, error) {
 		x, err := v.xattr(in.id, xattrRsrc)
 		if err != nil {
 			return nil, 0, err
@@ -211,206 +173,18 @@ func (v *Volume) decmpfsReader(in *inode) (io.ReaderAt, int64, error) {
 		if x == nil {
 			return nil, 0, fmt.Errorf("apfs: inode %d: compressed into a resource fork it does not have", in.id)
 		}
-		var fork io.ReaderAt
-		var forkSize int64
 		if x.data != nil {
-			fork, forkSize = bytes.NewReader(x.data), int64(len(x.data))
-		} else {
-			if fork, err = v.streamReader(x.streamID, x.size); err != nil {
-				return nil, 0, err
-			}
-			forkSize = x.size
+			return bytes.NewReader(x.data), int64(len(x.data)), nil
 		}
-		cr, err := newChunkReader(typ, fork, forkSize, size)
+		ra, err := v.streamReader(x.streamID, x.size)
 		if err != nil {
-			return nil, 0, fmt.Errorf("apfs: inode %d: %w", in.id, err)
+			return nil, 0, err
 		}
-		return cr, size, nil
-	case cmpLZBitmapInline, cmpLZBitmapRsrc:
-		return nil, 0, fmt.Errorf("apfs: inode %d: LZBITMAP compression is not supported", in.id)
+		return ra, x.size, nil
 	}
-	return nil, 0, fmt.Errorf("apfs: inode %d: unknown decmpfs type %d", in.id, typ)
-}
-
-// decodeChunk decodes one compressed chunk of the given decmpfs family
-// into at most size bytes. Each family marks an uncompressed chunk with a
-// leading byte.
-func decodeChunk(typ uint32, b []byte, size int64) ([]byte, error) {
-	if size > chunkSize*16 && (typ == cmpLZVNInline || typ == cmpLZFSEInline || typ == cmpZlibInline) {
-		// an inline chunk is a small file; a huge claimed size is corruption
-		return nil, fmt.Errorf("decmpfs: inline chunk claims %d bytes", size)
-	}
-	if len(b) == 0 {
-		return []byte{}, nil
-	}
-	switch typ {
-	case cmpZlibInline, cmpZlibRsrc:
-		if b[0]&0x0f == 0x0f {
-			return clip(b[1:], size), nil
-		}
-		zr, err := zlib.NewReader(bytes.NewReader(b))
-		if err != nil {
-			return nil, fmt.Errorf("decmpfs zlib: %w", err)
-		}
-		defer zr.Close()
-		out := make([]byte, size)
-		n, err := io.ReadFull(zr, out)
-		if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
-			return nil, fmt.Errorf("decmpfs zlib: %w", err)
-		}
-		return out[:n], nil
-	case cmpLZVNInline, cmpLZVNRsrc:
-		if b[0] == 0x06 {
-			return clip(b[1:], size), nil
-		}
-		out := make([]byte, size)
-		n, err := lzfse.DecodeLZVN(out, b)
-		if err != nil {
-			return nil, fmt.Errorf("decmpfs lzvn: %w", err)
-		}
-		return out[:n], nil
-	case cmpLZFSEInline, cmpLZFSERsrc:
-		if b[0] == 0xff {
-			return clip(b[1:], size), nil
-		}
-		out := make([]byte, size)
-		n, err := lzfse.Decode(out, b)
-		if err != nil {
-			return nil, fmt.Errorf("decmpfs lzfse: %w", err)
-		}
-		return out[:n], nil
-	case cmpRawInline, cmpRawRsrc:
-		if b[0] == 0xcc {
-			return clip(b[1:], size), nil
-		}
-		return clip(b, size), nil
-	}
-	return nil, fmt.Errorf("decmpfs: type %d has no chunk decoder", typ)
-}
-
-func clip(b []byte, size int64) []byte {
-	if size < 0 {
-		return b[:0]
-	}
-	if int64(len(b)) > size {
-		return b[:size]
-	}
-	return b
-}
-
-// chunkReader decodes a resource fork's 64 KiB chunks on demand.
-type chunkReader struct {
-	typ    uint32
-	fork   io.ReaderAt
-	size   int64      // uncompressed file size
-	chunks [][2]int64 // (offset, length) of each compressed chunk in the fork
-	last   int
-	cache  []byte
-}
-
-func newChunkReader(typ uint32, fork io.ReaderAt, forkSize, size int64) (*chunkReader, error) {
-	cr := &chunkReader{typ: typ, fork: fork, size: size, last: -1}
-	le := binary.LittleEndian
-	nChunks := int((size + chunkSize - 1) / chunkSize)
-	switch typ {
-	case cmpZlibRsrc:
-		// the resource fork: a 256-byte big-endian header, then at 0x100 the
-		// data length and at 0x104 the chunk table (count, then offset/size
-		// pairs relative to the table), little-endian
-		hdr := make([]byte, 8)
-		if _, err := fork.ReadAt(hdr, zlibRsrcTable-4); err != nil {
-			return nil, fmt.Errorf("decmpfs zlib fork: read table: %w", err)
-		}
-		n := int(le.Uint32(hdr[4:]))
-		if n <= 0 || n > 1<<20 || n < nChunks {
-			return nil, fmt.Errorf("decmpfs zlib fork: %d chunks for %d bytes", n, size)
-		}
-		tbl := make([]byte, 8*n)
-		if _, err := fork.ReadAt(tbl, zlibRsrcTable+4); err != nil && err != io.EOF {
-			return nil, fmt.Errorf("decmpfs zlib fork: read table: %w", err)
-		}
-		for i := 0; i < n; i++ {
-			off := int64(le.Uint32(tbl[8*i:])) + zlibRsrcTable
-			ln := int64(le.Uint32(tbl[8*i+4:]))
-			if off < 0 || ln < 0 || off+ln > forkSize {
-				return nil, fmt.Errorf("decmpfs zlib fork: chunk %d out of range", i)
-			}
-			cr.chunks = append(cr.chunks, [2]int64{off, ln})
-		}
-	default:
-		// LZVN/LZFSE/raw forks: a table of little-endian offsets, the first
-		// being the table's own size; chunk i spans [off[i], off[i+1])
-		first := make([]byte, 4)
-		if _, err := fork.ReadAt(first, 0); err != nil {
-			return nil, fmt.Errorf("decmpfs fork: read table: %w", err)
-		}
-		tblLen := int64(le.Uint32(first))
-		n := int(tblLen/4) - 1
-		if tblLen < 8 || tblLen > forkSize || n <= 0 || n > 1<<20 || n < nChunks {
-			return nil, fmt.Errorf("decmpfs fork: %d chunks for %d bytes", n, size)
-		}
-		tbl := make([]byte, tblLen)
-		if _, err := fork.ReadAt(tbl, 0); err != nil && err != io.EOF {
-			return nil, fmt.Errorf("decmpfs fork: read table: %w", err)
-		}
-		for i := 0; i < n; i++ {
-			off := int64(le.Uint32(tbl[4*i:]))
-			end := int64(le.Uint32(tbl[4*i+4:]))
-			if off < 0 || end < off || end > forkSize {
-				return nil, fmt.Errorf("decmpfs fork: chunk %d out of range", i)
-			}
-			cr.chunks = append(cr.chunks, [2]int64{off, end - off})
-		}
-	}
-	return cr, nil
-}
-
-func (cr *chunkReader) chunk(i int) ([]byte, error) {
-	if i == cr.last {
-		return cr.cache, nil
-	}
-	if i < 0 || i >= len(cr.chunks) {
-		return nil, fmt.Errorf("decmpfs: chunk %d of %d", i, len(cr.chunks))
-	}
-	want := int64(chunkSize)
-	if rem := cr.size - int64(i)*chunkSize; rem < want {
-		want = rem
-	}
-	raw := make([]byte, cr.chunks[i][1])
-	if _, err := cr.fork.ReadAt(raw, cr.chunks[i][0]); err != nil && err != io.EOF {
-		return nil, fmt.Errorf("decmpfs: read chunk %d: %w", i, err)
-	}
-	out, err := decodeChunk(cr.typ, raw, want)
+	ra, size, err := h.Reader(fork)
 	if err != nil {
-		return nil, fmt.Errorf("chunk %d: %w", i, err)
+		return nil, 0, fmt.Errorf("apfs: inode %d: %w", in.id, err)
 	}
-	cr.last, cr.cache = i, out
-	return out, nil
-}
-
-func (cr *chunkReader) ReadAt(p []byte, off int64) (int, error) {
-	if off < 0 {
-		return 0, fmt.Errorf("apfs: negative offset")
-	}
-	total := 0
-	for len(p) > 0 {
-		if off >= cr.size {
-			return total, io.EOF
-		}
-		i := int(off / chunkSize)
-		within := int(off % chunkSize)
-		c, err := cr.chunk(i)
-		if err != nil {
-			return total, err
-		}
-		if within >= len(c) {
-			// a chunk decoded short: the rest of it is unrecoverable
-			return total, fmt.Errorf("decmpfs: chunk %d decoded to %d bytes, %d wanted", i, len(c), within+1)
-		}
-		n := copy(p, c[within:])
-		total += n
-		p = p[n:]
-		off += int64(n)
-	}
-	return total, nil
+	return ra, size, nil
 }
