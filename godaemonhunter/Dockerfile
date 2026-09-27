@@ -4,7 +4,7 @@
 # Built from the REPO ROOT: the image copies the sibling pinfo/ module.
 
 ARG GO_VERSION=1.25
-ARG TOOL_VERSION=0.1.0
+ARG TOOL_VERSION=0.2.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 

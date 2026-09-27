@@ -26,6 +26,9 @@
   `windows-core` (every Windows set in one); `linux-core` gains
   `usr/lib/os-release`, `utmp` and `.Trash-*`. The Dockerfile stamps
   `main.version`.
+- **Versions.** The galaxy is 0.4.0; the images gomount 0.4.0, gowindowlicker
+  0.2.0, godaemonhunter 0.2.0, signatures 0.3.0 (`TOOL_VERSION`). The
+  ported VM-disk readers are attributed in `THIRD_PARTY_NOTICES.md`.
 
 ## 0.3.2
 

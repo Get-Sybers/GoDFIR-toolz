@@ -59,13 +59,14 @@ independently of the matrix it shipped in.
 
 ### 3. gomount and goyara: first-class images or components of `signatures`?
 
-gomount has its own Dockerfile and a declared Shape-B deviation but is absent
-from `images.yml`; goyara is built inside `signatures` and its module lives under `signatures/goyara/`. Either they become
-first-class entries in the inventory (each gated on its own), or they are
-formally listed as components of `signatures` (documented in
-`signatures/contract.yml`, gated as part of that image). The `stream` verb
-gomount already provides to `signatures` argues for the component reading;
-its standalone Dockerfile argues for the inventory reading.
+Settled for gomount (0.4.0): it is BOTH — a first-class `images.yml` entry
+(its own image, gated on its own; `materialise` speaks the batch summary
+contract so a lane can run it per image) AND a component baked into
+`signatures`, `gowindowlicker` and `godaemonhunter`, the binary each execs to
+read a disk image in-container (the parsers run on the image, nothing
+exported). Those three build from the repo root to copy `gomount/`. goyara
+remains a component of `signatures` (module under `signatures/goyara/`),
+gated as part of that image.
 
 ## 11.3 Possible future hardening
 
