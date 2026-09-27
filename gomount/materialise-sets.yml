@@ -172,3 +172,65 @@ sets:
       - 'root/.local/share/Trash/**'
       - '.Trash-*/info/**'
     siblings: ['-wal', '-shm']
+
+  # the macOS counterpart: what godaemonhunter's parsers read off a Mac's
+  # Data volume (or a single HFS+ volume) — identity, accounts, launchd,
+  # logs, schedules, histories; the sealed System volume's own /System/
+  # Library is a second pass, not this set
+  macos-core:
+    primaries:
+      - 'System/Library/CoreServices/SystemVersion.plist'
+      - 'Library/Preferences/SystemConfiguration/preferences.plist'
+      - 'Library/Preferences/.GlobalPreferences.plist'
+      - 'Library/Preferences/com.apple.loginwindow.plist'
+      - 'Library/Preferences/com.apple.timezone.auto.plist'
+      - 'Library/LaunchDaemons/**'
+      - 'Library/LaunchAgents/**'
+      - 'Library/StartupItems/**'
+      - 'System/Library/LaunchDaemons/**'
+      - 'System/Library/LaunchAgents/**'
+      - 'private/var/db/com.apple.xpc.launchd/**'
+      - 'private/var/db/dslocal/nodes/Default/users/**'
+      - 'private/var/db/dslocal/nodes/Default/groups/**'
+      - 'private/var/db/com.apple.backgroundtaskmanagement/**'
+      - 'private/var/log/**'
+      - 'private/var/run/utmpx'
+      - 'private/var/at/**'
+      - 'private/etc/passwd'
+      - 'private/etc/master.passwd'
+      - 'private/etc/group'
+      - 'private/etc/sudoers'
+      - 'private/etc/sudoers.d/**'
+      - 'private/etc/hosts'
+      - 'private/etc/localtime'
+      - 'private/etc/crontab'
+      - 'private/etc/periodic/**'
+      - 'private/etc/periodic.conf'
+      - 'private/etc/periodic.conf.local'
+      - 'private/etc/ssh/**'
+      - 'private/var/root/.bash_history'
+      - 'private/var/root/.zsh_history'
+      - 'private/var/root/.bash_sessions/**'
+      - 'private/var/root/.zsh_sessions/**'
+      - 'private/var/root/.ssh/**'
+      - 'private/var/root/Library/LaunchAgents/**'
+      - 'Users/*/.bash_history'
+      - 'Users/*/.zsh_history'
+      - 'Users/*/.bash_sessions/**'
+      - 'Users/*/.zsh_sessions/**'
+      - 'Users/*/.python_history'
+      - 'Users/*/.ssh/**'
+      - 'Users/*/Library/LaunchAgents/**'
+      - 'Users/*/Library/Preferences/com.apple.loginitems.plist'
+      - 'Users/*/Library/Application Support/com.apple.backgroundtaskmanagementagent/**'
+    siblings: ['-wal', '-shm']
+
+  # the sealed System volume's side of a modern Mac (macOS 10.15+ splits the
+  # OS from the Data volume): the OS version and Apple's own launchd jobs —
+  # godaemonhunter pulls this in a second pass from the System volume
+  macos-system:
+    primaries:
+      - 'System/Library/CoreServices/SystemVersion.plist'
+      - 'System/Library/LaunchDaemons/**'
+      - 'System/Library/LaunchAgents/**'
+    siblings: []

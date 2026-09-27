@@ -56,6 +56,11 @@ assert len(s['streams']) == 7, s['streams']" || fail "default run is not all str
 ls "$out"/knowledge/*/gousers.jsonl >/dev/null 2>&1 || fail "knowledge store missing"
 grep -q '"UIDName":"alice"' "$out"/goauditd/*/goauditd.jsonl || fail "enrichment missing"
 grep -q '"Hostname":"web01"' "$out"/goauditd/*/goauditd.jsonl || fail "Host block missing"
+# the Mac surface in the same run: Layer 1 from the property lists, launchd in the service stream
+ls "$out"/knowledge/*/gomacusers.jsonl >/dev/null 2>&1 || fail "gomacusers knowledge missing"
+grep -q '"PrettyName":"macOS 12.7.3 (21H1015)"' "$out"/knowledge/*/gomachost.jsonl || fail "gomachost os_release missing"
+grep -q '"Label":"org.keepassxc.KeePassXC"' "$out"/golaunchd/*/golaunchd.jsonl || fail "golaunchd job missing"
+grep -q '"Ident":"opendirectoryd"' "$out"/gosyslog/*/gosyslog.jsonl || fail "install.log not parsed"
 
 code=0; run || code=$?
 [[ $code -eq 0 ]] || fail "rerun exit $code"

@@ -44,10 +44,10 @@ import (
 // family (sshd_event, sudo_event, pam_session, cron_event).
 type syslogRecord struct {
 	record.Envelope
-	Host    string `json:"Host,omitempty"`
-	Ident   string `json:"Ident,omitempty"`
-	PID     *int64 `json:"PID,omitempty"`
-	Message string `json:"Message"`
+	Hostname string `json:"Hostname,omitempty"` // the line's own host field (Host is the envelope's knowledge block)
+	Ident    string `json:"Ident,omitempty"`
+	PID      *int64 `json:"PID,omitempty"`
+	Message  string `json:"Message"`
 	// the typed families (docs/linux §4.1 rule 1), recognised by the shared
 	// pinfo/families engine — the same engine the journal pathway feeds
 	families.Typed
@@ -60,6 +60,9 @@ type syslogRecord struct {
 var logBases = []string{
 	"syslog", "messages", "auth.log", "secure", "kern.log", "cron",
 	"cron.log", "daemon.log", "mail.log", "user.log", "debug", "boot.log",
+	// macOS: the ASL-fed system log, the installer log, the Wi-Fi daemon's
+	// log and the boot-time filesystem checks
+	"system.log", "install.log", "wifi.log", "fsck_hfs.log", "fsck_apfs.log",
 }
 
 func isSyslogFile(rel string) bool {
@@ -78,7 +81,9 @@ var (
 	// "Mar  1 22:14:02 host tail" (RFC3164, no year)
 	bsdRe = regexp.MustCompile(`^([A-Z][a-z]{2} [ 0-9]\d \d{2}:\d{2}:\d{2})\s+(\S+)\s+(.*)$`)
 	// "2026-03-01T22:14:02.123456+02:00 host tail" (ISO-8601 prefix)
-	isoRe = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+(\S+)\s+(.*)$`)
+	isoRe = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)\s+(\S+)\s+(.*)$`)
+	// "Fri Mar  1 00:50:11.543 <kernel> tail" (macOS wifi.log: weekday, BSD stamp with milliseconds, the sender in angle brackets)
+	wifiRe = regexp.MustCompile(`^[A-Z][a-z]{2} ([A-Z][a-z]{2} [ 0-9]\d \d{2}:\d{2}:\d{2})\.(\d{1,6})\s+(<[^>]+>|\S+)\s+(.*)$`)
 	// "<13>1 2026-03-01T22:14:02Z host app pid msgid [sd] msg" (RFC5424)
 	r5424Re = regexp.MustCompile(`^<\d{1,3}>\d\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+\S+\s+(?:\[[^\]]*\]|-)\s*(.*)$`)
 	identRe = regexp.MustCompile(`^([^\s:\[\]]+)(?:\[(\d+)\])?:\s?(.*)$`)
@@ -116,7 +121,7 @@ func parseLine(line string, ref time.Time, loc *time.Location, rec *syslogRecord
 			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
-		rec.Host = dash(m[2])
+		rec.Hostname = dash(m[2])
 		rec.Ident = dash(m[3])
 		if m[4] != "-" {
 			if n, err := strconv.ParseInt(m[4], 10, 64); err == nil {
@@ -130,7 +135,7 @@ func parseLine(line string, ref time.Time, loc *time.Location, rec *syslogRecord
 			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
-		rec.Host = m[2]
+		rec.Hostname = m[2]
 		splitIdent(m[3], rec)
 	case bsdRe.MatchString(line):
 		m := bsdRe.FindStringSubmatch(line)
@@ -138,8 +143,23 @@ func parseLine(line string, ref time.Time, loc *time.Location, rec *syslogRecord
 			rec.EventTime = tstamp.ISO8601(t)
 			rec.TimeKind = "event"
 		}
-		rec.Host = m[2]
+		rec.Hostname = m[2]
 		splitIdent(m[3], rec)
+	case wifiRe.MatchString(line):
+		m := wifiRe.FindStringSubmatch(line)
+		if t, ok := tstamp.Syslog3164In(m[1], ref, loc); ok {
+			frac := m[2]
+			for len(frac) < 9 {
+				frac += "0"
+			}
+			if ns, err := strconv.Atoi(frac); err == nil {
+				t = t.Add(time.Duration(ns))
+			}
+			rec.EventTime = tstamp.ISO8601(t)
+			rec.TimeKind = "event"
+		}
+		rec.Ident = strings.Trim(m[3], "<>")
+		rec.Message = m[4]
 	default:
 		rec.Message = line // continuation or free-form line: kept, untyped
 	}

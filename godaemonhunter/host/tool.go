@@ -193,11 +193,22 @@ func parseTZif(rd io.Reader, w *record.Writer) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(b) < 4 || string(b[0:4]) != "TZif" {
-		return 0, fmt.Errorf("not a TZif file")
-	}
 	rec := &hostRecord{}
 	rec.RecordType = "timezone"
+	if len(b) < 4 || string(b[0:4]) != "TZif" {
+		// a symlink staged as its target text ("/var/db/timezone/zoneinfo/
+		// Europe/Tallinn", "../usr/share/zoneinfo/UTC"): the zone name is
+		// what follows zoneinfo/
+		target := strings.TrimSpace(string(b))
+		if i := strings.LastIndex(target, "zoneinfo/"); i >= 0 && len(target) < 256 && !strings.ContainsAny(target, "\x00\n") {
+			rec.Timezone = target[i+len("zoneinfo/"):]
+			if err := w.Write(rec); err != nil {
+				return 0, err
+			}
+			return 1, nil
+		}
+		return 0, fmt.Errorf("not a TZif file")
+	}
 	// v2+ footer: ...\n<posix tz>\n at the very end of the file.
 	if b[len(b)-1] == '\n' {
 		body := b[:len(b)-1]

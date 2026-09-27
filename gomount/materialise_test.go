@@ -44,7 +44,7 @@ func TestMaterialiseCatalogue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadArtefactSets: %v", err)
 	}
-	want := []string{"amcache", "linux-core", "mft", "ntuser", "prefetch", "recent", "recyclebin", "registry-core", "shimcache", "srum", "sum", "timeline", "usrclass", "windows-core", "winevt"}
+	want := []string{"amcache", "linux-core", "macos-core", "macos-system", "mft", "ntuser", "prefetch", "recent", "recyclebin", "registry-core", "shimcache", "srum", "sum", "timeline", "usrclass", "windows-core", "winevt"}
 	got := sortedSetNames(sets)
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("set names = %v, want %v", got, want)

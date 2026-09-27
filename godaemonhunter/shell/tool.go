@@ -60,7 +60,21 @@ var shells = map[string]string{
 }
 
 func classify(rel string) string {
-	return shells[strings.ToLower(filepath.Base(rel))]
+	base := strings.ToLower(filepath.Base(rel))
+	if s := shells[base]; s != "" {
+		return s
+	}
+	// macOS Terminal keeps one history per session: .bash_sessions/<id>.history
+	// (and .historynew while a session is open), .zsh_sessions/<id>.history
+	if strings.HasSuffix(base, ".history") || strings.HasSuffix(base, ".historynew") {
+		switch strings.ToLower(filepath.Base(filepath.Dir(rel))) {
+		case ".bash_sessions":
+			return "bash"
+		case ".zsh_sessions":
+			return "zsh"
+		}
+	}
+	return ""
 }
 
 // zshUnmetafy reverses zsh's metafication: 0x83 marks the next byte XOR 0x20.

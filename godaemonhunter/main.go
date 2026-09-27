@@ -1,9 +1,13 @@
-// godaemonhunter — the Linux matrix as ONE structured binary
-// (docs/linux §4, decisions 15–17): every daemon parser lives here as a
-// package and runs inside the layered one-shot — Layer 1 (gohost,
-// gousers, gonetwork) runs first and builds the image's knowledge store,
-// then the daemon parsers run enriched by it. One binary, one run, one
-// structured output tree, one JSON summary line.
+// godaemonhunter — the Linux and macOS daemon matrix as ONE structured
+// binary (docs/linux §4, decisions 15–17): every daemon parser lives here
+// as a package and runs inside the layered one-shot — Layer 1 (gohost,
+// gousers, gonetwork, and for a Mac gomachost, gomacusers) runs first and
+// builds the image's knowledge store, then the daemon parsers run
+// enriched by it. One binary, one run, one structured output tree, one
+// JSON summary line. A Mac is the same run: its Layer-1 parsers emit the
+// same record types from the property lists that carry them, golaunchd
+// feeds the service stream beside gounit, and gosyslog, gowtmp, gocron,
+// goshell and gousers read the macOS shapes of their artefacts.
 //
 // The parameter is the STREAM (decision 17): a byakugan model word that
 // scopes the run to the daemon parsers feeding that model. The default
@@ -23,8 +27,8 @@
 // A disk image is a host too (imageitem.go): GODAEMONHUNTER_IMAGE (or a
 // sub-tool's <SUBTOOL>_IMAGE) names one under the input tree — or every
 // image directly under it is taken — and the parsers run ON the image: the
-// baked-in gomount pulls the linux-core artefact surface (docs/linux §5.4)
-// out of the root volume into the work dir, the layered run goes over that
+// baked-in gomount pulls the linux-core and macos-core artefact surfaces
+// (docs/linux §5.4; whichever the OS volume holds) into the work dir, the layered run goes over that
 // as over a staged root tree, the knowledge store lands at
 // <OUT_DIR>/knowledge/<image>/ and the records under
 // <OUT_DIR>/<subtool>/<image>/, the scratch goes. Nothing is exported.
@@ -55,6 +59,9 @@ import (
 	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/ctl"
 	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/host"
 	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/journal"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/launchd"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/machost"
+	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/macusers"
 	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/network"
 	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/shell"
 	"github.com/Get-Sybers/GoDFIR-toolz/godaemonhunter/syslog"
@@ -89,6 +96,8 @@ var subs = []sub{
 	{"gohost", 1, host.Tool, host.Main},
 	{"gousers", 1, users.Tool, users.Main},
 	{"gonetwork", 1, network.Tool, network.Main},
+	{"gomachost", 1, machost.Tool, machost.Main},
+	{"gomacusers", 1, macusers.Tool, macusers.Main},
 	{"gojournal", 2, journal.Tool, journal.Main},
 	{"goauditd", 2, auditd.Tool, auditd.Main},
 	{"gowtmp", 2, wtmp.Tool, wtmp.Main},
@@ -98,6 +107,7 @@ var subs = []sub{
 	{"goshell", 2, shell.Tool, shell.Main},
 	{"gotrash", 2, trash.Tool, trash.Main},
 	{"goctl", 2, ctl.Tool, ctl.Main},
+	{"golaunchd", 2, launchd.Tool, launchd.Main},
 }
 
 // streams is the calling vocabulary (decision 17): each accepted word IS a
@@ -109,15 +119,17 @@ var streams = map[string][]string{
 	"authentication": {"gojournal", "gosyslog", "gowtmp", "goauditd"},
 	"user_session":   {"gowtmp", "gojournal", "gosyslog", "goauditd"},
 	"process":        {"goauditd", "goshell", "gojournal", "gosyslog"},
-	"service":        {"gounit", "gocron", "gojournal", "gosyslog"},
+	"service":        {"gounit", "golaunchd", "gocron", "gojournal", "gosyslog"},
 	"flow":           {"goauditd"},
 	"file":           {"gotrash"},
 	"module":         {"goctl"},
 }
 
 // imageSets is what every daemon parser reads off a disk image: the Linux
-// root-filesystem surface of docs/linux §5.4, one gomount set.
-var imageSets = []string{"linux-core"}
+// root-filesystem surface of docs/linux §5.4 and its macOS counterpart —
+// both are asked for on every image; whichever the OS volume holds is
+// pulled, the other matches nothing.
+var imageSets = []string{"linux-core", "macos-core"}
 
 func main() { os.Exit(run(os.Args[1:], os.Getenv, os.Stdout)) }
 

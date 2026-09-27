@@ -173,7 +173,7 @@ func TestClassify(t *testing.T) {
 	cases := map[string]string{
 		"wtmp": "wtmp", "wtmp.1": "wtmp", "wtmp.1.gz": "wtmp",
 		"btmp": "btmp", "utmp": "utmp", "lastlog": "lastlog",
-		"wtmpx": "", "utmpx": "", "syslog": "", "lastlog2json": "",
+		"wtmpx": "", "utmpx": "utmpx", "syslog": "", "lastlog2json": "",
 	}
 	for in, want := range cases {
 		if got := classify(in); got != want {
@@ -217,5 +217,51 @@ func TestBatchEndToEnd(t *testing.T) {
 	}
 	if rec["Tool"] != "gowtmp" || rec["SourceFilename"] != "var/log/wtmp" || rec["Username"] != "alice" {
 		t.Fatalf("record: %v", rec)
+	}
+}
+
+// TestUtmpx reads the macOS 628-byte layout: a SIGNATURE head record, a
+// BOOT_TIME and a USER_PROCESS with its 32-bit timeval at offset 300.
+func TestUtmpx(t *testing.T) {
+	rec := func(user, id, line string, pid uint32, typ uint16, sec, usec uint32, host string) []byte {
+		b := make([]byte, utmpxRecLen)
+		copy(b[0:], user)
+		copy(b[256:], id)
+		copy(b[260:], line)
+		binary.LittleEndian.PutUint32(b[292:], pid)
+		binary.LittleEndian.PutUint16(b[296:], typ)
+		binary.LittleEndian.PutUint32(b[300:], sec)
+		binary.LittleEndian.PutUint32(b[304:], usec)
+		copy(b[308:], host)
+		return b
+	}
+	var file []byte
+	file = append(file, rec("utmpx-1.00", "", "", 0, utmpxSigType, 0, 0, "")...)
+	file = append(file, rec("", "", "", 1, 2, 0x660bf500, 0, "")...)
+	file = append(file, rec("gl", "/\x00\x01\x01", "console", 140, 7, 0x660bf527, 976757, "")...)
+	file = append(file, rec("gl", "s000", "ttys000", 512, 8, 0x660bf600, 0, "10.0.0.5")...)
+	var buf bytes.Buffer
+	w := record.NewWriter(&buf)
+	n, err := parseStream(bytes.NewReader(file), "utmpx", nil, w, func(string, ...interface{}) {})
+	w.Flush()
+	if err != nil || n != 3 {
+		t.Fatalf("utmpx: %d records, %v", n, err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+	var boot, login, logout map[string]any
+	json.Unmarshal(lines[0], &boot)
+	json.Unmarshal(lines[1], &login)
+	json.Unmarshal(lines[2], &logout)
+	if boot["LoginTypeName"] != "BOOT_TIME" || boot["EventTime"] != "2024-04-02T12:07:28.000000Z" {
+		t.Fatalf("boot: %v", boot)
+	}
+	if login["Username"] != "gl" || login["Terminal"] != "console" || login["PID"] != float64(140) || login["LoginTypeName"] != "USER_PROCESS" || login["EventTime"] != "2024-04-02T12:08:07.976757Z" {
+		t.Fatalf("login: %v", login)
+	}
+	if logout["LoginTypeName"] != "DEAD_PROCESS" || logout["Hostname"] != "10.0.0.5" || logout["TerminalID"] != "s000" || logout["Source"] != "utmpx" {
+		t.Fatalf("logout: %v", logout)
+	}
+	if _, err := parseStream(bytes.NewReader(file[:100]), "utmpx", nil, record.NewWriter(&buf), func(string, ...interface{}) {}); err == nil {
+		t.Fatal("a short file must error")
 	}
 }

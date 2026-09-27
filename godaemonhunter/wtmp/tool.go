@@ -54,12 +54,25 @@ const (
 	utAccounting = 9
 	utmpRecLen   = 384
 	lastlogLen   = 292
+	// macOS utmpx on disk (private/var/run/utmpx, var/log/wtmp on older
+	// releases): 628-byte records — ut_user[256], ut_id[4], ut_line[32],
+	// ut_pid, ut_type, then a 32-bit timeval at 300, ut_host[256] at 308
+	utmpxRecLen  = 628
+	utmpxSigType = 10 // SIGNATURE: the "utmpx-1.00" head record
 )
 
 var utTypeNames = map[int16]string{
 	0: "EMPTY", 1: "RUN_LVL", 2: "BOOT_TIME", 3: "NEW_TIME", 4: "OLD_TIME",
 	5: "INIT_PROCESS", 6: "LOGIN_PROCESS", 7: "USER_PROCESS", 8: "DEAD_PROCESS",
 	9: "ACCOUNTING",
+}
+
+// utmpxTypeNames is the macOS vocabulary (utmpx.h): OLD/NEW_TIME swap
+// places against glibc, and SIGNATURE / SHUTDOWN_TIME are added.
+var utmpxTypeNames = map[int16]string{
+	0: "EMPTY", 1: "RUN_LVL", 2: "BOOT_TIME", 3: "OLD_TIME", 4: "NEW_TIME",
+	5: "INIT_PROCESS", 6: "LOGIN_PROCESS", 7: "USER_PROCESS", 8: "DEAD_PROCESS",
+	9: "ACCOUNTING", 10: "SIGNATURE", 11: "SHUTDOWN_TIME",
 }
 
 // utmpRecord is one struct-utmp entry (RecordType "utmp"); Source says which
@@ -94,7 +107,7 @@ type lastlogRecord struct {
 
 // utmpBases are the file families parsed as struct-utmp records; lastlogBase
 // as the lastlog table. Rotations (".1", "-20260901", ".gz") count.
-var utmpBases = []string{"wtmp", "utmp", "btmp"}
+var utmpBases = []string{"utmpx", "wtmp", "utmp", "btmp"}
 
 const lastlogBase = "lastlog"
 
@@ -244,10 +257,74 @@ func parseLastlog(r io.Reader, ks *knowledge.Store, w *record.Writer, warnf func
 	return emitted, nil
 }
 
+// parseUtmpx reads macOS 628-byte utmpx records. The file opens with a
+// SIGNATURE record ("utmpx-1.00"), which is not a login and is skipped.
+func parseUtmpx(r io.Reader, source string, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
+	buf := make([]byte, utmpxRecLen)
+	emitted, valid, invalid := 0, 0, 0
+	for {
+		_, err := io.ReadFull(r, buf)
+		if err == io.EOF {
+			break
+		}
+		if err == io.ErrUnexpectedEOF {
+			if valid > 0 {
+				warnf("truncated trailing record ignored")
+				break
+			}
+			return emitted, fmt.Errorf("short file: not utmpx records")
+		}
+		if err != nil {
+			return emitted, err
+		}
+		ut := int16(binary.LittleEndian.Uint16(buf[296:298]))
+		if ut < 0 || ut > 11 {
+			invalid++
+			if invalid > valid+8 {
+				return emitted, fmt.Errorf("not a macOS utmpx layout (record type %d)", ut)
+			}
+			continue
+		}
+		valid++
+		if ut == utEmpty || ut == utmpxSigType {
+			continue
+		}
+		rec := &utmpRecord{
+			Source:        source,
+			LoginType:     ut,
+			LoginTypeName: utmpxTypeNames[ut],
+			Username:      cstr(buf[0:256]),
+			TerminalID:    cstr(buf[256:260]),
+			Terminal:      cstr(buf[260:292]),
+			PID:           int32(binary.LittleEndian.Uint32(buf[292:296])),
+			Hostname:      cstr(buf[308:564]),
+		}
+		sec := int64(int32(binary.LittleEndian.Uint32(buf[300:304])))
+		usec := int64(int32(binary.LittleEndian.Uint32(buf[304:308])))
+		rec.RecordType = "utmp"
+		rec.EventTime = tstamp.Unix(sec, usec*1000)
+		rec.TimeKind = "event"
+		if err := w.Write(rec); err != nil {
+			return emitted, err
+		}
+		emitted++
+	}
+	if valid == 0 && emitted == 0 {
+		return 0, fmt.Errorf("no utmpx records found")
+	}
+	if invalid > 0 {
+		warnf("%d records with out-of-range type skipped", invalid)
+	}
+	return emitted, nil
+}
+
 // parseStream dispatches one input by family.
 func parseStream(r io.Reader, family string, ks *knowledge.Store, w *record.Writer, warnf func(string, ...interface{})) (int, error) {
-	if family == lastlogBase {
+	switch family {
+	case lastlogBase:
 		return parseLastlog(r, ks, w, warnf)
+	case "utmpx":
+		return parseUtmpx(r, family, w, warnf)
 	}
 	return parseUtmp(r, family, w, warnf)
 }
