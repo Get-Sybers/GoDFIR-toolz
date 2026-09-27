@@ -5,8 +5,9 @@
 # line — plus idempotency, the config-error exit, the argv pass-through and a
 # single-subtool run.
 #
-# Default: builds and runs the hardened image (docker, this directory as
-# context). IMAGE=<ref> reuses a built image instead of building;
+# Default: builds and runs the hardened image (docker, the REPO ROOT as
+# context — the image bakes the sibling gomount/). IMAGE=<ref> reuses a built
+# image instead of building;
 # CONTRACT_LOCAL=1 builds the binary with the host Go toolchain instead.
 set -euo pipefail
 
@@ -56,7 +57,7 @@ if [[ "${CONTRACT_LOCAL:-0}" == "1" ]]; then
     (cd "$tool_dir" && CGO_ENABLED=0 go build -o "$work/gowindowlicker" .)
 elif [[ -z "${IMAGE:-}" ]]; then
     IMAGE=get-sybers/gowindowlicker:latest
-    (cd "$tool_dir" && docker build -q -t "$IMAGE" -f Dockerfile .)
+    (cd "$(dirname "$tool_dir")" && docker build -q -t "$IMAGE" -f gowindowlicker/Dockerfile .)
 fi
 
 fail() { echo "FAIL: $*" >&2; cat "$work/stderr" >&2 || true; exit 1; }
