@@ -6,6 +6,15 @@
 # committed gzipped; tests gunzip to a temp file.
 #
 #   cd gomount/fsx/testdata && ./gen.sh
+#
+# The Apple fixtures are not generated here — no Linux host can format them.
+# hfsplus-transmission.img.gz and apfs-container.img.gz are the raw disks
+# inside Homebrew's transmission-2.61.dmg and container-apfs.dmg cask test
+# fixtures (github.com/Homebrew/brew, BSD-2-Clause — THIRD_PARTY_NOTICES.md),
+# written by Apple's diskutil/hdiutil: the UDIF container unpacked and its
+# zlib chunks reassembled (gomount's own DMG reader will do that once it
+# exists; until then a 30-line script did). HFS+ fixtures for the shapes those
+# do not cover come from fsx/hfsplus/hfstest at test time.
 set -euo pipefail
 cd "$(dirname "$0")"
 work="$(mktemp -d)"

@@ -30,7 +30,9 @@ through the private metadata directories, symlinks, extended attributes
 and decmpfs content; its fixtures are built by
 [`fsx/hfsplus/hfstest`](fsx/hfsplus/hfstest) (`go run
 ./fsx/hfsplus/hfstest/mkhfs -o hfs.img [-hfsx] [-wrapper] [-apm]`), since
-no Linux build host can format one. The APFS backend ([`fsx/apfs`](fsx/apfs)) reads the newest
+no Linux build host can format one, and both Mac backends are also tested
+against volumes Apple's tools wrote (Homebrew's cask fixtures, reassembled
+under `fsx/testdata/`). The APFS backend ([`fsx/apfs`](fsx/apfs)) reads the newest
 checkpoint, the object maps, the fixed and variable B-trees, the sealed
 (hashed, headerless) file-system tree of a System volume with its extents
 in the fext tree, and file content including **decmpfs** compression —

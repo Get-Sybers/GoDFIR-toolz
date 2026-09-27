@@ -46,7 +46,11 @@
   `SystemVersion.plist` ahead of the Linux rule. Fixtures come from
   `gomount/fsx/hfsplus/hfstest` (`mkhfs`): no Linux build host can format
   HFS+, so the volume is written from the format — with a real index
-  level, fragmented forks, links and every decmpfs shape.
+  level, fragmented forks, links and every decmpfs shape — and both Mac
+  backends are also tested against volumes Apple's own tools wrote: the
+  raw disks of Homebrew's `transmission-2.61.dmg` and `container-apfs.dmg`
+  cask fixtures (BSD-2, `THIRD_PARTY_NOTICES.md`), committed under
+  `gomount/fsx/testdata/`.
 - **gomount `materialise` speaks the batch contract**: ONE JSON summary line
   on stdout and the 0/1/2/3 exit table (0 ok, 1 nothing pulled, 2 config
   error, 3 partial), so a lane can run it per image like any dispatcher.
