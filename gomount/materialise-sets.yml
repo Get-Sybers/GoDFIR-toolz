@@ -45,6 +45,62 @@ sets:
       - '\Users\*\AppData\Local\ConnectedDevicesPlatform\*\ActivitiesCache.db'
     siblings: ['-wal', '-shm']
 
+  # the event logs (goevtx) — the modern channel files and the legacy .evt
+  winevt:
+    primaries:
+      - '\Windows\System32\winevt\Logs\*.evtx'
+      - '\Windows\System32\config\*.evt'
+    siblings: []
+
+  prefetch:
+    primaries:
+      - '\Windows\Prefetch\*.pf'
+    siblings: []
+
+  # the master file table (gomft)
+  mft:
+    primaries:
+      - '\$MFT'
+    siblings: []
+
+  # shell items: LNK files and the jump lists (gosbe / golnk)
+  recent:
+    primaries:
+      - '\Users\*\AppData\Roaming\Microsoft\Windows\Recent\*.lnk'
+      - '\Users\*\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations\*'
+      - '\Users\*\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations\*'
+    siblings: []
+
+  # the Recycle Bin index records ($I…) per SID
+  recyclebin:
+    primaries:
+      - '\$Recycle.Bin\*\$I*'
+    siblings: []
+
+  # every Windows artefact set the go* parsers read, in one name — what the
+  # DX_DFIR export pulls out of each image
+  windows-core:
+    primaries:
+      - '\$MFT'
+      - '\Windows\System32\config\SYSTEM'
+      - '\Windows\System32\config\SOFTWARE'
+      - '\Windows\System32\config\SAM'
+      - '\Windows\System32\config\SECURITY'
+      - '\Windows\AppCompat\Programs\Amcache.hve'
+      - '\Users\*\NTUSER.DAT'
+      - '\Users\*\AppData\Local\Microsoft\Windows\UsrClass.dat'
+      - '\Windows\System32\sru\SRUDB.dat'
+      - '\Windows\System32\LogFiles\SUM\*.mdb'
+      - '\Users\*\AppData\Local\ConnectedDevicesPlatform\*\ActivitiesCache.db'
+      - '\Windows\System32\winevt\Logs\*.evtx'
+      - '\Windows\System32\config\*.evt'
+      - '\Windows\Prefetch\*.pf'
+      - '\Users\*\AppData\Roaming\Microsoft\Windows\Recent\*.lnk'
+      - '\Users\*\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations\*'
+      - '\Users\*\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations\*'
+      - '\$Recycle.Bin\*\$I*'
+    siblings: ['.LOG1', '.LOG2', '-wal', '-shm']
+
   # docs/linux §5.4: the root-filesystem surface the daemon parsers consume
   linux-core:
     primaries:
@@ -65,6 +121,7 @@ sets:
       - 'etc/ssh/**'
       - 'etc/systemd/**'
       - 'etc/os-release'
+      - 'usr/lib/os-release'
       - 'etc/hostname'
       - 'etc/hosts'
       - 'etc/fstab'
@@ -89,6 +146,8 @@ sets:
       - 'etc/network/interfaces'
       - 'var/spool/cron/**'
       - 'var/spool/at/**'
+      - 'var/run/utmp'
+      - 'run/utmp'
       - 'usr/lib/systemd/system/**'
       - 'lib/systemd/system/**'
       - 'run/systemd/system/**'
@@ -111,4 +170,5 @@ sets:
       - 'root/.ssh/**'
       - 'root/.config/systemd/user/**'
       - 'root/.local/share/Trash/**'
+      - '.Trash-*/info/**'
     siblings: ['-wal', '-shm']

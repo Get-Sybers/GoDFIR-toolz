@@ -3,7 +3,14 @@
 ## Backends
 
 gomount reads the volumes of a disk image in-process, and can additionally
-FUSE-mount an NTFS volume.
+FUSE-mount an NTFS volume. The image container is detected by content, never
+by name: E01/Ex01 (segmented), raw/dd/img, **VMDK** (monolithic and split
+sparse extents, streamOptimized, text descriptors with flat/zero extents,
+snapshot chains through `parentFileNameHint`), **VHDX** and **VHD** (fixed,
+dynamic, differencing), **QCOW2** (with backing files and compressed
+clusters) and **VDI** (dynamic and differencing). The VM-disk decoders are
+ported from [VMkatz](https://github.com/nikaiw/VMkatz) (MIT, Nicolas
+Devillers) — see `image/`.
 
 The **userspace backend** parses filesystems in-process and mounts nothing:
 no FUSE, no kernel driver, no privilege. NTFS is read with
@@ -35,9 +42,10 @@ gomount materialise --out DIR [--set NAME]... [--select GLOB]... [--siblings] [-
 
 `materialise` copies targeted artefacts out of the volume into a real directory,
 so a downstream tool consumes them from a plain `-d <dir>`. `--set` names a
-built-in artefact set (`registry-core`, `amcache`, `shimcache`, `ntuser`,
-`usrclass`, `srum`, `sum`, `timeline`); `--select` adds an ad-hoc volume-path
-glob. Each file lands at `<out>/<volume-path>` at mode `0400`. `--siblings`
+built-in artefact set (`windows-core` — every Windows set in one —
+`registry-core`, `amcache`, `shimcache`, `ntuser`, `usrclass`, `srum`, `sum`,
+`timeline`, `winevt`, `prefetch`, `mft`, `recent`, `recyclebin`, and
+`linux-core`); `--select` adds an ad-hoc volume-path glob. Each file lands at `<out>/<volume-path>` at mode `0400`. `--siblings`
 (default `true`) also copies each artefact's named siblings — a hive's
 `.LOG1`/`.LOG2`, a SQLite `-wal`/`-shm` — from the same directory. `--manifest`
 writes `<out>/materialise.jsonl` when `--manifest` is given — each row an
@@ -134,7 +142,7 @@ the `mount` verb additionally needs `--device /dev/fuse`.
 ## Output
 
 - `stream`: a tar archive on stdout, one regular-file entry per volume file (entry name = the file's volume path), or one JSON object per file with `--jsonl`.
-- `materialise`: `<out>/<volume-path>` at mode `0400` per pulled file, `residue/<kind>/<id>/<volume-path>` with `--residue`, plus `<out>/materialise.jsonl` with `--manifest`.
+- `materialise`: `<out>/<volume-path>` at mode `0400` per pulled file, `residue/<kind>/<id>/<volume-path>` with `--residue`, plus `<out>/materialise.jsonl` with `--manifest`; ONE JSON summary line on stdout (`tool, subtool, version, status, inputs, processed, skipped, failed, records, outputs, exit, started, duration_s`, the batch contract every DX_DFIR lane gates on).
 - `mount`: a read-only NTFS mount at `--mount-point` held in the foreground until `umount`.
 - `ls`/`cat`/`stat`/`tree`/`browse`: the listing or bytes on stdout.
 
@@ -143,8 +151,9 @@ the `mount` verb additionally needs `--device /dev/fuse`.
 | Code | Meaning |
 |---|---|
 | 0 | success |
-| 1 | usage or fatal error (unknown verb, missing image, unreadable volume, mount failure) |
-| 2 | unused — declared because the framework's uniform table requires it; gomount never exits 2 |
+| 1 | read/stream verbs: usage or fatal error (unknown verb, missing image, unreadable volume, mount failure); `materialise`: nothing pulled (no artefact of the sets on the volume) |
+| 2 | `materialise`: config error (usage, unknown `--set`, bad `--select`, unwritable `--out`) |
+| 3 | `materialise`: partial — the image could not be opened, or some files failed to copy (see stderr and the summary's `failures`) |
 
 ## Run
 

@@ -22,9 +22,11 @@
 //	          file); `yara -w -s -N -r <rules> <item>`; one record per rule hit
 //	suricata  one item per capture (pcap/pcapng); `suricata -r <capture> -l
 //	          <item dir> -k none -S <rules> [--set …]`; records = eve.json lines
-//	hayabusa  one item per directory under INPUT_DIR that holds .evtx files;
-//	          `hayabusa dfir-timeline --directory <item> --output … --output-type
-//	          jsonl`; records = detections
+//	hayabusa  one item per directory under INPUT_DIR that holds .evtx files,
+//	          and one per disk image directly under it — the baked gomount pulls
+//	          its event logs (the winevt set) into WORK_DIR, hayabusa runs over
+//	          that, the scratch goes; `hayabusa dfir-timeline --directory <item>
+//	          --output … --output-type jsonl`; records = detections
 //	scan      one item per disk image; `gomount stream <image> | goyara --rules
 //	          <rules>`; records = rule hits across the image's files
 package main
@@ -32,12 +34,14 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,9 +153,19 @@ func countLines(path string) int {
 }
 
 var captureExts = map[string]bool{".pcap": true, ".pcapng": true, ".cap": true}
-var imageExts = map[string]bool{".e01": true, ".ex01": true, ".raw": true, ".dd": true, ".img": true, ".vmdk": true, ".vhd": true, ".vhdx": true, ".001": true, ".bin": true}
+
+// imageExts is every container gomount decodes: EWF, raw, VMware, Hyper-V,
+// QEMU and VirtualBox disks.
+var imageExts = map[string]bool{".e01": true, ".ex01": true, ".raw": true, ".dd": true, ".img": true, ".vmdk": true, ".vhd": true, ".vhdx": true, ".qcow2": true, ".qcow": true, ".vdi": true, ".aff4": true, ".001": true, ".bin": true}
+
+// imagePart matches the parts of ANOTHER image item — a VMDK's flat or split
+// (-sNNN) extents, an EWF set's continuation segments — never items themselves.
+var imagePart = regexp.MustCompile(`(?i)(-flat\.vmdk|-s[0-9]{3,}\.vmdk|\.e(0[2-9]|[1-9][0-9]|[a-z]{2}))$`)
 
 func hasExt(p string, set map[string]bool) bool { return set[strings.ToLower(filepath.Ext(p))] }
+
+// isImageItem reports whether p names a disk image that is an item.
+func isImageItem(p string) bool { return hasExt(p, imageExts) && !imagePart.MatchString(p) }
 
 // ---- yara ------------------------------------------------------------------------
 
@@ -316,8 +330,9 @@ func dirHasEvtx(dir string) bool {
 }
 
 // discoverHayabusa: every immediate subdirectory holding .evtx files is one
-// item; when the input root itself holds .evtx files directly, the root is the
-// (single) item.
+// item, and so is every disk image directly under the root (its event logs
+// are pulled off the OS volume when the item runs); when the input root
+// itself holds .evtx files directly, the root is the (single) item.
 func discoverHayabusa(cfg *batchConfig) ([]string, error) {
 	entries, err := os.ReadDir(cfg.InputDir)
 	if err != nil {
@@ -329,6 +344,8 @@ func discoverHayabusa(cfg *batchConfig) ([]string, error) {
 		p := filepath.Join(cfg.InputDir, e.Name())
 		switch {
 		case e.IsDir() && dirHasEvtx(p):
+			items = append(items, p)
+		case !e.IsDir() && isImageItem(p):
 			items = append(items, p)
 		case !e.IsDir() && strings.EqualFold(filepath.Ext(p), ".evtx"):
 			rootHasEvtx = true
@@ -355,6 +372,29 @@ type hayabusaIndex struct {
 // flag an unreadable .evtx aborts the whole scan (exit 101) instead of being
 // skipped.
 func processHayabusa(cfg *batchConfig, item, itemDir string, w io.Writer) (int, error) {
+	// a disk image: its event logs come off the OS volume into scratch first,
+	// the scratch tree is the directory hayabusa reads, and it goes after
+	if st, err := os.Stat(item); err == nil && st.Mode().IsRegular() && isImageItem(item) {
+		scratch := filepath.Join(cfg.WorkDir, filepath.Base(item))
+		if err := os.RemoveAll(scratch); err != nil {
+			return 0, fmt.Errorf("clear scratch %s: %w", scratch, err)
+		}
+		if err := os.MkdirAll(scratch, 0o755); err != nil {
+			return 0, fmt.Errorf("scratch under %s: %w", cfg.WorkDir, err)
+		}
+		defer os.RemoveAll(scratch)
+		cfg.logf(logDebug, "exec %s materialise --out %s --set winevt %s", gomountBinary, scratch, item)
+		pull := exec.Command(gomountBinary, "materialise", "--out", scratch, "--set", "winevt", item)
+		pull.Stderr = os.Stderr
+		pull.Stdout = nil // gomount's summary line is not ours to print
+		if err := pull.Run(); err != nil {
+			var ee *exec.ExitError
+			if !errors.As(err, &ee) || ee.ExitCode() != 1 { // 1: no event log on the volume
+				return 0, fmt.Errorf("gomount materialise %s: %w", filepath.Base(item), err)
+			}
+		}
+		item = scratch
+	}
 	out := filepath.Join(itemDir, "timeline.jsonl")
 	os.Remove(out)
 	args := []string{"dfir-timeline", "--directory", item, "--output", out, "--output-type", "jsonl",
@@ -387,7 +427,7 @@ func discoverScan(cfg *batchConfig) ([]string, error) {
 	}
 	var items []string
 	for _, p := range files {
-		if hasExt(p, imageExts) {
+		if isImageItem(p) {
 			items = append(items, p)
 		}
 	}

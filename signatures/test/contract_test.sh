@@ -13,7 +13,9 @@ contract="$tool_dir/contract.yml"
 command -v python3 >/dev/null 2>&1 || { echo "contract_test: python3 is required" >&2; exit 2; }
 
 scratch="$(mktemp -d)"
-trap 'rm -rf "$scratch"' EXIT
+# the image writes its output as uid 2000: what the host user cannot remove
+# is left for the OS's tmp reaper rather than failing a passed test
+trap 'rm -rf "$scratch" 2>/dev/null || true' EXIT
 mkdir -p "$scratch/staged" "$scratch/pcaps" "$scratch/evtx" "$scratch/out-yara" "$scratch/out-suricata" "$scratch/out-hayabusa" "$scratch/work"
 cp -R "$here/fixtures/staged/." "$scratch/staged/"
 cp -R "$here/fixtures/pcaps/." "$scratch/pcaps/"

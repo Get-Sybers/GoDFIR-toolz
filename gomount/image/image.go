@@ -38,11 +38,15 @@ var ewfSegmentExt = regexp.MustCompile(`(?i)^\.(e|s)x?[0-9a-z]{2}$`)
 
 // OpenImage opens the disk image at path read-only and returns a reader over the
 // raw media, the exact media size in bytes, and a closer that releases every
-// underlying file. The container is auto-detected:
+// underlying file. The container is auto-detected by content (a mislabelled
+// name never decides):
 //
 //   - RAW/dd/img: ra is the *os.File, size is its on-disk length.
 //   - EWF/E01:    every segment (.E01, .E02…, or .Ex01…) is opened and handed to
 //     go-ewf; ra is the decoding *ewf.EWFFile, size is its TotalImageSize.
+//   - VMDK:       a sparse extent (KDMV) or a text descriptor — vmdk.go.
+//   - VHDX/VHD:   vhdxfile at 0 / conectix footer — vhdx.go, vhd.go.
+//   - QCOW2/VDI:  QFIû at 0 / the VDI magic at 0x40 — qcow2.go, vdi.go.
 //
 // The returned ReaderAt must be read within [0,size); the callers in this tool
 // (partition table scan, boot-sector/BPB read, and the FUSE Read passthrough)
@@ -51,6 +55,44 @@ func OpenImage(path string) (ra io.ReaderAt, size int64, closer func() error, er
 	f, err := os.Open(path) // O_RDONLY
 	if err != nil {
 		return nil, 0, nil, err
+	}
+
+	switch Format(path) {
+	case "vmdk":
+		f.Close()
+		d, err := openVMDK(path, 0)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return d, d.size, d.Close, nil
+	case "vhdx":
+		f.Close()
+		d, err := openVHDX(path, 0)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return d, d.size, d.Close, nil
+	case "vhd":
+		f.Close()
+		d, err := openVHD(path, 0)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return d, d.size, d.Close, nil
+	case "qcow2":
+		f.Close()
+		d, err := openQCOW2(path, 0)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return d, d.size, d.Close, nil
+	case "vdi":
+		f.Close()
+		d, err := openVDI(path, 0)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		return d, d.hdr.size, d.Close, nil
 	}
 
 	isEWF, err := looksLikeEWF(f, path)
@@ -109,17 +151,15 @@ func OpenImage(path string) (ra io.ReaderAt, size int64, closer func() error, er
 }
 
 // looksLikeEWF reports whether path is an EWF/E01 set, by the first-segment
-// signature (authoritative) and, failing a readable signature, by extension.
-func looksLikeEWF(f io.ReaderAt, path string) (bool, error) {
+// signature alone: every first segment carries it, and a name never decides
+// (a mislabelled raw file called .E01 stays raw).
+func looksLikeEWF(f io.ReaderAt, _ string) (bool, error) {
 	var hdr [8]byte
 	n, err := f.ReadAt(hdr[:], 0)
 	if err != nil && err != io.EOF {
 		return false, err
 	}
-	if n >= 8 && (bytes.Equal(hdr[:], sigEVF) || bytes.Equal(hdr[:], sigEVF2)) {
-		return true, nil
-	}
-	return ewfSegmentExt.MatchString(filepath.Ext(path)), nil
+	return n >= 8 && (bytes.Equal(hdr[:], sigEVF) || bytes.Equal(hdr[:], sigEVF2)), nil
 }
 
 // ewfSegments returns every segment file of the EWF set that path belongs to, in
@@ -153,4 +193,35 @@ func ewfSegments(path string) ([]string, error) {
 	}
 	sort.Strings(segs)
 	return segs, nil
+}
+
+// Format labels the image container by its content: "e01", "vmdk", "vhdx",
+// "vhd", "qcow2", "vdi" or "raw" (anything else, a mislabelled name included).
+func Format(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	var hdr [8]byte
+	n, _ := f.ReadAt(hdr[:], 0)
+	if n >= 8 && (bytes.Equal(hdr[:], sigEVF) || bytes.Equal(hdr[:], sigEVF2)) {
+		return "e01"
+	}
+	if sparse, desc := looksLikeVMDK(f); sparse || desc {
+		return "vmdk"
+	}
+	if looksLikeVHDX(f) {
+		return "vhdx"
+	}
+	if n >= 4 && bytes.Equal(hdr[:4], sigQFI) {
+		return "qcow2"
+	}
+	if looksLikeVDI(f) {
+		return "vdi"
+	}
+	if st, err := f.Stat(); err == nil && looksLikeVHD(f, st.Size()) {
+		return "vhd"
+	}
+	return "raw" // a name alone never decides: a mislabelled raw stays raw
 }

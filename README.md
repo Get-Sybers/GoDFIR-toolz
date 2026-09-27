@@ -21,10 +21,14 @@ canonical `<SUBTOOL>_*` env block. **Each parser keeps its canonical tool
 name, env block, record shapes and record-file name**
 (`goprefetch.jsonl`, `gore.jsonl`, `goevtx.jsonl`, …) — the interface
 byakugan and the pipeline consume. The module is self-contained (the
-shared batch runtime is its [`batch/`](gowindowlicker/batch/) package), so
-the image builds from its own directory: one static ~8 MB binary, no
-shell, no python, no libc, `USER 2000:2000` — the hardening contract holds
-by construction, and the `docker export` scan verifies it.
+shared batch runtime is its [`batch/`](gowindowlicker/batch/) package); the
+image builds with the **repo root as context** because it bakes the sibling
+[`gomount/`](gomount/) binary — the parsers run **on a disk image**
+(`GOWINDOWLICKER_IMAGE`: gomount pulls their artefact sets out of the OS
+volume into the work dir, nothing exported, nothing mounted). Still one
+static binary plus gomount, no shell, no python, no libc, `USER 2000:2000` —
+the hardening contract holds by construction, and the `docker export` scan
+verifies it.
 
 - [goprefetch](gowindowlicker/prefetch/README.md) — Windows prefetch: XP→Win11 `.pf`, MAM decompression in pure Go
 - [goese](gowindowlicker/ese/README.md) — ESE databases: SRUM `SRUDB.dat` (IdMap/SID enrichment) and SUM `Current.mdb`
@@ -60,7 +64,9 @@ stream, the default.** Each parser also runs granularly as
 `godaemonhunter <subtool>`. Built on the shared
 [`pinfo/`](pinfo/) module (batch runtime, record envelope,
 provenance stamping, the typed-event families the journal pathway and the
-flat logs share), and therefore built with the **repo root as context**.
+flat logs share) and baking the sibling [`gomount/`](gomount/) binary (the
+hunt runs **on a disk image**, `GODAEMONHUNTER_IMAGE`), and therefore built
+with the **repo root as context**.
 Same hardening contract: `FROM scratch`, one static binary,
 `USER 2000:2000`.
 

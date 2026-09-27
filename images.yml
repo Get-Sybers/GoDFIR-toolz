@@ -18,11 +18,10 @@ images:
   - name: plaso
     aliases: [log2timeline, psort]
 
-  # ---- the Windows Go parsers: one image (FROM scratch, self-contained
-  #      module — its own subdir the context), every parser a sub-tool
+  # ---- the Windows Go parsers: one image (FROM scratch; repo-root context —
+  #      it bakes the sibling gomount/ to run the parsers on a disk image),
+  #      every parser a sub-tool
   - name: gowindowlicker
-    context: gowindowlicker
-    dockerfile: Dockerfile
     aliases: [windowlicker, lick]
     subtool_aliases: [goprefetch, prefetch, pecmd,
                       goese, esedump, srum, srumecmd, sumecmd,

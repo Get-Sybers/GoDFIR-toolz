@@ -7,6 +7,38 @@ locally. The build galaxy pushes nothing to a registry, so no redistribution
 obligation attaches to the repository itself. An operator who publishes a
 built image is redistributing what it bakes — these terms then bind them.
 
+## VMkatz disk-image readers — ported source in `gomount/image/`
+
+Unlike everything below, this one IS shipped in the repository:
+[`gomount/image/vmdk.go`](gomount/image/vmdk.go), `vhd.go`, `vhdx.go`,
+`qcow2.go` and `vdi.go` are Go ports of the `src/disk` readers of
+[nikaiw/VMkatz](https://github.com/nikaiw/VMkatz) (Copyright (c) 2026
+Nicolas Devillers, MIT License). The MIT terms require the copyright notice
+and permission notice to accompany copies or substantial portions of the
+software: each ported file carries the attribution in its header comment,
+and this notice reproduces the licence:
+
+> Permission is hereby granted, free of charge, to any person obtaining a
+> copy of this software and associated documentation files (the
+> "Software"), to deal in the Software without restriction, including
+> without limitation the rights to use, copy, modify, merge, publish,
+> distribute, sublicense, and/or sell copies of the Software, and to permit
+> persons to whom the Software is furnished to do so, subject to the
+> following conditions: The above copyright notice and this permission
+> notice shall be included in all copies or substantial portions of the
+> Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+> EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+> MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+> NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+> OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+> USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+The streamOptimized (compressed grain) VMDK path, the descriptor-less split
+set assembly beyond VMkatz's, the QCOW2 compressed-cluster path and the test
+encoders (`gomount/image/imagetest/`) are this repository's own, under its
+Apache-2.0 licence.
+
 ## DetectRaptor YARA content — fetched at the `signatures` image build
 
 [`signatures/detectraptor.py`](signatures/detectraptor.py) downloads the YARA

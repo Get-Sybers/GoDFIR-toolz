@@ -12,7 +12,9 @@ here="$(cd "$(dirname "$0")" && pwd)"
 tool_dir="$(dirname "$here")"
 repo="$(dirname "$tool_dir")"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# the image writes its output as uid 2000: what the host user cannot remove
+# is left for the OS's tmp reaper rather than failing a passed test
+trap 'rm -rf "$work" 2>/dev/null || true' EXIT
 
 in="$work/in" out="$work/out" scratch="$work/scratch"
 mkdir -p "$in" "$out" "$scratch"

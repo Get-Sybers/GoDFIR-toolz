@@ -20,6 +20,15 @@
 //	                                   (-f FILE | -d DIR | --tar, -q)
 //	godaemonhunter --version | --print-contract
 //
+// A disk image is a host too (imageitem.go): GODAEMONHUNTER_IMAGE (or a
+// sub-tool's <SUBTOOL>_IMAGE) names one under the input tree — or every
+// image directly under it is taken — and the parsers run ON the image: the
+// baked-in gomount pulls the linux-core artefact surface (docs/linux §5.4)
+// out of the root volume into the work dir, the layered run goes over that
+// as over a staged root tree, the knowledge store lands at
+// <OUT_DIR>/knowledge/<image>/ and the records under
+// <OUT_DIR>/<subtool>/<image>/, the scratch goes. Nothing is exported.
+//
 // (`hunt` stays accepted as the explicit word for the default run.) The
 // multi-tool dispatcher shape of docs/framework/04 §4.3 (the plaso and
 // signatures precedent). There are no standalone per-parser binaries or
@@ -106,6 +115,10 @@ var streams = map[string][]string{
 	"module":         {"goctl"},
 }
 
+// imageSets is what every daemon parser reads off a disk image: the Linux
+// root-filesystem surface of docs/linux §5.4, one gomount set.
+var imageSets = []string{"linux-core"}
+
 func main() { os.Exit(run(os.Args[1:], os.Getenv, os.Stdout)) }
 
 // run is main's testable body: no arguments is every stream (the default),
@@ -139,6 +152,9 @@ func run(args []string, getenv func(string) string, stdout io.Writer) int {
 			continue
 		}
 		if len(args) == 1 {
+			if img := getenv(batch.Prefix(s.tool.Name) + "_IMAGE"); img != "" {
+				return runSubOnImage(s, img, getenv, stdout)
+			}
 			return batch.Run(s.tool, batch.Options{Version: version, Contract: contractYML}, getenv, stdout)
 		}
 		// argv debug pass-through: hand the rest of the command line to
@@ -188,10 +204,50 @@ type huntSummary struct {
 	Records      int             `json:"records"`
 	KnowledgeDir string          `json:"knowledge_dir"`
 	Streams      []string        `json:"streams"`
+	Images       []string        `json:"images,omitempty"` // the disk images run on, by item name
 	Subtools     []batch.Summary `json:"subtools"`
+	Failures     []batch.Failure `json:"failures,omitempty"` // an image that could not be read
 	Exit         int             `json:"exit"`
 	Started      string          `json:"started"`
 	DurationS    float64         `json:"duration_s"`
+}
+
+// runSubOnImage is one parser's batch mode over ONE disk image: linux-core is
+// pulled into scratch, the batch loop runs over that tree into
+// <OUT_DIR>/<image>/, and the parser's ordinary summary line is printed.
+func runSubOnImage(s sub, selected string, getenv func(string) string, stdout io.Writer) int {
+	pfx := batch.Prefix(s.tool.Name) + "_"
+	get := func(suffix, def string) string {
+		if v := getenv(pfx + suffix); v != "" {
+			return v
+		}
+		return def
+	}
+	in, out, work := get("INPUT_DIR", "/input"), get("OUT_DIR", "/output"), get("WORK_DIR", "/work")
+	images, err := selectedImages(in, selected)
+	if err != nil {
+		return configErrorSummary(s.name, err, stdout)
+	}
+	scratch, err := materialiseImage(getenv, work, images[0], imageSets)
+	if err != nil {
+		return configErrorSummary(s.name, err, stdout)
+	}
+	defer os.RemoveAll(scratch)
+	shim := shimEnv(s.tool, getenv, map[string]string{
+		"INPUT_DIR": scratch, "OUT_DIR": filepath.Join(out, imageItemName(in, images[0])), "IMAGE": "",
+	})
+	return batch.Run(s.tool, batch.Options{Version: version, Contract: contractYML}, shim, stdout)
+}
+
+// configErrorSummary prints a parser-shaped config_error summary line.
+func configErrorSummary(tool string, err error, stdout io.Writer) int {
+	fmt.Fprintf(os.Stderr, "godaemonhunter %s: %v\n", tool, err)
+	sum := batch.Summary{Tool: tool, Version: version, Status: "config_error", Outputs: []string{},
+		Error: err.Error(), Exit: 2, Started: time.Now().UTC().Format(time.RFC3339)}
+	enc := json.NewEncoder(stdout)
+	enc.SetEscapeHTML(false)
+	enc.Encode(sum)
+	return 2
 }
 
 // runHunt executes the layered pipeline: Layer 1 into the knowledge dir,
@@ -240,39 +296,79 @@ func runHunt(getenv func(string) string, stdout io.Writer, words []string) int {
 		Started: started.UTC().Format(time.RFC3339),
 	}
 
+	// the passes: the loose tree itself (only when no image is selected),
+	// then every disk image — each pulled into scratch by gomount and run as
+	// its own host: knowledge at <kdir>/<image>/, records under
+	// <OUT_DIR>/<subtool>/<image>/
+	type pass struct{ in, host, scratch string }
+	var passes []pass
+	selected := get("IMAGE", "")
+	images, err := selectedImages(in, selected)
+	if err != nil {
+		sum.Status, sum.Exit = "config_error", 2
+		sum.Failures = []batch.Failure{{Item: selected, Error: err.Error()}}
+		fmt.Fprintf(os.Stderr, "godaemonhunter: %v\n", err)
+		return writeHunt(sum, started, stdout)
+	}
+	if selected == "" {
+		passes = append(passes, pass{in: in})
+	}
 	sawOK, sawPartial, sawConfig := false, false, false
-	for _, s := range subs {
-		if s.layer == 2 && !want[s.name] {
+	for _, img := range images {
+		host := imageItemName(in, img)
+		scratch, err := materialiseImage(getenv, work, img, imageSets)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "godaemonhunter: %s: %v\n", host, err)
+			sum.Failed++
+			sum.Failures = append(sum.Failures, batch.Failure{Item: img, Error: err.Error()})
+			sawPartial = true
 			continue
 		}
-		outDir := kdir
-		if s.layer == 2 {
-			outDir = filepath.Join(out, s.name)
+		sum.Images = append(sum.Images, host)
+		passes = append(passes, pass{in: scratch, host: host, scratch: scratch})
+	}
+
+	for _, p := range passes {
+		hostKdir := filepath.Join(kdir, p.host)
+		for _, s := range subs {
+			if s.layer == 2 && !want[s.name] {
+				continue
+			}
+			outDir := hostKdir
+			if s.layer == 2 {
+				outDir = filepath.Join(out, s.name, p.host)
+			}
+			shim := shimEnv(s.tool, getenv, map[string]string{
+				"INPUT_DIR": p.in, "OUT_DIR": outDir, "WORK_DIR": work,
+				"FORCE": force, "LOG_LEVEL": level, "KNOWLEDGE_DIR": hostKdir, "IMAGE": "",
+			})
+			var buf bytes.Buffer
+			code := batch.Run(s.tool, batch.Options{Version: version, Contract: contractYML}, shim, &buf)
+			var ss batch.Summary
+			if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &ss); err != nil {
+				ss = batch.Summary{Tool: s.name, Status: "config_error", Exit: code}
+			}
+			if p.host != "" {
+				ss.Subtool = p.host // which image this sub-run was
+			}
+			sum.Subtools = append(sum.Subtools, ss)
+			sum.Inputs += ss.Inputs
+			sum.Processed += ss.Processed
+			sum.Skipped += ss.Skipped
+			sum.Failed += ss.Failed
+			sum.Records += ss.Records
+			switch code {
+			case 0:
+				sawOK = true
+			case 2:
+				sawConfig = true
+			case 3:
+				sawPartial = true
+				sawOK = true
+			}
 		}
-		shim := shimEnv(s.tool, getenv, map[string]string{
-			"INPUT_DIR": in, "OUT_DIR": outDir, "WORK_DIR": work,
-			"FORCE": force, "LOG_LEVEL": level, "KNOWLEDGE_DIR": kdir,
-		})
-		var buf bytes.Buffer
-		code := batch.Run(s.tool, batch.Options{Version: version, Contract: contractYML}, shim, &buf)
-		var ss batch.Summary
-		if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &ss); err != nil {
-			ss = batch.Summary{Tool: s.name, Status: "config_error", Exit: code}
-		}
-		sum.Subtools = append(sum.Subtools, ss)
-		sum.Inputs += ss.Inputs
-		sum.Processed += ss.Processed
-		sum.Skipped += ss.Skipped
-		sum.Failed += ss.Failed
-		sum.Records += ss.Records
-		switch code {
-		case 0:
-			sawOK = true
-		case 2:
-			sawConfig = true
-		case 3:
-			sawPartial = true
-			sawOK = true
+		if p.scratch != "" {
+			os.RemoveAll(p.scratch)
 		}
 	}
 	switch {
@@ -285,6 +381,11 @@ func runHunt(getenv func(string) string, stdout io.Writer, words []string) int {
 	default:
 		sum.Status, sum.Exit = "nothing", 1
 	}
+	return writeHunt(sum, started, stdout)
+}
+
+// writeHunt stamps the duration and prints the one aggregate line.
+func writeHunt(sum *huntSummary, started time.Time, stdout io.Writer) int {
 	sum.DurationS = float64(int64(time.Since(started).Seconds()*1000)) / 1000
 	enc := json.NewEncoder(stdout)
 	enc.SetEscapeHTML(false)

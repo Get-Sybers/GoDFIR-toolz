@@ -44,7 +44,7 @@ func TestMaterialiseCatalogue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadArtefactSets: %v", err)
 	}
-	want := []string{"amcache", "linux-core", "ntuser", "registry-core", "shimcache", "srum", "sum", "timeline", "usrclass"}
+	want := []string{"amcache", "linux-core", "mft", "ntuser", "prefetch", "recent", "recyclebin", "registry-core", "shimcache", "srum", "sum", "timeline", "usrclass", "windows-core", "winevt"}
 	got := sortedSetNames(sets)
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("set names = %v, want %v", got, want)
@@ -266,8 +266,9 @@ func TestMaterialisePrimaryGlob(t *testing.T) {
 func TestMaterialiseMatchlessOK(t *testing.T) {
 	img := buildMatImage(t)
 	out := t.TempDir()
+	// nothing pulled is the batch table's exit 1 ("nothing"), never a failure
 	rc := runMaterialise([]string{"--select", "NO-SUCH-FILE*", "--out", out, img})
-	if rc != 0 {
+	if rc != 1 {
 		t.Fatalf("runMaterialise matchless rc = %d, want 0", rc)
 	}
 	entries, _ := os.ReadDir(out)
@@ -281,7 +282,7 @@ func TestMaterialiseMatchlessOK(t *testing.T) {
 func TestMaterialiseUnknownSet(t *testing.T) {
 	img := buildMatImage(t)
 	out := t.TempDir()
-	if rc := runMaterialise([]string{"--set", "not-a-set", "--out", out, img}); rc != 1 {
+	if rc := runMaterialise([]string{"--set", "not-a-set", "--out", out, img}); rc != 2 {
 		t.Errorf("unknown --set rc = %d, want 1", rc)
 	}
 }
