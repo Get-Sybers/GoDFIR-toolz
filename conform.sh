@@ -348,12 +348,32 @@ fi
 if [[ "$DO_BUILD" == true ]]; then
     section "built-image checks (--build; 06.2–06.4)"
     if ! have docker; then _f "docker not available for --build"; else
-        # Build context mirrors the build convention (matches images.yml's per-tool
-        # `context` and build-all.sh): Shape B / harden.yml tools need the submodule
-        # root (they COPY hardening/harden.yml); Shape A Go tools build from their own
-        # directory (COPY go.mod go.sum ./). Always using the repo root broke the
-        # latter (e.g. gomft).
-        if grep -qE 'COPY[[:space:]]+hardening/|harden\.yml' "$DF"; then CTX="$REPO_ROOT"; else CTX="$TOOL_DIR"; fi
+        # Build context mirrors the build convention (images.yml, build-all.sh):
+        # a tool whose inventory entry names a `context` builds from it (its own
+        # directory: COPY go.mod go.sum ./), every other tool from the submodule
+        # root (it COPYs hardening/harden.yml, or a sibling module — gomount/,
+        # pinfo/ — or itself by name). Without a readable inventory the
+        # Dockerfile decides: a root-relative COPY means the root.
+        CTX="$TOOL_DIR"
+        if [[ -f "$IMAGES_YML" ]] && have python3; then
+            ctx_from_yml="$(python3 - "$IMAGES_YML" "$TOOL" 2>/dev/null <<'PY'
+import sys
+try:
+    import yaml
+except ImportError:
+    sys.exit(3)
+doc = yaml.safe_load(open(sys.argv[1])) or {}
+for img in doc.get("images") or []:
+    if img.get("name") == sys.argv[2]:
+        print(img.get("context") or "")
+        sys.exit(0)
+sys.exit(4)
+PY
+)"; rc=$?
+            if [[ $rc -eq 0 ]]; then
+                [[ -n "$ctx_from_yml" ]] && CTX="$REPO_ROOT/$ctx_from_yml" || CTX="$REPO_ROOT"
+            elif grep -qE "COPY[[:space:]]+(hardening/|gomount/|pinfo/|$TOOL/)|harden\.yml" "$DF"; then CTX="$REPO_ROOT"; fi
+        elif grep -qE "COPY[[:space:]]+(hardening/|gomount/|pinfo/|$TOOL/)|harden\.yml" "$DF"; then CTX="$REPO_ROOT"; fi
         IMG="conform-check/$TOOL:latest"
         if docker build -q -t "$IMG" -f "$DF" \
              --build-arg DFIR_UID=2000 --build-arg DFIR_GID=2000 "$CTX" >/dev/null 2>"$TOOL_DIR/.conform-build.log"; then

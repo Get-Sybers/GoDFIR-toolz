@@ -13,11 +13,13 @@ ARG GODFIR_RELEASE=dev
 
 # gomount: CGO-free (the stream verb links nothing; mount only execs ntfs-3g)
 FROM ${GO_IMAGE} AS gomount-build
+ARG TOOL_VERSION
+ENV GOTOOLCHAIN=auto
 WORKDIR /src/gomount
 COPY gomount/go.mod gomount/go.sum ./
 RUN go mod download
 COPY gomount/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/gomount .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /out/gomount .
 
 # goyara: cgo against libyara (headers from libyara-dev; runtime .so from the yara package)
 FROM ${GO_IMAGE} AS goyara-build

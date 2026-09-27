@@ -156,14 +156,54 @@ func TestHayabusaDiscoverAndProcess(t *testing.T) {
 	}
 }
 
+// TestHayabusaOnImage: a disk image directly under the input root is an item;
+// its event logs are pulled by gomount (a stub here) into scratch, hayabusa
+// runs over that directory, and the scratch is gone afterwards.
+func TestHayabusaOnImage(t *testing.T) {
+	in := t.TempDir()
+	os.WriteFile(filepath.Join(in, "host.vmdk"), []byte("KDMV"), 0o644)
+	os.WriteFile(filepath.Join(in, "host-flat.vmdk"), []byte("x"), 0o644) // a part, never an item
+	env := map[string]string{"SIGNATURES_HAYABUSA_INPUT_DIR": in}
+	cfg := cfgFor(t, "SIGNATURES_HAYABUSA", env)
+	items, err := discoverHayabusa(cfg)
+	if err != nil || len(items) != 1 || filepath.Base(items[0]) != "host.vmdk" {
+		t.Fatalf("discover = %v, %v", items, err)
+	}
+	hayabusaHome = t.TempDir()
+	gomountBinary = stub(t, "gomount", `o=""; while [ $# -gt 0 ]; do case "$1" in --out) o="$2"; shift;; esac; shift; done; mkdir -p "$o/Windows/System32/winevt/Logs"; printf 'x' > "$o/Windows/System32/winevt/Logs/Security.evtx"; echo '{"tool":"gomount"}'`)
+	argvFile := filepath.Join(t.TempDir(), "argv")
+	hayabusaBinary = stub(t, "hayabusa", `printf '%s\n' "$@" > `+shQuote(argvFile)+`; o=""; d=""; while [ $# -gt 0 ]; do case "$1" in --output) o="$2";; --directory) d="$2";; esac; shift; done; [ -f "$d/Windows/System32/winevt/Logs/Security.evtx" ] || exit 9; printf '{"RuleTitle":"x"}\n' > "$o"`)
+	var idx bytes.Buffer
+	n, err := processHayabusa(cfg, items[0], t.TempDir(), &idx)
+	if err != nil || n != 1 {
+		t.Fatalf("process on image = %d, %v", n, err)
+	}
+	raw, _ := os.ReadFile(argvFile)
+	if !strings.Contains(string(raw), filepath.Join(cfg.WorkDir, "host.vmdk")) {
+		t.Fatalf("hayabusa did not read the scratch tree: %s", raw)
+	}
+	if entries, _ := os.ReadDir(cfg.WorkDir); len(entries) != 0 {
+		t.Fatalf("scratch left behind: %v", entries)
+	}
+	// nothing on the volume (gomount exit 1) is an empty timeline, not a failure
+	gomountBinary = stub(t, "gomount", `exit 1`)
+	hayabusaBinary = stub(t, "hayabusa", "exit 0")
+	if n, err := processHayabusa(cfg, items[0], t.TempDir(), &bytes.Buffer{}); err != nil || n != 0 {
+		t.Errorf("empty image = %d, %v", n, err)
+	}
+}
+
 func TestScanPipe(t *testing.T) {
 	in := t.TempDir()
 	os.WriteFile(filepath.Join(in, "disk.E01"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(in, "disk.E02"), []byte("x"), 0o644) // a segment of disk.E01, not an item
+	os.WriteFile(filepath.Join(in, "vm.qcow2"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(in, "vm-s001.vmdk"), []byte("x"), 0o644) // a split extent, not an item
 	os.WriteFile(filepath.Join(in, "readme.md"), []byte("x"), 0o644)
 	env := map[string]string{"SIGNATURES_SCAN_INPUT_DIR": in, "SIGNATURES_SCAN_FILTER": "*.exe"}
 	cfg := cfgFor(t, "SIGNATURES_SCAN", env)
 	items, err := discoverScan(cfg)
-	if err != nil || len(items) != 1 {
+	if err != nil || len(items) != 2 || filepath.Base(items[0]) != "disk.E01" || filepath.Base(items[1]) != "vm.qcow2" {
 		t.Fatalf("discover = %v, %v", items, err)
 	}
 	gomountBinary = stub(t, "gomount", `printf 'tar-bytes'`)
