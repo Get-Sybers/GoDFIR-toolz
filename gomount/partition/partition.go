@@ -197,6 +197,14 @@ var gptTypeGUIDs = map[string]string{
 	"de94bba4-06d1-4d40-a16a-bfd50179d6ac": "Windows recovery",
 	"5808c8aa-7e8f-42e0-85d2-e1e90434cfb3": "LDM metadata",
 	"af9b60a0-1431-4f62-bc68-3311714a69ad": "LDM data",
+	"7c3457ef-0000-11aa-aa11-00306543ecac": "Apple APFS",
+	"48465300-0000-11aa-aa11-00306543ecac": "Apple HFS+",
+	"426f6f74-0000-11aa-aa11-00306543ecac": "Apple boot",
+	"52637672-7b4b-4bba-a1b7-9b3e29f4b1d5": "Apple recovery",
+	"0fc63daf-8483-4772-8e79-3d69d8477de4": "Linux filesystem",
+	"e6d6d379-f507-44c2-a23c-238f2a3df928": "Linux LVM",
+	"0657fd6d-a4ab-43c4-84e5-0933c84b4f4f": "Linux swap",
+	"21686148-6449-6e6f-744e-656564454649": "BIOS boot",
 }
 
 // gptHeader locates the GPT header, trying 512- then 4096-byte logical sectors,

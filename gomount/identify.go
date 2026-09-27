@@ -119,12 +119,18 @@ func identifyImageFile(path string) (*identifyDoc, error) {
 			Volume: v.Index, Source: v.Source, Offset: v.Offset, Size: v.Size,
 			FSType: v.FSType,
 		}
-		if v.FSType != "" && v.FSType != "lvm2-pv" && v.FSType != "ntfs" && v.ra != nil {
-			if fsys, ferr := fsx.Open(v.ra, v.Size); ferr == nil {
-				info := fsys.Info()
+		if v.FSType != "" && v.FSType != "lvm2-pv" && v.FSType != "ntfs" && v.FSType != "apfs-container" && v.ra != nil {
+			if _, raw, release, ferr := openRef(v); ferr == nil && raw != nil {
+				info := raw.Info()
 				iv.UUID, iv.Label = info.UUID, info.Label
-				iv.OS = osGuess(fsys)
+				iv.OS = osGuess(raw)
+				if release != nil {
+					release()
+				}
 			}
+		}
+		if v.FSType == "apfs-container" || v.FSType == "apfs" {
+			iv.Note = v.TypeName
 		}
 		if v.FSType == "ntfs" {
 			iv.OS = "windows"
@@ -184,6 +190,12 @@ func osGuess(fsys fsx.FS) string {
 	}
 	if _, err := fsys.Stat("/Windows/System32"); err == nil {
 		return "windows"
+	}
+	if _, err := fsys.Stat("/System/Library/CoreServices/SystemVersion.plist"); err == nil {
+		return "macos (system)"
+	}
+	if _, err := fsys.Stat("/private/var/db/dslocal"); err == nil {
+		return "macos (data)"
 	}
 	return ""
 }

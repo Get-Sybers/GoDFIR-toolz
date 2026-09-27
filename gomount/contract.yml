@@ -5,10 +5,13 @@ entrypoint: argv
 description: >
   Standalone volume reader for disk images — E01/Ex01, raw/dd/img, VMDK
   (sparse, streamOptimized, descriptor + flat/split extents, snapshot
-  chains), VHDX, VHD, QCOW2 and VDI, detected by content — reading NTFS
-  and the Linux filesystems (ext2/3/4, XFS v5, vfat) through one resolved
-  volume stack: partitions, LVM2 volume groups (--lv vg/lv), or a bare
-  whole-disk filesystem (docs/linux §5). A declared argv deviation: its
+  chains), VHDX, VHD, QCOW2 and VDI, detected by content — reading NTFS,
+  the Linux filesystems (ext2/3/4, XFS v5, vfat) and APFS (every volume of
+  a container, sealed System volumes, decmpfs zlib/LZVN/LZFSE content;
+  FileVault content excluded) through one resolved volume stack:
+  partitions, LVM2 volume groups (--lv vg/lv), the volumes of an APFS
+  container (<partition>/apfsN), or a bare whole-disk filesystem
+  (docs/linux §5). A declared argv deviation: its
   verbs are streaming and interactive (stream a tar of every file to
   stdout for a consuming tool, materialise artefact sets into a directory
   — windows-core and linux-core included, with the origin-record manifest
@@ -20,7 +23,8 @@ description: >
   ONE JSON summary line on stdout and the 0/1/2/3 exit table, so a lane
   can run it per image like any dispatcher. The same binary is baked into
   get-sybers/signatures for its scan sub-tool. The VMDK/VHD/VHDX/QCOW2/VDI
-  decoders are ported from VMkatz (github.com/nikaiw/VMkatz, MIT).
+  decoders are ported from VMkatz (github.com/nikaiw/VMkatz, MIT); the
+  LZVN/LZFSE decoders from Apple's lzfse (github.com/lzfse/lzfse, BSD-3).
 
 env: {}
 
