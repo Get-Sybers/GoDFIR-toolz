@@ -20,12 +20,19 @@ var ErrTruncated = errors.New("lzvn: source truncated")
 // number of bytes written. A stream ends at its end-of-stream opcode (0x06)
 // or when dst is full; a match reaching before the start of dst, or an
 // undefined opcode, is an error.
-func DecodeLZVN(dst, src []byte) (int, error) {
+func DecodeLZVN(dst, src []byte) (int, error) { return decodeLZVNAt(dst, 0, src) }
+
+// decodeLZVNAt decodes into dst from position start on and returns the
+// bytes written past start; matches may reach back into dst[:start], the
+// output of the earlier blocks of the same LZFSE stream (the reference
+// decoder's dst_begin is the start of the whole stream's output).
+func decodeLZVNAt(dst []byte, start int, src []byte) (int, error) {
 	var (
-		sp, dp int // positions in src, dst
-		d      int // distance of the last match
-		L, M   int // literal and match lengths of the current op
-		opcLen int // bytes the opcode itself occupies
+		sp     int     // position in src
+		dp     = start // position in dst
+		d      int     // distance of the last match
+		L, M   int     // literal and match lengths of the current op
+		opcLen int     // bytes the opcode itself occupies
 	)
 	extract := func(v byte, lsb, width uint) int { return int((v >> lsb) & (1<<width - 1)) }
 
@@ -60,27 +67,27 @@ func DecodeLZVN(dst, src []byte) (int, error) {
 
 	for {
 		if dp >= len(dst) {
-			return dp, nil
+			return dp - start, nil
 		}
 		if sp >= len(src) {
-			return dp, ErrTruncated
+			return dp - start, ErrTruncated
 		}
 		opc := src[sp]
 		switch kind := lzvnOpcode(opc); kind {
 		case opEOS:
-			return dp, nil
+			return dp - start, nil
 		case opNop:
 			sp++
 			continue
 		case opUndef:
-			return dp, fmt.Errorf("lzvn: undefined opcode %#x at %d", opc, sp)
+			return dp - start, fmt.Errorf("lzvn: undefined opcode %#x at %d", opc, sp)
 		case opSmlD:
 			// LLMMMDDD DDDDDDDD LITERAL
 			opcLen = 2
 			L = extract(opc, 6, 2)
 			M = extract(opc, 3, 3) + 3
 			if len(src)-sp <= opcLen+L {
-				return dp, ErrTruncated
+				return dp - start, ErrTruncated
 			}
 			d = extract(opc, 0, 3)<<8 | int(src[sp+1])
 		case opMedD:
@@ -88,7 +95,7 @@ func DecodeLZVN(dst, src []byte) (int, error) {
 			opcLen = 3
 			L = extract(opc, 3, 2)
 			if len(src)-sp <= opcLen+L {
-				return dp, ErrTruncated
+				return dp - start, ErrTruncated
 			}
 			opc23 := int(src[sp+1]) | int(src[sp+2])<<8
 			M = (extract(opc, 0, 3)<<2 | (opc23 & 3)) + 3
@@ -99,7 +106,7 @@ func DecodeLZVN(dst, src []byte) (int, error) {
 			L = extract(opc, 6, 2)
 			M = extract(opc, 3, 3) + 3
 			if len(src)-sp <= opcLen+L {
-				return dp, ErrTruncated
+				return dp - start, ErrTruncated
 			}
 			d = int(src[sp+1]) | int(src[sp+2])<<8
 		case opPreD:
@@ -108,28 +115,28 @@ func DecodeLZVN(dst, src []byte) (int, error) {
 			L = extract(opc, 6, 2)
 			M = extract(opc, 3, 3) + 3
 			if len(src)-sp <= opcLen+L {
-				return dp, ErrTruncated
+				return dp - start, ErrTruncated
 			}
 		case opSmlM:
 			// 1111MMMM: a match at the previous distance
 			if len(src)-sp <= 1 {
-				return dp, ErrTruncated
+				return dp - start, ErrTruncated
 			}
 			M = extract(opc, 0, 4)
 			sp++
 			if err := copyMatch(); err != nil {
-				return dp, err
+				return dp - start, err
 			}
 			continue
 		case opLrgM:
 			// 11110000 MMMMMMMM: [16,271] at the previous distance
 			if len(src)-sp <= 2 {
-				return dp, ErrTruncated
+				return dp - start, ErrTruncated
 			}
 			M = int(src[sp+1]) + 16
 			sp += 2
 			if err := copyMatch(); err != nil {
-				return dp, err
+				return dp - start, err
 			}
 			continue
 		case opSmlL:
@@ -137,30 +144,30 @@ func DecodeLZVN(dst, src []byte) (int, error) {
 			opcLen = 1
 			L = extract(opc, 0, 4)
 			if err := copyLiteral(); err != nil {
-				return dp, err
+				return dp - start, err
 			}
 			continue
 		case opLrgL:
 			// 11100000 LLLLLLLL LITERAL: [16,271]
 			if len(src)-sp <= 2 {
-				return dp, ErrTruncated
+				return dp - start, ErrTruncated
 			}
 			opcLen = 2
 			L = int(src[sp+1]) + 16
 			if err := copyLiteral(); err != nil {
-				return dp, err
+				return dp - start, err
 			}
 			continue
 		}
 		// literal + match ops
 		if err := copyLiteral(); err != nil {
-			return dp, err
+			return dp - start, err
 		}
 		if dp >= len(dst) {
-			return dp, nil
+			return dp - start, nil
 		}
 		if err := copyMatch(); err != nil {
-			return dp, err
+			return dp - start, err
 		}
 	}
 }

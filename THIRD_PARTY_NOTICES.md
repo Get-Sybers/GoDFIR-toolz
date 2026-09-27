@@ -73,16 +73,18 @@ The APFS backend itself (`gomount/fsx/apfs/`) is this repository's own
 clean-room work, written against the libyal APFS documentation and Apple's
 File System Reference, under its Apache-2.0 licence.
 
-## Homebrew cask test fixtures — committed test images in `gomount/fsx/testdata/`
+## Homebrew cask test fixtures — committed test images in `gomount/fsx/testdata/` and `gomount/image/testdata/`
 
 Also shipped in the repository: `gomount/fsx/testdata/hfsplus-transmission.img.gz`
 and `apfs-container.img.gz` are the raw disks reassembled from
 `transmission-2.61.dmg` and `container-apfs.dmg`, the cask test fixtures of
 [Homebrew/brew](https://github.com/Homebrew/brew)
 (`Library/Homebrew/test/support/fixtures/cask/`, Copyright (c) 2009-present,
-Homebrew contributors, BSD 2-Clause License). They exist so the clean-room
-HFS+ and APFS backends are tested against volumes Apple's own tools wrote.
-The BSD-2-Clause terms:
+Homebrew contributors, BSD 2-Clause License), and
+`gomount/image/testdata/transmission-2.61.dmg`, `container.dmg` and
+`container-apfs.dmg` are those fixtures themselves, unmodified. They exist
+so the clean-room HFS+ and APFS backends and the clean-room DMG reader are
+tested against images Apple's own tools wrote. The BSD-2-Clause terms:
 
 > Redistribution and use in source and binary forms, with or without
 > modification, are permitted provided that the following conditions are
@@ -102,6 +104,17 @@ The BSD-2-Clause terms:
 > CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 > ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 > POSSIBILITY OF SUCH DAMAGE.
+
+## dfvfs test data — a committed test image in `gomount/image/testdata/`
+
+Also shipped in the repository: `gomount/image/testdata/hfsplus.sparseimage.gz`
+is `test_data/hfsplus.sparseimage` of
+[log2timeline/dfvfs](https://github.com/log2timeline/dfvfs) (Copyright the
+dfvfs authors, Apache License 2.0), gzip-compressed and otherwise
+unmodified — an HFS+ disk in a sparse image hdiutil wrote, so the clean-room
+`.sparseimage` reader is tested against Apple's own layout. The Apache-2.0
+terms are those of this repository's own licence; dfvfs ships no NOTICE
+file.
 
 ## DetectRaptor YARA content — fetched at the `signatures` image build
 

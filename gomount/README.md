@@ -10,7 +10,19 @@ snapshot chains through `parentFileNameHint`), **VHDX** and **VHD** (fixed,
 dynamic, differencing), **QCOW2** (with backing files and compressed
 clusters) and **VDI** (dynamic and differencing). The VM-disk decoders are
 ported from [VMkatz](https://github.com/nikaiw/VMkatz) (MIT, Nicolas
-Devillers) — see `image/`.
+Devillers) — see `image/`. Apple's disk images are read by gomount's own
+clean-room [`image/dmg.go`](image/dmg.go) and [`image/sparse.go`](image/sparse.go):
+a **DMG** (UDIF — the `koly` trailer in the last 512 bytes, its `mish` block
+tables from the XML plist or the classic resource fork) is presented as the
+raw disk it holds, its chunks decoded on demand — zero-fill, raw, **ADC**,
+**zlib** (UDZO), **bzip2** (UDBZ) and **LZFSE** (ULFO) — so the partition
+layer and the HFS+/APFS backends read it unchanged; an **LZMA** (ULMO) chunk
+is refused with a clear error (no LZMA decoder is carried), as are
+segmented `.dmgpart` sets and encrypted (`encrcdsa`) images. A
+**.sparseimage** (`sprs` band table) and a **.sparsebundle** directory
+(`Info.plist` + `bands/<hex>`; pass the directory as `<image>`) read the
+same way, unwritten bands as zeros. An uncompressed `.dmg` without a
+trailer is simply a raw image.
 
 The **userspace backend** parses filesystems in-process and mounts nothing:
 no FUSE, no kernel driver, no privilege. NTFS is read with

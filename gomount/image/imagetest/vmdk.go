@@ -1,7 +1,8 @@
 // Package imagetest writes small container images around raw bytes so the
 // image package's decoders (and the verbs above them) can be tested without
 // real evidence: a monolithicSparse VMDK (plain or streamOptimized), a
-// descriptor + flat extent pair, and the same raw bytes in a fixed VHD.
+// descriptor + flat extent pair, the same raw bytes in a fixed VHD, and a
+// UDIF .dmg of any mix of chunk types (dmg.go).
 package imagetest
 
 import (

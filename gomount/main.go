@@ -120,7 +120,9 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
 
   <image>       a disk image, opened read-only and detected by content: E01/Ex01
                 (segmented), raw/dd/img, VMDK (sparse, streamOptimized, descriptor
-                + flat/split extents, snapshot chains), VHDX, VHD, QCOW2 or VDI
+                + flat/split extents, snapshot chains), VHDX, VHD, QCOW2, VDI, DMG
+                (UDIF: zero/raw/ADC/zlib/bzip2/LZFSE chunks; not LZMA), a
+                .sparseimage, or a .sparsebundle directory
   --volume N    1-based volume in the resolved stack; 0 = auto (largest NTFS,
                 else a Mac's APFS Data volume, else the HFS+ volume holding
                 SystemVersion.plist, else the volume holding /etc/os-release,

@@ -84,6 +84,19 @@
   raw disks of Homebrew's `transmission-2.61.dmg` and `container-apfs.dmg`
   cask fixtures (BSD-2, `THIRD_PARTY_NOTICES.md`), committed under
   `gomount/fsx/testdata/`.
+- **gomount reads Apple disk images.** A clean-room UDIF reader
+  (`gomount/image/dmg.go`): the `koly` trailer, the `mish` block tables
+  from the XML plist or the classic resource fork, and the chunks decoded
+  on demand behind a small cache — zero-fill, raw, ADC, zlib, bzip2 and
+  LZFSE — so a `.dmg` is the raw disk it holds and the partition layer and
+  the HFS+/APFS backends read it unchanged (`identify` labels it `dmg`).
+  LZMA (ULMO) chunks, segmented `.dmgpart` sets and encrypted images are
+  refused with a clear error. `.sparseimage` and `.sparsebundle` (the
+  directory as `<image>`) read too, unwritten bands as zeros. The LZFSE
+  decoder now lets a match reach into an earlier block of the same stream,
+  as Apple's does — a DMG's 1 MiB chunks span several blocks. Tested
+  byte for byte against Homebrew's hdiutil-made fixtures (committed under
+  `gomount/image/testdata/`) and dfvfs's `hfsplus.sparseimage` (Apache-2.0).
 - **gomount `materialise` speaks the batch contract**: ONE JSON summary line
   on stdout and the 0/1/2/3 exit table (0 ok, 1 nothing pulled, 2 config
   error, 3 partial), so a lane can run it per image like any dispatcher.
