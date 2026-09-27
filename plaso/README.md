@@ -68,6 +68,7 @@ Sub-tool specific — `log2timeline`: `PLASO_LOG2TIMELINE_INPUT_DIR`,
 | Variable | Default | Meaning |
 |---|---|---|
 | `PLASO_IMAGE_EXPORT_VSS` | `1` | export from every VSS store (`--vss-stores all`) |
+| `PLASO_IMAGE_EXPORT_VOLUMES` | `all` | volumes of an APFS/LVM image to export from (`--volumes`; empty = all) — never plaso's interactive prompt, which unattended exports nothing |
 | `PLASO_IMAGE_EXPORT_FILTER_FILE` | *(empty)* | a mounted plaso filter file (`--filter_file`); takes precedence |
 | `PLASO_IMAGE_EXPORT_ARTIFACT_FILTERS` | `WindowsEventLogs` | comma-separated artifact definitions (`--artifact_filters`) |
 
@@ -82,7 +83,7 @@ run unless `FORCE` is set.
 |---|---|---|
 | `log2timeline` | `<OUT_DIR>/<item>/<item>.plaso`, `log2timeline.log`, `log2timeline.jsonl` | storage files produced |
 | `psort` | `<OUT_DIR>/<item>/timeline.jsonl`, `psort.log`, `psort.jsonl` — `<item>` is the storage file's name without `.plaso`, or its folder's name when the file sits in a same-named folder (log2timeline's `<item>/<item>.plaso`), so `OUT_DIR` = the log2timeline output root renders every timeline **beside** its storage file in the one `<item>/` folder | rendered events |
-| `image_export` | `<OUT_DIR>/<item>/export/…`, `image_export.log`, `image_export.jsonl` | files exported |
+| `image_export` | `<OUT_DIR>/<item>/export/…`, `image_export.log` (stdout/stderr), `image_export-plaso.log` (plaso's own `--logfile`), `image_export.jsonl` | files exported |
 
 stdout is exactly one JSON object: `tool`, `subtool`, `version`, `status`,
 `inputs`, `processed`, `skipped`, `failed`, `records`, `outputs`, `exit`,

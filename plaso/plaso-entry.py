@@ -145,12 +145,14 @@ def walk_files(root: str):
             yield os.path.join(dirpath, f)
 
 
-def run(cfg: Config, argv: list[str], log_path: str) -> int:
+def run(cfg: Config, argv: list[str], log_path: str, env: dict | None = None) -> int:
     """Run one plaso tool; its stdout+stderr go to log_path and, at debug
-    level, to stderr as well. Returns the exit code."""
+    level, to stderr as well. Returns the exit code. env adds to (never
+    replaces) the inherited environment."""
     cfg.log(3, "exec " + " ".join(argv))
+    child_env = None if env is None else {**os.environ, **env}
     with open(log_path, "ab") as log:
-        proc = subprocess.run(argv, stdout=log, stderr=subprocess.STDOUT, check=False)
+        proc = subprocess.run(argv, stdout=log, stderr=subprocess.STDOUT, check=False, env=child_env)
     if cfg.level >= 3:
         with open(log_path, "rb") as fh:
             sys.stderr.buffer.write(fh.read())
@@ -230,7 +232,17 @@ def discover_image_export(cfg: Config) -> list[str]:
 def process_image_export(cfg: Config, item: str, item_dir: str) -> tuple[int, dict]:
     export = os.path.join(item_dir, "export")
     shutil.rmtree(export, ignore_errors=True)
-    argv = ["image_export", "-q", "--partitions", "all", "--temporary_directory", cfg.work_dir]
+    # image_export has no --temporary_directory (log2timeline and psort do;
+    # passing it here was an argparse error, exit 2, on every image) — its
+    # scratch follows TMPDIR, pointed at the writable work dir below.
+    # --logfile: plaso defaults its own log to ./image_export-<ts>.log.gz,
+    # opened lazily on the first warning, and the container's cwd is the
+    # read-only rootfs — that first warning was an OSError and a failed item.
+    argv = ["image_export", "-q", "--partitions", "all",
+            "--logfile", os.path.join(item_dir, "image_export-plaso.log")]
+    # never plaso's interactive volume prompt: an APFS/LVM image would stop
+    # there and, with stdin closed, export nothing
+    argv += ["--volumes", cfg.get("VOLUMES", "all")]
     if cfg.bool("VSS", "1"):
         argv += ["--vss-stores", "all"]
     filter_file = cfg.get("FILTER_FILE", "")
@@ -240,7 +252,7 @@ def process_image_export(cfg: Config, item: str, item_dir: str) -> tuple[int, di
         argv += ["--artifact_filters", cfg.get("ARTIFACT_FILTERS", "WindowsEventLogs")]
     argv += cfg.get("ARGS", "").split()
     argv += ["-w", export, item]
-    rc = run(cfg, argv, os.path.join(item_dir, "image_export.log"))
+    rc = run(cfg, argv, os.path.join(item_dir, "image_export.log"), env={"TMPDIR": cfg.work_dir})
     if rc != 0:
         raise RuntimeError(f"image_export exited {rc} (see image_export.log)")
     files = sum(len(fs) for _d, _ds, fs in os.walk(export)) if os.path.isdir(export) else 0

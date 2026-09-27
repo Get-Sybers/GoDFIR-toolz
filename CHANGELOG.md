@@ -1,5 +1,19 @@
 # Changelog — get_sybers.godfir_toolz
 
+## 0.3.3 (unreleased)
+
+- **plaso `image_export` runs again.** The dispatcher handed it
+  `--temporary_directory`, which only `log2timeline`/`psort` accept —
+  argparse exit 2 on every image; it now points `TMPDIR` at the work dir
+  instead. Plaso's own log defaults to `./image_export-<ts>.log.gz`, opened
+  lazily on the first warning, and the container's cwd is the read-only
+  rootfs — the first warning was an `OSError` and a failed item; the
+  sub-tool passes `--logfile` beside its item (`image_export-plaso.log`).
+  An APFS/LVM image stopped at plaso's interactive volume prompt and, with
+  stdin closed, exported nothing: the contract gains
+  `PLASO_IMAGE_EXPORT_VOLUMES` (default `all`), so `--volumes` is never
+  left to the prompt. With an argparse-strict stub test.
+
 ## 0.3.2
 
 - **`byakugan` discovers DX_DFIR's per-collection, per-host processed
