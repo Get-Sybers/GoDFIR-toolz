@@ -475,7 +475,7 @@ func decodeBlock(dst, src []byte, h *blockHeader, blockStart, litEnd, lmdEnd int
 			return dp, err
 		}
 		L := int(lmd.valueDecode(&lState, lTable))
-		if lit+L > len(literals) {
+		if lit+L > int(h.nLiterals) { // the declared count, not the padded buffer
 			return dp, fmt.Errorf("lzfse: literal run exceeds the block's literals")
 		}
 		M := int(lmd.valueDecode(&mState, mTable))

@@ -134,7 +134,9 @@ func (v *Volume) contentReader(in *inode) (io.ReaderAt, int64, error) {
 	if in.bsdFlags&ufCompressed != 0 {
 		if ra, size, err := v.decmpfsReader(in); err == nil {
 			return ra, size, nil
-		} else if x, _ := v.xattr(in.id, xattrDecmpfs); x != nil {
+		} else if x, xerr := v.xattr(in.id, xattrDecmpfs); xerr != nil {
+			return nil, 0, xerr // the attribute could not even be read
+		} else if x != nil {
 			return nil, 0, err // it IS compressed and we could not decode it: say so
 		}
 		// the flag without the attribute: fall through to the data fork
@@ -287,6 +289,9 @@ func decodeChunk(typ uint32, b []byte, size int64) ([]byte, error) {
 }
 
 func clip(b []byte, size int64) []byte {
+	if size < 0 {
+		return b[:0]
+	}
 	if int64(len(b)) > size {
 		return b[:size]
 	}
