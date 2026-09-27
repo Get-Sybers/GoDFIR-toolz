@@ -37,7 +37,7 @@ env:
   SIGNATURES_SURICATA_ARGS:      {required: false, default: "",      desc: 'extra suricata argv, space-separated'}
   SIGNATURES_SURICATA_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- hayabusa: sigma over .evtx trees ------------------------------------------------
-  SIGNATURES_HAYABUSA_INPUT_DIR: {required: false, default: /input,  desc: 'read-only; every immediate subdirectory holding .evtx files is an item (the root itself when it holds .evtx directly), and so is every disk image directly under it (E01/Ex01, raw, VMDK, VHDX, VHD, QCOW2, VDI): the baked gomount pulls its event logs (the winevt set) into WORK_DIR while hayabusa runs, nothing is exported'}
+  SIGNATURES_HAYABUSA_INPUT_DIR: {required: false, default: /input,  desc: 'read-only; every immediate subdirectory holding .evtx files is an item (the root itself when it holds .evtx directly), and so is every disk image directly under it (E01/Ex01, raw, VMDK, VHDX, VHD, QCOW2, VDI, DMG, sparseimage): the baked gomount pulls its event logs (the winevt set) into WORK_DIR while hayabusa runs, nothing is exported'}
   SIGNATURES_HAYABUSA_OUT_DIR:   {required: false, default: /output, desc: 'output root, one folder per item holding timeline.jsonl + hayabusa.jsonl'}
   SIGNATURES_HAYABUSA_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs); a disk image''s event logs are pulled here while hayabusa runs, so bind a disk-backed dir for large images'}
   SIGNATURES_HAYABUSA_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns items that already have output'}
@@ -47,7 +47,7 @@ env:
   SIGNATURES_HAYABUSA_ARGS:      {required: false, default: "",      desc: 'extra hayabusa argv, space-separated'}
   SIGNATURES_HAYABUSA_LOG_LEVEL: {required: false, default: info,    desc: 'error|warn|info|debug, stderr only'}
   # --- scan: gomount stream | goyara over disk images -------------------------------------
-  SIGNATURES_SCAN_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, read-only; every disk image (E01/Ex01, raw/dd/img, VMDK, VHDX, VHD, QCOW2, VDI, 001, bin) is an item — a VMDK''s -flat/-sNNN extents and an EWF set''s .E02… segments belong to their item'}
+  SIGNATURES_SCAN_INPUT_DIR: {required: false, default: /input,  desc: 'evidence tree, read-only; every disk image (E01/Ex01, raw/dd/img, VMDK, VHDX, VHD, QCOW2, VDI, DMG, sparseimage, 001, bin) is an item — a VMDK''s -flat/-sNNN extents and an EWF set''s .E02… segments belong to their item'}
   SIGNATURES_SCAN_OUT_DIR:   {required: false, default: /output, desc: "output root, one folder per image holding scan.jsonl (goyara's hit records)"}
   SIGNATURES_SCAN_WORK_DIR:  {required: false, default: /work,   desc: 'scratch (writable tmpfs)'}
   SIGNATURES_SCAN_FORCE:     {required: false, default: "0", type: bool, desc: '1/true/yes/on rescans images that already have output'}

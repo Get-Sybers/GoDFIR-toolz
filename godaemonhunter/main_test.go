@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -253,4 +255,27 @@ func readOne(t *testing.T, root, name string) map[string]any {
 		t.Fatalf("no %s under %s: %v", name, root, err)
 	}
 	return rec
+}
+
+// TestContractLayersMatchRegistry: contract.yml's layer1/layer2 (what a
+// per-parser driver reads) name exactly the binary's Layer-1 and Layer-2
+// parsers, in registry order.
+func TestContractLayersMatchRegistry(t *testing.T) {
+	want := map[string][]string{}
+	for _, s := range subs {
+		key := "layer" + strconv.Itoa(s.layer)
+		want[key] = append(want[key], s.name)
+	}
+	re := regexp.MustCompile(`(?m)^(layer[12]):\s*\[([^\]]*)\]`)
+	got := map[string][]string{}
+	for _, m := range re.FindAllStringSubmatch(contractYML, -1) {
+		for _, n := range strings.Split(m[2], ",") {
+			got[m[1]] = append(got[m[1]], strings.TrimSpace(n))
+		}
+	}
+	for _, key := range []string{"layer1", "layer2"} {
+		if strings.Join(got[key], " ") != strings.Join(want[key], " ") {
+			t.Fatalf("contract %s = %v, registry has %v", key, got[key], want[key])
+		}
+	}
 }

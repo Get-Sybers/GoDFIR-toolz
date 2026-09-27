@@ -33,6 +33,14 @@
   content does not read), `identify` guesses `macos (data)` / `macos
   (system)` and labels the Apple partition GUIDs. Snapshots, Fusion
   containers and LZBITMAP are out of scope.
+- **The contract declares the layers; the Apple disk images are items.**
+  `godaemonhunter/contract.yml` carries `layer1` and `layer2` — the
+  registry hunt runs — so a driver that runs the parsers one container at
+  a time over a staged host (DX_DFIR's loose-host path) reads the lists
+  from the contract instead of keeping a copy; a test holds the contract
+  and the binary's registry in step. gowindowlicker, godaemonhunter and
+  the signatures scan take `.dmg` and `.sparseimage` files as disk-image
+  items now that gomount reads them.
 - **godaemonhunter hunts a Mac.** The same layered run over a macOS image
   or staged tree: Layer 1 gains `gomachost` (SystemVersion.plist, the
   SystemConfiguration host names and model, the system time zone and

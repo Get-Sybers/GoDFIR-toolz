@@ -156,7 +156,7 @@ var captureExts = map[string]bool{".pcap": true, ".pcapng": true, ".cap": true}
 
 // imageExts is every container gomount decodes: EWF, raw, VMware, Hyper-V,
 // QEMU and VirtualBox disks.
-var imageExts = map[string]bool{".e01": true, ".ex01": true, ".raw": true, ".dd": true, ".img": true, ".vmdk": true, ".vhd": true, ".vhdx": true, ".qcow2": true, ".qcow": true, ".vdi": true, ".aff4": true, ".001": true, ".bin": true}
+var imageExts = map[string]bool{".e01": true, ".ex01": true, ".raw": true, ".dd": true, ".img": true, ".vmdk": true, ".vhd": true, ".vhdx": true, ".qcow2": true, ".qcow": true, ".vdi": true, ".dmg": true, ".sparseimage": true, ".aff4": true, ".001": true, ".bin": true}
 
 // imagePart matches the parts of ANOTHER image item — a VMDK's flat or split
 // (-sNNN) extents, an EWF set's continuation segments — never items themselves.

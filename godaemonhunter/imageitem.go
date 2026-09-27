@@ -39,7 +39,7 @@ import (
 var macSystemSets = []string{"macos-system"}
 
 // imageExt matches every container gomount decodes, by extension.
-var imageExt = regexp.MustCompile(`(?i)\.(e01|ex01|raw|dd|img|vmdk|vhd|vhdx|qcow2|qcow|vdi|aff4|001|bin)$`)
+var imageExt = regexp.MustCompile(`(?i)\.(e01|ex01|raw|dd|img|vmdk|vhd|vhdx|qcow2|qcow|vdi|dmg|sparseimage|aff4|001|bin)$`)
 
 // imagePart matches the parts of ANOTHER item: a VMDK's flat or split
 // extents, an EWF set's continuation segments.
