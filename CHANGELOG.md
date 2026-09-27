@@ -1,6 +1,5 @@
 # Changelog — get_sybers.godfir_toolz
 
-<<<<<<< HEAD
 ## 0.4.0 (unreleased)
 
 - **The parsers run ON the disk image.** `gowindowlicker` and
@@ -30,9 +29,6 @@
 - **Versions.** The galaxy is 0.4.0; the images gomount 0.4.0, gowindowlicker
   0.2.0, godaemonhunter 0.2.0, signatures 0.3.0 (`TOOL_VERSION`). The
   ported VM-disk readers are attributed in `THIRD_PARTY_NOTICES.md`.
-=======
-## 0.3.3 (unreleased)
-
 - **plaso `image_export` runs again.** The dispatcher handed it
   `--temporary_directory`, which only `log2timeline`/`psort` accept —
   argparse exit 2 on every image; it now points `TMPDIR` at the work dir
@@ -43,8 +39,7 @@
   An APFS/LVM image stopped at plaso's interactive volume prompt and, with
   stdin closed, exported nothing: the contract gains
   `PLASO_IMAGE_EXPORT_VOLUMES` (default `all`), so `--volumes` is never
-  left to the prompt. With an argparse-strict stub test.
->>>>>>> origin/main
+  left to the prompt. With an argparse-strict stub test. (#81)
 
 ## 0.3.2
 
