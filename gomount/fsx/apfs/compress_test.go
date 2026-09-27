@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
+	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/decmpfs"
 )
 
 // TestEvidenceCompression walks the sealed System volume — where nearly
@@ -43,7 +44,7 @@ func TestEvidenceCompression(t *testing.T) {
 			return nil
 		}
 		hdr, err := vol.decmpfsAttr(in)
-		if err != nil || len(hdr) < decmpfsHeader {
+		if err != nil || len(hdr) < decmpfs.HeaderSize {
 			return nil
 		}
 		typ := binary.LittleEndian.Uint32(hdr[4:])

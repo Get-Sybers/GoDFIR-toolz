@@ -549,6 +549,7 @@ rather than bolted on) with backends:
 | vfat | boot sector | `/boot/efi`, USB media | `diskfs/go-diskfs` |
 | squashfs | `hsqs` | snap packages, live-ISO roots | `CalebQ42/squashfs`, `diskfs/go-diskfs` |
 | APFS | `NXSB` at 32 | **built** (clean-room): every volume of a container, sealed System volumes, decmpfs zlib/LZVN/LZFSE; FileVault content, snapshots, Fusion out of scope — the Mac images share the lanes | — |
+| HFS+/HFSX | `H+`/`HX` at 1024, or an HFS `BD` wrapper embedding one | **built** (clean-room): catalog/extents/attributes B-trees, hard links, xattrs, decmpfs; the journal is not replayed — pre-APFS Macs, Time Machine drives, DMGs | — |
 
 The userspace path stays the default (parse in-process, no privilege, no
 `/dev/fuse`), matching the NTFS backend's philosophy: a malformed filesystem
@@ -564,7 +565,7 @@ reached:
 
 ```
 image (raw | E01 | qcow2 …)
-  └─ partition (MBR/GPT — exists today)
+  └─ partition (MBR/GPT/Apple Partition Map — exists today)
        └─ mdraid?  (superblock 1.x; RAID 0/1 assembly)          [P4]
             └─ LUKS?  (detect always; decrypt only with an
                        operator-supplied key/passphrase file)    [open §11.2]

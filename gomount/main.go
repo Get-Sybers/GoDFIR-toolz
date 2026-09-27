@@ -107,11 +107,13 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   gomount timeline [--volume N | --lv vg/lv] [--residue] [--hash] <image>
 
   The userspace verbs read NTFS, the Linux filesystems (ext2/3/4, XFS,
-  vfat) and APFS through one resolved volume stack: partitions, LVM2 volume
-  groups (--lv vg/lv addresses a logical volume), the volumes of an APFS
-  container (identify lists them as <partition>/apfsN; a sealed System
-  volume and decmpfs-compressed content read transparently, FileVault
-  content does not), or a bare whole-disk filesystem.
+  vfat), APFS and HFS+/HFSX through one resolved volume stack: partitions
+  (MBR, GPT, Apple Partition Map), LVM2 volume groups (--lv vg/lv addresses
+  a logical volume), the volumes of an APFS container (identify lists them
+  as <partition>/apfsN; a sealed System volume and decmpfs-compressed
+  content read transparently, FileVault content does not), an HFS+ volume
+  (also inside its classic HFS wrapper; hard links, decmpfs), or a bare
+  whole-disk filesystem.
   identify prints that stack as one JSON document; timeline emits one JSONL
   row per (file, timestamp kind) with allocation state (--residue adds the
   recovered rows, --hash content digests).
@@ -120,8 +122,9 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
                 (segmented), raw/dd/img, VMDK (sparse, streamOptimized, descriptor
                 + flat/split extents, snapshot chains), VHDX, VHD, QCOW2 or VDI
   --volume N    1-based volume in the resolved stack; 0 = auto (largest NTFS,
-                else a Mac's Data volume, else the volume holding
-                /etc/os-release, else largest known)
+                else a Mac's APFS Data volume, else the HFS+ volume holding
+                SystemVersion.plist, else the volume holding /etc/os-release,
+                else largest known)
   --lv vg/lv    address an LVM2 logical volume by name
   -l            ls long listing: type, size, mtime, name
   --deleted     ls also carves directory-index slack for unlinked entries

@@ -6,12 +6,13 @@ description: >
   Standalone volume reader for disk images — E01/Ex01, raw/dd/img, VMDK
   (sparse, streamOptimized, descriptor + flat/split extents, snapshot
   chains), VHDX, VHD, QCOW2 and VDI, detected by content — reading NTFS,
-  the Linux filesystems (ext2/3/4, XFS v5, vfat) and APFS (every volume of
+  the Linux filesystems (ext2/3/4, XFS v5, vfat), APFS (every volume of
   a container, sealed System volumes, decmpfs zlib/LZVN/LZFSE content;
-  FileVault content excluded) through one resolved volume stack:
-  partitions, LVM2 volume groups (--lv vg/lv), the volumes of an APFS
-  container (<partition>/apfsN), or a bare whole-disk filesystem
-  (docs/linux §5). A declared argv deviation: its
+  FileVault content excluded) and HFS+/HFSX (the wrapper too; hard links,
+  xattrs, decmpfs) through one resolved volume stack: partitions (MBR,
+  GPT, Apple Partition Map), LVM2 volume groups (--lv vg/lv), the volumes
+  of an APFS container (<partition>/apfsN), or a bare whole-disk
+  filesystem (docs/linux §5). A declared argv deviation: its
   verbs are streaming and interactive (stream a tar of every file to
   stdout for a consuming tool, materialise artefact sets into a directory
   — windows-core and linux-core included, with the origin-record manifest

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
+	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/decmpfs"
 )
 
 // A volume: its superblock (apfs_superblock_t, "APSB") names the volume
@@ -45,8 +46,8 @@ const (
 
 	ufCompressed = 0x20 // bsd_flags: the content is decmpfs-compressed
 
-	xattrDecmpfs = "com.apple.decmpfs"
-	xattrRsrc    = "com.apple.ResourceFork"
+	xattrDecmpfs = decmpfs.AttrName
+	xattrRsrc    = decmpfs.RsrcName
 	xattrSymlink = "com.apple.fs.symlink"
 
 	maxWalkDepth = 128

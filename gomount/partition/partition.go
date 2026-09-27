@@ -1,6 +1,7 @@
-// Package partition finds the partitions on a disk image by parsing the MBR and
-// GPT structures directly over an io.ReaderAt (clean-room, no third-party disk
-// library) and flags the ones that carry an NTFS volume.
+// Package partition finds the partitions on a disk image by parsing the MBR,
+// GPT and Apple Partition Map structures directly over an io.ReaderAt
+// (clean-room, no third-party disk library) and flags the ones that carry an
+// NTFS volume.
 //
 // The single subtlety that drives the ordering below: an NTFS boot sector ends
 // in the same 0x55 0xAA signature as an MBR, so a partitionless "superfloppy"
@@ -11,6 +12,7 @@
 package partition
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -66,6 +68,13 @@ func Partitions(ra io.ReaderAt, size int64) ([]Partition, error) {
 		}}, nil
 	}
 
+	// 2. An Apple Partition Map: the "ER" driver descriptor at block 0 and
+	// "PM" entries from block 1 — PowerPC Macs, older external media and
+	// most DMGs. Checked before the MBR: an APM disk carries no 0x55AA.
+	if parts, ok := parseAPM(ra, size); ok {
+		return parts, nil
+	}
+
 	// Read the first sector once for the MBR signature and entries.
 	var mbr [512]byte
 	if _, err := io.ReadFull(io.NewSectionReader(ra, 0, 512), mbr[:]); err != nil {
@@ -73,7 +82,7 @@ func Partitions(ra io.ReaderAt, size int64) ([]Partition, error) {
 	}
 	hasMBRSig := mbr[mbrSigOffset] == 0x55 && mbr[mbrSigOffset+1] == 0xAA
 
-	// 2. GPT: a protective/hybrid MBR (an 0xEE entry) or an "EFI PART" header at
+	// 3. GPT: a protective/hybrid MBR (an 0xEE entry) or an "EFI PART" header at
 	// LBA1 (512- or 4096-byte logical sectors).
 	if hasMBRSig {
 		if gpt, sectorSize, ok := gptHeader(ra, size); ok {
@@ -81,12 +90,78 @@ func Partitions(ra io.ReaderAt, size int64) ([]Partition, error) {
 		}
 	}
 
-	// 3. Classic MBR: four primaries plus any extended (EBR) chain.
+	// 4. Classic MBR: four primaries plus any extended (EBR) chain.
 	if hasMBRSig {
 		return parseMBR(ra, size, mbr[:]), nil
 	}
 
 	return nil, nil
+}
+
+// parseAPM reads an Apple Partition Map. Block 0 may hold a driver
+// descriptor ("ER", with the block size at +2); the map itself starts at
+// block 1, each entry a "PM" block: the entry count at +4, the partition's
+// first block at +8 and block count at +12, its name at +16 (32 bytes) and
+// type at +48 (32 bytes). The map's own entry, free space and driver
+// partitions are skipped.
+func parseAPM(ra io.ReaderAt, size int64) ([]Partition, bool) {
+	var b0 [512]byte
+	if _, err := io.ReadFull(io.NewSectionReader(ra, 0, 512), b0[:]); err != nil {
+		return nil, false
+	}
+	blk := int64(512)
+	if b0[0] == 'E' && b0[1] == 'R' {
+		if bs := int64(binary.BigEndian.Uint16(b0[2:4])); bs >= 512 && bs <= 4096 && bs&(bs-1) == 0 {
+			blk = bs
+		}
+	}
+	read := func(n int64) ([]byte, bool) {
+		if (n+1)*blk > size {
+			return nil, false
+		}
+		b := make([]byte, blk)
+		if _, err := io.ReadFull(io.NewSectionReader(ra, n*blk, blk), b); err != nil {
+			return nil, false
+		}
+		return b, true
+	}
+	first, ok := read(1)
+	if !ok || first[0] != 'P' || first[1] != 'M' {
+		return nil, false
+	}
+	count := int64(binary.BigEndian.Uint32(first[4:8]))
+	if count == 0 || count > 256 {
+		return nil, false
+	}
+	cstr := func(b []byte) string {
+		if i := bytes.IndexByte(b, 0); i >= 0 {
+			b = b[:i]
+		}
+		return string(b)
+	}
+	var parts []Partition
+	for i := int64(0); i < count; i++ {
+		e, ok := read(1 + i)
+		if !ok || e[0] != 'P' || e[1] != 'M' {
+			break
+		}
+		start := int64(binary.BigEndian.Uint32(e[8:12]))
+		n := int64(binary.BigEndian.Uint32(e[12:16]))
+		name, typ := cstr(e[16:48]), cstr(e[48:80])
+		switch typ {
+		case "Apple_partition_map", "Apple_Free", "Apple_Void", "Apple_Driver", "Apple_Driver43", "Apple_Driver_ATA", "Apple_Driver_ATAPI", "Apple_Patches", "Apple_FWDriver", "Apple_Driver_IOKit":
+			continue
+		}
+		if n == 0 {
+			continue
+		}
+		label := typ
+		if name != "" {
+			label += " (" + name + ")"
+		}
+		parts = append(parts, mkPart(ra, size, start*blk, n*blk, label))
+	}
+	return parts, true
 }
 
 // looksLikeNTFS reports whether the sector at offset is an NTFS boot sector: the
