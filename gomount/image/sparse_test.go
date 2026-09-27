@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,5 +139,57 @@ func TestEncryptedDMGRefused(t *testing.T) {
 	}
 	if _, _, _, err := OpenImage(p); err == nil || !strings.Contains(err.Error(), "encrypted") {
 		t.Fatalf("OpenImage: %v", err)
+	}
+}
+
+// Readers in parallel over a DMG whose cache holds three chunks and a
+// bundle with more bands than open files: every read returns the right
+// bytes while chunks are decoded, cached and evicted, and band files
+// opened and closed, under each other (run under -race in CI or docker).
+func TestConcurrentReads(t *testing.T) {
+	raw := dmgRawDisk(256)
+	dir := t.TempDir()
+	dmg := filepath.Join(dir, "c.dmg")
+	if err := imagetest.WriteDMG(dmg, raw, imagetest.DMGOptions{ChunkSectors: 4, Encode: mixedEncoder}); err != nil {
+		t.Fatal(err)
+	}
+	bundle := filepath.Join(dir, "c.sparsebundle")
+	if err := imagetest.WriteSparseBundle(bundle, raw, 1024); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{dmg, bundle} {
+		ra, _, closer, err := OpenImage(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d, ok := ra.(*dmgDisk); ok {
+			d.cacheBudget = 3 * 2048
+		}
+		errs := make(chan error, 8)
+		for g := 0; g < 8; g++ {
+			go func(seed int64) {
+				r := rand.New(rand.NewSource(seed))
+				buf := make([]byte, 5000)
+				for i := 0; i < 300; i++ {
+					off := r.Int63n(int64(len(raw)))
+					n, err := ra.ReadAt(buf[:1+r.Intn(len(buf))], off)
+					if err != nil && err != io.EOF {
+						errs <- err
+						return
+					}
+					if !bytes.Equal(buf[:n], raw[off:off+int64(n)]) {
+						errs <- fmt.Errorf("%s: ReadAt(%d) bytes differ", filepath.Base(p), off)
+						return
+					}
+				}
+				errs <- nil
+			}(int64(g))
+		}
+		for g := 0; g < 8; g++ {
+			if err := <-errs; err != nil {
+				t.Error(err)
+			}
+		}
+		closer()
 	}
 }

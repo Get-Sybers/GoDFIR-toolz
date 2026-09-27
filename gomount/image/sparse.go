@@ -216,31 +216,45 @@ func openSparseBundle(dir string) (*sparseBundle, error) {
 	return &sparseBundle{dir: dir, size: int64(size), bandBytes: int64(bandBytes), open: map[int64]*os.File{}}, nil
 }
 
-// band returns the open file of band i, or nil when it was never written.
-func (b *sparseBundle) band(i int64) (*os.File, error) {
+// readBand fills q from band i at offset within. The lock is held across
+// the read so an eviction never closes a file another reader is using.
+func (b *sparseBundle) readBand(i int64, q []byte, within int64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if f, ok := b.open[i]; ok {
-		return f, nil
-	}
-	f, err := os.Open(filepath.Join(b.dir, "bands", strconv.FormatInt(i, 16)))
-	if errors.Is(err, os.ErrNotExist) {
-		f, err = nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("sparsebundle: band %x: %w", i, err)
-	}
-	if len(b.lru) >= bundleOpenBands {
-		old := b.lru[0]
-		b.lru = b.lru[1:]
-		if of := b.open[old]; of != nil {
-			of.Close()
+	f, ok := b.open[i]
+	if ok {
+		for j, k := range b.lru { // most recently used last
+			if k == i {
+				b.lru = append(append(b.lru[:j:j], b.lru[j+1:]...), i)
+				break
+			}
 		}
-		delete(b.open, old)
+	} else {
+		var err error
+		f, err = os.Open(filepath.Join(b.dir, "bands", strconv.FormatInt(i, 16)))
+		if errors.Is(err, os.ErrNotExist) {
+			f, err = nil, nil // never written
+		}
+		if err != nil {
+			return fmt.Errorf("sparsebundle: band %x: %w", i, err)
+		}
+		if len(b.lru) >= bundleOpenBands {
+			old := b.lru[0]
+			b.lru = b.lru[1:]
+			if of := b.open[old]; of != nil {
+				of.Close()
+			}
+			delete(b.open, old)
+		}
+		b.open[i] = f
+		b.lru = append(b.lru, i)
 	}
-	b.open[i] = f
-	b.lru = append(b.lru, i)
-	return f, nil
+	if f == nil {
+		clear(q)
+		return nil
+	}
+	// a band file shorter than band-size ends where its data does
+	return readOrZero(f, q, within)
 }
 
 func (b *sparseBundle) Close() error {
@@ -260,18 +274,7 @@ func (b *sparseBundle) Close() error {
 }
 
 func (b *sparseBundle) ReadAt(p []byte, off int64) (int, error) {
-	return readBanded(p, off, b.size, b.bandBytes, func(band int64, q []byte, within int64) error {
-		f, err := b.band(band)
-		if err != nil {
-			return err
-		}
-		if f == nil {
-			clear(q)
-			return nil
-		}
-		// a band file shorter than band-size ends where its data does
-		return readOrZero(f, q, within)
-	})
+	return readBanded(p, off, b.size, b.bandBytes, b.readBand)
 }
 
 // readBanded splits a read at band boundaries and hands each piece to

@@ -440,22 +440,22 @@ func (d *dmgDisk) ReadAt(p []byte, off int64) (int, error) {
 	return total, nil
 }
 
-// decoded returns chunk i decompressed, through the cache.
+// decoded returns chunk i decompressed, through the cache. The lock is not
+// held while a chunk is read and decoded, so readers of different chunks
+// run in parallel; two readers of one uncached chunk may both decode it,
+// and the first to finish fills the cache.
 func (d *dmgDisk) decoded(i int) ([]byte, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if b, ok := d.cache[i]; ok {
-		for j, k := range d.lru {
-			if k == i {
-				d.lru = append(append(d.lru[:j:j], d.lru[j+1:]...), i)
-				break
-			}
-		}
+	if b, ok := d.cached(i); ok {
 		return b, nil
 	}
 	b, err := d.decodeChunk(d.chunks[i])
 	if err != nil {
 		return nil, err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if have, ok := d.cache[i]; ok {
+		return have, nil
 	}
 	for len(d.lru) > 0 && d.cacheBytes+len(b) > d.cacheBudget {
 		old := d.lru[0]
@@ -467,6 +467,22 @@ func (d *dmgDisk) decoded(i int) ([]byte, error) {
 	d.lru = append(d.lru, i)
 	d.cacheBytes += len(b)
 	return b, nil
+}
+
+// cached returns chunk i from the cache, marking it most recently used.
+func (d *dmgDisk) cached(i int) ([]byte, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	b, ok := d.cache[i]
+	if ok {
+		for j, k := range d.lru {
+			if k == i {
+				d.lru = append(append(d.lru[:j:j], d.lru[j+1:]...), i)
+				break
+			}
+		}
+	}
+	return b, ok
 }
 
 // decodeChunk decompresses one chunk to exactly its sector span; a stream
