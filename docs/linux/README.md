@@ -548,6 +548,7 @@ rather than bolted on) with backends:
 | Btrfs | magic at 0x10040 | subvolumes = the snapshot backend (§6.1); no production pure-Go reader exists — **the largest single build item**, clean-room | — |
 | vfat | boot sector | `/boot/efi`, USB media | `diskfs/go-diskfs` |
 | squashfs | `hsqs` | snap packages, live-ISO roots | `CalebQ42/squashfs`, `diskfs/go-diskfs` |
+| APFS | `NXSB` at 32 | **built** (clean-room): every volume of a container, sealed System volumes, decmpfs zlib/LZVN/LZFSE; FileVault content, snapshots, Fusion out of scope — the Mac images share the lanes | — |
 
 The userspace path stays the default (parse in-process, no privilege, no
 `/dev/fuse`), matching the NTFS backend's philosophy: a malformed filesystem
@@ -570,7 +571,9 @@ image (raw | E01 | qcow2 …)
                  └─ LVM2?  (PV label scan → text VG metadata →
                             LV extent maps: linear, striped;
                             snapshot-cow §6.2; thin/tmeta P4)    [P2]
-                      └─ filesystem probe → fsx backend
+                      └─ APFS container?  (one ref per volume,
+                            `<partition>/apfsN`; Data preferred)  [built]
+                           └─ filesystem probe → fsx backend
 ```
 
 Every verb that names a volume today gains `--lv <vg/lv>` addressing beside

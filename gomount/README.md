@@ -15,10 +15,20 @@ Devillers) — see `image/`.
 The **userspace backend** parses filesystems in-process and mounts nothing:
 no FUSE, no kernel driver, no privilege. NTFS is read with
 [go-ntfs](https://www.velocidex.com/golang/go-ntfs); the Linux filesystems —
-**ext2/3/4, XFS v5 and vfat** — with gomount's own clean-room [`fsx`](fsx)
-backends (docs/linux §5.1), and every verb resolves ONE volume stack first
-(docs/linux §5.2): partitions, **LVM2 volume groups** (linear and striped
-LVs, addressed as `--lv vg/lv`), or a bare whole-disk filesystem. It serves
+**ext2/3/4, XFS v5 and vfat** — and **APFS** with gomount's own clean-room
+[`fsx`](fsx) backends (docs/linux §5.1), and every verb resolves ONE volume
+stack first (docs/linux §5.2): partitions, **LVM2 volume groups** (linear
+and striped LVs, addressed as `--lv vg/lv`), the volumes of an **APFS
+container** (`identify` lists each as `<partition>/apfsN` with its name,
+role and UUID; `--volume 0` prefers the Data volume), or a bare whole-disk
+filesystem. The APFS backend ([`fsx/apfs`](fsx/apfs)) reads the newest
+checkpoint, the object maps, the fixed and variable B-trees, the sealed
+(hashed, headerless) file-system tree of a System volume with its extents
+in the fext tree, and file content including **decmpfs** compression —
+zlib, LZVN and LZFSE (Apple's compressors ported in [`lzfse`](lzfse),
+BSD-3), inline or in the resource fork. A FileVault volume lists but its
+content does not read; snapshots, Fusion containers and LZBITMAP are out of
+scope. It serves
 the volume's contents straight from the parser through read verbs — `ls`,
 `cat`, `stat`, `tree`, and `browse` for an operator, `stream` and
 `materialise` for tools, `identify` for the lane's routing document, and
@@ -125,7 +135,8 @@ gomount mount  [--read-only] [--mount-point PATH] [--volume N] [--work PATH] \
 gomount umount [--mount-point PATH] [--work PATH]
 ```
 
-`--volume` is 1-based; `0` auto-selects the largest NTFS volume.
+`--volume` is 1-based; `0` auto-selects the largest NTFS volume (the
+userspace verbs then prefer a Mac's Data volume, then the Linux root).
 `--no-self-unshare` assumes the caller already established the user namespace.
 
 ## Contract

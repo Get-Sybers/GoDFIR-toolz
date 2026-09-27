@@ -19,6 +19,20 @@
   and VDI (dynamic, differencing) — detected by content, never by name.
   The decoders are ported from [VMkatz](https://github.com/nikaiw/VMkatz)
   (MIT); `identify` labels the container.
+- **gomount reads APFS.** A clean-room backend (`gomount/fsx/apfs`): the
+  container's newest checkpoint, the object maps, fixed and variable
+  B-trees, every volume's file-system tree (inodes with extended fields,
+  hashed and plain directory records, xattrs, data streams, extents), the
+  sealed — hashed, headerless — tree of a System volume with its extents in
+  the fext tree, and file content including decmpfs compression (zlib,
+  LZVN, LZFSE; inline or resource fork — the LZVN/LZFSE decoders are ported
+  from Apple's lzfse, BSD-3, in `gomount/lzfse`). The stack resolver peels a
+  container into its volumes (`identify` lists them as `<partition>/apfsN`
+  with name, role, UUID and the sealed/FileVault flags; `--volume 0` prefers
+  the Data volume, then the System volume; a FileVault volume lists but its
+  content does not read), `identify` guesses `macos (data)` / `macos
+  (system)` and labels the Apple partition GUIDs. Snapshots, Fusion
+  containers and LZBITMAP are out of scope.
 - **gomount `materialise` speaks the batch contract**: ONE JSON summary line
   on stdout and the 0/1/2/3 exit table (0 ok, 1 nothing pulled, 2 config
   error, 3 partial), so a lane can run it per image like any dispatcher.
@@ -28,7 +42,8 @@
   `main.version`.
 - **Versions.** The galaxy is 0.4.0; the images gomount 0.4.0, gowindowlicker
   0.2.0, godaemonhunter 0.2.0, signatures 0.3.0 (`TOOL_VERSION`). The
-  ported VM-disk readers are attributed in `THIRD_PARTY_NOTICES.md`.
+  ported VM-disk readers and the LZFSE/LZVN decoders are attributed in
+  `THIRD_PARTY_NOTICES.md`.
 - **plaso `image_export` runs again.** The dispatcher handed it
   `--temporary_directory`, which only `log2timeline`/`psort` accept —
   argparse exit 2 on every image; it now points `TMPDIR` at the work dir
