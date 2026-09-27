@@ -94,13 +94,18 @@ func imageItemName(root, image string) string {
 	return "image"
 }
 
-// materialiseImage pulls the artefact sets out of image into a fresh scratch
-// tree under work and returns it. gomount's exit 1 (nothing on the volume
-// matched) is not an error: the tree is simply empty and the parsers find
-// nothing, like a loose folder without their artefact.
+// materialiseImage pulls the artefact sets out of image into the scratch
+// tree <work>/<image item> and returns it. The name is deterministic — the
+// records' origin paths read <work>/<image>/<volume path>, and a tree a
+// killed run left behind is cleared before the pull. gomount's exit 1
+// (nothing on the volume matched) is not an error: the tree is simply empty
+// and the parsers find nothing, like a loose folder without their artefact.
 func materialiseImage(getenv func(string) string, work, image string, sets []string) (string, error) {
-	scratch, err := os.MkdirTemp(work, "image-"+filepath.Base(image)+"-")
-	if err != nil {
+	scratch := filepath.Join(work, imageItemName(filepath.Dir(image), image))
+	if err := os.RemoveAll(scratch); err != nil {
+		return "", fmt.Errorf("clear scratch %s: %w", scratch, err)
+	}
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
 		return "", fmt.Errorf("scratch under %s: %w", work, err)
 	}
 	args := []string{"materialise", "--out", scratch}
