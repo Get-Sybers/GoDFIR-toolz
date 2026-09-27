@@ -45,7 +45,7 @@ godaemonhunter --version | --print-contract
 | `authentication` | gojournal, gosyslog, gowtmp, goauditd |
 | `user_session` | gowtmp, gojournal, gosyslog, goauditd |
 | `process` | goauditd, goshell, gojournal, gosyslog |
-| `service` | gounit, gocron, gojournal, gosyslog |
+| `service` | gounit, golaunchd, gocron, gojournal, gosyslog |
 | `flow` | goauditd |
 | `file` | gotrash |
 | `module` | goctl |
@@ -64,6 +64,8 @@ shapes:
 | [`gohost`](host/README.md) | host identity (os-release, hostname, machine-id, timezone, locale) + fstab/crypttab volume mapping |
 | [`gousers`](users/README.md) | passwd/shadow/group, sudoers, SSH access surface |
 | [`gonetwork`](network/README.md) | hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, firewall state |
+| [`gomachost`](machost/README.md) | macOS: SystemVersion.plist, the SystemConfiguration host names and model, the system time zone and locale — the same `os_release`/`hostname`/`timezone`/`locale` rows |
+| [`gomacusers`](macusers/README.md) | macOS: the OpenDirectory local node (dslocal users and groups) — the same `account`/`group` rows |
 
 | Layer 2 — the daemon parsers | |
 |---|---|
@@ -76,6 +78,25 @@ shapes:
 | [`goshell`](shell/README.md) | shell/REPL histories |
 | [`gotrash`](trash/README.md) | XDG Trash |
 | [`goctl`](ctl/README.md) | sysctl, module policy, ld.so preload/conf |
+| [`golaunchd`](launchd/README.md) | macOS launchd jobs (LaunchDaemons/LaunchAgents in every domain) and the disabled-overrides tables |
+
+**A Mac is the same run.** Point it at a macOS disk image (APFS or HFS+ —
+gomount resolves the Data volume) or a staged Mac tree and the layered
+pipeline is unchanged: gomachost and gomacusers build the knowledge store
+from the property lists, golaunchd feeds the `service` stream beside
+gounit, and the Linux parsers read the macOS shapes of their own
+artefacts — gosyslog `system.log`/`install.log`/`wifi.log` (bzip2
+rotations included), gowtmp the 628-byte `utmpx`, gocron `var/at/tabs`,
+`var/at/jobs` and the `etc/periodic` scripts, goshell the per-session
+`.bash_sessions`/`.zsh_sessions` histories, gousers `master.passwd` and
+`sudoers`, gohost a staged `localtime` symlink's zone name. The image pull
+asks gomount for both `linux-core` and `macos-core`; the OS volume holds
+one of them — and when `gomount identify` shows a Data volume beside a
+System volume (macOS 10.15+), a second pass pulls `macos-system` off the
+System volume (SystemVersion.plist, Apple's own LaunchDaemons and
+LaunchAgents) into the same staged tree, each file's manifest row naming
+its volume. Not yet read: the unified log (`tracev3`), ASL stores, BTM
+login items, the TCC/KnowledgeC/quarantine databases and fseventsd.
 
 ## Input
 
@@ -109,7 +130,7 @@ The layered run (bare or stream-scoped) writes one structured tree under
 `GODAEMONHUNTER_OUT_DIR`:
 
 ```
-<OUT_DIR>/knowledge/<item>/{gohost,gousers,gonetwork}.jsonl   Layer 1 = the store
+<OUT_DIR>/knowledge/<item>/{gohost,gousers,gonetwork,gomachost,gomacusers}.jsonl   Layer 1 = the store
 <OUT_DIR>/<subtool>/<item>/<subtool>.jsonl                    per selected daemon parser, enriched
 ```
 

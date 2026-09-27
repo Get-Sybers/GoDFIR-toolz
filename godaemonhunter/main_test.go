@@ -164,7 +164,13 @@ func TestStreamScoped(t *testing.T) {
 	if len(sum.Streams) != 1 || sum.Streams[0] != "process" {
 		t.Fatalf("streams: %v", sum.Streams)
 	}
-	if want := 3 + len(streams["process"]); len(sum.Subtools) != want {
+	layer1 := 0
+	for _, s := range subs {
+		if s.layer == 1 {
+			layer1++
+		}
+	}
+	if want := layer1 + len(streams["process"]); len(sum.Subtools) != want {
 		t.Fatalf("subtool count %d, want %d (Layer 1 + the stream): %+v", len(sum.Subtools), want, sum.Streams)
 	}
 	if _, err := os.Stat(filepath.Join(out, "goauditd")); err != nil {

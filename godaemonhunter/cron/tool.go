@@ -81,6 +81,19 @@ func family(rel string) (fam, spoolOwner string) {
 		if strings.HasPrefix(base, "a") && len(base) >= 8 {
 			return "at", ""
 		}
+	// macOS: user crontabs under var/at/tabs (owner = filename), at jobs
+	// under var/at/jobs, the periodic run-parts under etc/periodic/<when>
+	// and their configuration
+	case strings.HasSuffix(dir, "var/at/tabs"):
+		return "spool", base
+	case strings.HasSuffix(dir, "var/at/jobs"):
+		if strings.HasPrefix(base, "a") && len(base) >= 8 {
+			return "at", ""
+		}
+	case (dirBase == "daily" || dirBase == "weekly" || dirBase == "monthly") && filepath.Base(filepath.Dir(dir)) == "periodic":
+		return "runparts", ""
+	case base == "periodic.conf" || base == "periodic.conf.local":
+		return "conf", ""
 	}
 	return "", ""
 }
@@ -220,6 +233,8 @@ func parseByFamily(rd io.Reader, fam, spoolOwner, base, rel string, w *record.Wr
 		return parseAtJob(rd, base, w)
 	case "runparts":
 		return parseRunParts(rel, w)
+	case "conf":
+		return parseCrontab(rd, false, "", w) // KEY=value rows come out as crontab_env
 	}
 	return 0, fmt.Errorf("unknown family %q", fam)
 }

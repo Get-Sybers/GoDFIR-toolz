@@ -467,7 +467,15 @@ func materialiseFile(fsys volumeFS, e fileEntry, outRoot string) (int64, error) 
 	}
 	defer r.Close()
 	rel := filepath.FromSlash(strings.TrimPrefix(strings.ReplaceAll(e.Path, "\\", "/"), "/"))
-	return stageWrite(outRoot, rel, r)
+	n, err := stageWrite(outRoot, rel, r)
+	if err == nil && !e.Mtime.IsZero() {
+		// the staged copy carries the volume's modification time: a parser
+		// anchoring a yearless log stamp on the file's mtime, and the
+		// SourceModified it records, then speak of the evidence, not of
+		// the pull
+		_ = os.Chtimes(filepath.Join(outRoot, rel), e.Mtime, e.Mtime)
+	}
+	return n, err
 }
 
 // stageWrite streams r to <outRoot>/<rel>, creating parents and the file

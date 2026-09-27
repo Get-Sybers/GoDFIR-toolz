@@ -33,6 +33,39 @@
   content does not read), `identify` guesses `macos (data)` / `macos
   (system)` and labels the Apple partition GUIDs. Snapshots, Fusion
   containers and LZBITMAP are out of scope.
+- **godaemonhunter hunts a Mac.** The same layered run over a macOS image
+  or staged tree: Layer 1 gains `gomachost` (SystemVersion.plist, the
+  SystemConfiguration host names and model, the system time zone and
+  locale) and `gomacusers` (the OpenDirectory local node — dslocal users
+  and groups, the account-policy times, the authentication authority; the
+  hash blob reported present, never carried), both emitting the record
+  types gohost and gousers do so the knowledge store reads a Mac
+  unchanged; Layer 2 gains `golaunchd` (launchd jobs from every
+  LaunchDaemons/LaunchAgents domain with the location's kind, domain and
+  owner, and the `disabled*.plist` override tables) in the `service`
+  stream. The Linux parsers read the macOS shapes of their artefacts:
+  gosyslog `system.log`/`install.log`/`wifi.log` (two-digit zone offsets,
+  the wifi dialect, bzip2 rotations through `discover.OpenAuto`), gowtmp
+  the 628-byte `utmpx`, gocron `var/at/tabs`, `var/at/jobs` and
+  `etc/periodic`, goshell the per-session histories, gousers
+  `master.passwd`, gohost a staged `localtime` symlink's zone name. A new
+  `pinfo/plist` package decodes XML and binary property lists (clean-room;
+  proven against a reference encoder's bytes). gomount's catalogue gains
+  the `macos-core` and `macos-system` sets; the image pull asks for
+  `linux-core` and `macos-core`, then — when `gomount identify` shows a
+  Data volume beside a System volume — pulls `macos-system` off the
+  System volume in a second pass merged into the same staged tree, so the
+  OS version and Apple's own launchd jobs are on the record. Not yet: the
+  unified log, ASL, BTM, the TCC/KnowledgeC/quarantine databases,
+  fseventsd.
+- **Image runs carry provenance.** godaemonhunter's pull now asks gomount
+  for the manifest, so every record from a disk image carries `Origin`
+  (image, volume, path, inode) as the loose-tree path always could.
+  `gomount materialise` gives each staged file the volume's modification
+  time, so `SourceModified` and the year a yearless syslog stamp is
+  anchored on speak of the evidence, not of the pull. gosyslog's own host
+  field is now `Hostname` (as gojournal's): as `Host` it hid the
+  envelope's knowledge block on every syslog record.
 - **gomount reads HFS+.** A clean-room backend (`gomount/fsx/hfsplus`)
   for the Mac filesystem before APFS: the volume header, directly or
   through the classic HFS wrapper; the catalog, extents-overflow and
@@ -59,7 +92,7 @@
   `usr/lib/os-release`, `utmp` and `.Trash-*`. The Dockerfile stamps
   `main.version`.
 - **Versions.** The galaxy is 0.4.0; the images gomount 0.4.0, gowindowlicker
-  0.2.0, godaemonhunter 0.2.0, signatures 0.3.0 (`TOOL_VERSION`). The
+  0.2.0, godaemonhunter 0.3.0, signatures 0.3.0 (`TOOL_VERSION`). The
   ported VM-disk readers and the LZFSE/LZVN decoders are attributed in
   `THIRD_PARTY_NOTICES.md`.
 - **plaso `image_export` runs again.** The dispatcher handed it

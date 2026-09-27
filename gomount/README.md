@@ -66,7 +66,7 @@ so a downstream tool consumes them from a plain `-d <dir>`. `--set` names a
 built-in artefact set (`windows-core` — every Windows set in one —
 `registry-core`, `amcache`, `shimcache`, `ntuser`, `usrclass`, `srum`, `sum`,
 `timeline`, `winevt`, `prefetch`, `mft`, `recent`, `recyclebin`, and
-`linux-core`); `--select` adds an ad-hoc volume-path glob. Each file lands at `<out>/<volume-path>` at mode `0400`. `--siblings`
+`linux-core`, `macos-core` — what godaemonhunter reads off a Mac's Data volume — and `macos-system`, the sealed System volume's version plist and Apple's launchd jobs); `--select` adds an ad-hoc volume-path glob. Each file lands at `<out>/<volume-path>` at mode `0400`. `--siblings`
 (default `true`) also copies each artefact's named siblings — a hive's
 `.LOG1`/`.LOG2`, a SQLite `-wal`/`-shm` — from the same directory. `--manifest`
 writes `<out>/materialise.jsonl` when `--manifest` is given — each row an

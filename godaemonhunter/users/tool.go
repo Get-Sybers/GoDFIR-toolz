@@ -52,6 +52,7 @@ type userRecord struct {
 	GECOS          string   `json:"GECOS,omitempty"`
 	HomeDir        string   `json:"HomeDir,omitempty"`
 	Shell          string   `json:"Shell,omitempty"`
+	Class          string   `json:"Class,omitempty"` // BSD master.passwd login class
 	GroupName      string   `json:"GroupName,omitempty"`
 	Members        []string `json:"Members,omitempty"`
 	Admins         []string `json:"Admins,omitempty"`
@@ -96,9 +97,14 @@ func classify(rel string) string {
 	rel = strings.ToLower(filepath.ToSlash(rel))
 	base := filepath.Base(rel)
 	dir := filepath.Base(filepath.Dir(rel))
+	if dir == "pam.d" { // etc/pam.d/passwd, /sudo, /sshd are PAM stacks, not the tables
+		return ""
+	}
 	switch base {
 	case "passwd", "passwd-":
 		return "passwd"
+	case "master.passwd":
+		return "master_passwd"
 	case "shadow", "shadow-":
 		return "shadow"
 	case "group", "group-":
@@ -158,6 +164,28 @@ func parsePasswdLine(f []string, rec *userRecord) bool {
 	rec.Username, rec.PasswordField = f[0], f[1]
 	rec.UID, rec.GID = num(f[2]), num(f[3])
 	rec.GECOS, rec.HomeDir, rec.Shell = f[4], f[5], f[6]
+	return true
+}
+
+// parseMasterPasswdLine reads a BSD master.passwd row (macOS carries one
+// for its system accounts): name, hash, uid, gid, class, change, expire,
+// gecos, home, shell — change and expire as Unix seconds.
+func parseMasterPasswdLine(f []string, rec *userRecord) bool {
+	if len(f) != 10 {
+		return false
+	}
+	rec.RecordType = "account"
+	rec.Username, rec.PasswordField = f[0], f[1]
+	rec.UID, rec.GID = num(f[2]), num(f[3])
+	rec.Class = f[4]
+	rec.GECOS, rec.HomeDir, rec.Shell = f[7], f[8], f[9]
+	if n := num(f[5]); n != nil && *n > 0 {
+		rec.EventTime = tstamp.Unix(*n, 0)
+		rec.TimeKind = "password_change"
+	}
+	if n := num(f[6]); n != nil && *n > 0 {
+		rec.ExpireTime = tstamp.Unix(*n, 0)
+	}
 	return true
 }
 
@@ -355,7 +383,7 @@ func parseFile(rd io.Reader, family string, w *record.Writer, warnf func(string,
 		rec := &userRecord{Line: lineNo}
 		ok := false
 		switch family {
-		case "passwd", "shadow", "group", "gshadow":
+		case "passwd", "master_passwd", "shadow", "group", "gshadow":
 			if strings.HasPrefix(trimmed, "#") {
 				continue
 			}
@@ -363,6 +391,8 @@ func parseFile(rd io.Reader, family string, w *record.Writer, warnf func(string,
 			switch family {
 			case "passwd":
 				ok = parsePasswdLine(f, rec)
+			case "master_passwd":
+				ok = parseMasterPasswdLine(f, rec)
 			case "shadow":
 				ok = parseShadowLine(f, rec)
 			case "group":

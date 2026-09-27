@@ -135,7 +135,8 @@ USERSPACE backend — pure in-process go-ntfs parsing, no mount, no FUSE, no pri
   --out DIR     materialise: output directory for the pulled artefacts (required)
   --set NAME    materialise: named artefact set to pull, repeatable (windows-core,
                 registry-core, amcache, shimcache, ntuser, usrclass, srum, sum,
-                timeline, winevt, prefetch, mft, recent, recyclebin, linux-core)
+                timeline, winevt, prefetch, mft, recent, recyclebin, linux-core,
+                macos-core, macos-system)
   --select GLOB materialise: ad-hoc volume-path glob to pull, repeatable
   --siblings    materialise: also pull each artefact's named siblings (default true)
   --manifest    materialise: write <out>/materialise.jsonl for the pulled files

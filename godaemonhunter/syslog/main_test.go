@@ -44,7 +44,7 @@ func TestDialects(t *testing.T) {
 	if len(recs) != 4 {
 		t.Fatalf("count %d", len(recs))
 	}
-	if recs[0]["EventTime"] != "2026-03-01T22:14:02.000000Z" || recs[0]["Host"] != "web01" ||
+	if recs[0]["EventTime"] != "2026-03-01T22:14:02.000000Z" || recs[0]["Hostname"] != "web01" ||
 		recs[0]["Ident"] != "systemd" || recs[0]["PID"] != float64(1) {
 		t.Fatalf("bsd: %v", recs[0])
 	}

@@ -15,7 +15,7 @@ description: >
   filesystem (docs/linux §5). A declared argv deviation: its
   verbs are streaming and interactive (stream a tar of every file to
   stdout for a consuming tool, materialise artefact sets into a directory
-  — windows-core and linux-core included, with the origin-record manifest
+  — windows-core, linux-core and macos-core included, with the origin-record manifest
   and --residue staging of §5.4/§5.5 — identify the stack as one JSON
   document, timeline one JSONL row per (file, timestamp kind) with
   allocation state, ls/cat/stat/tree/browse, or mount an NTFS volume
