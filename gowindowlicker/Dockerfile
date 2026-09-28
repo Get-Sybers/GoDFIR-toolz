@@ -6,39 +6,37 @@
 # image (GOWINDOWLICKER_IMAGE) — no mount, no FUSE, no privilege.
 
 ARG GO_VERSION=1.26
-ARG TOOL_VERSION=0.2.0
+ARG TOOL_VERSION=0.1.0
+ARG GOMOUNT_VERSION=0.1.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
+# gowindowlicker is imported from its published module at build time
+# (github.com/get-sybers/gowindowlicker) — no Go source lives in this repo.
 FROM golang:${GO_VERSION}-alpine AS build
 ARG TOOL_VERSION
-WORKDIR /src/gowindowlicker
-COPY gowindowlicker/go.mod gowindowlicker/go.sum ./
-RUN go mod download
-COPY gowindowlicker/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gowindowlicker .
+ENV GOTOOLCHAIN=auto CGO_ENABLED=0
+RUN go install -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" \
+      github.com/get-sybers/gowindowlicker@v${TOOL_VERSION}
 # build-stage sanity gate
-RUN /gowindowlicker --version
-# gore's bundled batch definition, with modes fixed here rather than inherited
-# from the checkout, so uid 2000 can read it whatever umask the build host used.
-RUN cp re/batch/default.reb /tmp/default.reb && \
-    mkdir -m 0755 /batch && install -m 0644 /tmp/default.reb /batch/default.reb
+RUN /go/bin/gowindowlicker --version
+# gore's bundled batch definition travels with the published module; install it
+# world-readable so uid 2000 can read it (the module cache is mode 0444).
+RUN MODDIR="$(go env GOMODCACHE)/github.com/get-sybers/gowindowlicker@v${TOOL_VERSION}" && \
+    mkdir -m 0755 /batch && install -m 0644 "$MODDIR/re/batch/default.reb" /batch/default.reb
 
-# gomount: CGO-free static reader of the disk image (its go.mod pins the Go
-# it needs; the toolchain downloads it when the base is older)
-FROM golang:alpine AS gomount-build
-ARG TOOL_VERSION
-ENV GOTOOLCHAIN=auto
-WORKDIR /src/gomount
-COPY gomount/go.mod gomount/go.sum ./
-RUN go mod download
-COPY gomount/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /out/gomount .
+# gomount: the CGO-free static disk-image reader, imported from its published
+# module (github.com/get-sybers/gomount)
+FROM golang:${GO_VERSION}-alpine AS gomount-build
+ARG GOMOUNT_VERSION
+ENV GOTOOLCHAIN=auto CGO_ENABLED=0
+RUN go install -trimpath -ldflags="-s -w -X main.version=${GOMOUNT_VERSION}" \
+      github.com/get-sybers/gomount@v${GOMOUNT_VERSION}
 
 FROM scratch
-COPY --from=build /gowindowlicker /gowindowlicker
+COPY --from=build /go/bin/gowindowlicker /gowindowlicker
 COPY --from=build /batch /batch
-COPY --from=gomount-build /out/gomount /usr/local/bin/gomount
+COPY --from=gomount-build /go/bin/gomount /usr/local/bin/gomount
 COPY <<HARDENED /etc/dfir-hardened
 schema=1
 tool=gowindowlicker
@@ -64,4 +62,4 @@ LABEL org.opencontainers.image.title="get-sybers/gowindowlicker" \
       com.get-sybers.hardened="true" \
       com.get-sybers.contract="1" \
       com.get-sybers.godfir-release="${GODFIR_RELEASE}" \
-      com.get-sybers.upstream="https://github.com/Get-Sybers/GoDFIR-toolz/tree/main/gowindowlicker"
+      com.get-sybers.upstream="https://github.com/Get-Sybers/gowindowlicker"

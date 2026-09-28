@@ -3,39 +3,34 @@
 # binary (every parser a sub-tool; hunt is the layered all-streams run).
 # Built from the REPO ROOT: the image copies the sibling pinfo/ module.
 
-ARG GO_VERSION=1.25
-ARG TOOL_VERSION=0.3.0
+ARG GO_VERSION=1.26
+ARG TOOL_VERSION=0.1.0
+ARG GOMOUNT_VERSION=0.1.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
+# godaemonhunter is imported from its published module at build time
+# (github.com/get-sybers/godaemonhunter), which pulls the shared gopinfo module
+# transitively — no Go source lives in this repo.
 FROM golang:${GO_VERSION}-alpine AS build
 ARG TOOL_VERSION
-WORKDIR /src
-COPY pinfo/ pinfo/
-COPY godaemonhunter/go.mod godaemonhunter/go.sum godaemonhunter/
-WORKDIR /src/godaemonhunter
-RUN go mod download
-WORKDIR /src
-COPY godaemonhunter/ godaemonhunter/
-WORKDIR /src/godaemonhunter
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /godaemonhunter .
+ENV GOTOOLCHAIN=auto CGO_ENABLED=0
+RUN go install -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" \
+      github.com/get-sybers/godaemonhunter@v${TOOL_VERSION}
 # build-stage sanity gate
-RUN /godaemonhunter --version
+RUN /go/bin/godaemonhunter --version
 
-# gomount: CGO-free static reader of the disk image (its go.mod pins the Go
-# it needs; the toolchain downloads it when the base is older)
-FROM golang:alpine AS gomount-build
-ARG TOOL_VERSION
-ENV GOTOOLCHAIN=auto
-WORKDIR /src/gomount
-COPY gomount/go.mod gomount/go.sum ./
-RUN go mod download
-COPY gomount/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /out/gomount .
+# gomount: the CGO-free static disk-image reader the lane runs, imported from its
+# published module (github.com/get-sybers/gomount)
+FROM golang:${GO_VERSION}-alpine AS gomount-build
+ARG GOMOUNT_VERSION
+ENV GOTOOLCHAIN=auto CGO_ENABLED=0
+RUN go install -trimpath -ldflags="-s -w -X main.version=${GOMOUNT_VERSION}" \
+      github.com/get-sybers/gomount@v${GOMOUNT_VERSION}
 
 FROM scratch
-COPY --from=build /godaemonhunter /godaemonhunter
-COPY --from=gomount-build /out/gomount /usr/local/bin/gomount
+COPY --from=build /go/bin/godaemonhunter /godaemonhunter
+COPY --from=gomount-build /go/bin/gomount /usr/local/bin/gomount
 COPY <<HARDENED /etc/dfir-hardened
 schema=1
 tool=godaemonhunter

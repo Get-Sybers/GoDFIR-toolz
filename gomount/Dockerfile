@@ -7,20 +7,20 @@
 
 ARG GO_IMAGE=golang:trixie
 ARG RUNTIME_IMAGE=debian:trixie-slim
-ARG TOOL_VERSION=0.4.0
+ARG TOOL_VERSION=0.1.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
+# gomount is imported from its published module at build time
+# (github.com/get-sybers/gomount) — no Go source lives in this repo.
 FROM ${GO_IMAGE} AS build
 ARG TOOL_VERSION
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
+ENV GOTOOLCHAIN=auto CGO_ENABLED=0
 # static, trimmed, CGO off — gomount only execs ntfs-3g, never links it
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /gomount .
+RUN go install -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" \
+      github.com/get-sybers/gomount@v${TOOL_VERSION}
 # sanity gate: no args must print usage and exit 1 (a panic exits differently and fails the build)
-RUN /gomount >/dev/null 2>&1; [ $? -eq 1 ]
+RUN /go/bin/gomount >/dev/null 2>&1; [ $? -eq 1 ]
 
 FROM ${RUNTIME_IMAGE} AS runtime
 ARG DFIR_UID=2000
@@ -44,9 +44,10 @@ RUN set -eux; \
     printf 'schema=1\ntool=gomount\nuser=dfir uid=%s gid=%s\nstatic_binary=false\nshell=true python=false pkg_mgr=false\n' \
       "${DFIR_UID}" "${DFIR_GID}" > /etc/dfir-hardened; \
     chmod 0444 /etc/dfir-hardened
-COPY --from=build /gomount /usr/local/bin/gomount
+COPY --from=build /go/bin/gomount /usr/local/bin/gomount
+# the image's contract and in-image integration test are GoDFIR-toolz assets
+# (the same files conform.sh checks), copied from the build context
 COPY --chmod=0644 contract.yml /opt/gomount/contract.yml
-# the integration mount test travels with the image (any host with /dev/fuse + unpriv userns can run it)
 COPY --chmod=0755 test/mount-test.sh /test/mount-test.sh
 
 FROM scratch
