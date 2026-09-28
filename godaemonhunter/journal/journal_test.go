@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
 	"github.com/klauspost/compress/zstd"
 	lz4 "github.com/pierrec/lz4/v4"
 	"github.com/ulikunitz/xz"

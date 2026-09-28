@@ -16,8 +16,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/report"
+	"github.com/get-sybers/godfir-toolz/pinfo"
+	"github.com/get-sybers/godfir-toolz/pinfo/report"
 )
 
 func main() {

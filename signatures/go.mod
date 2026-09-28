@@ -1,3 +1,3 @@
-module github.com/Get-Sybers/GoDFIR-toolz/signatures
+module github.com/get-sybers/godfir-toolz/signatures
 
-go 1.24
+go 1.26.0

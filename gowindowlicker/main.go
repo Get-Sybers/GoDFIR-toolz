@@ -40,20 +40,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/batch"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/batch"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/amcache"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/appcompat"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/ese"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/evtx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/jle"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/le"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/mft"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/prefetch"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/rb"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/re"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/sbe"
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/wxt"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/amcache"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/appcompat"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/ese"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/evtx"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/jle"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/le"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/mft"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/prefetch"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/rb"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/re"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/sbe"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/wxt"
 )
 
 //go:embed contract.yml

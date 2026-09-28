@@ -52,7 +52,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/batch"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/batch"
 
 	"www.velocidex.com/golang/regparser"
 	"www.velocidex.com/golang/regparser/appcompatcache"

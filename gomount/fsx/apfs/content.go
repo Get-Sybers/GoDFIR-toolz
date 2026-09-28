@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/decmpfs"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/decmpfs"
 )
 
 // File content: a data fork is the file extents of the inode's private

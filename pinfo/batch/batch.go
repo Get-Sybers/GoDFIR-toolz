@@ -34,10 +34,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
+	"github.com/get-sybers/godfir-toolz/pinfo"
+	"github.com/get-sybers/godfir-toolz/pinfo/knowledge"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/tstamp"
 )
 
 // Tool binds the shared runtime to one tool.

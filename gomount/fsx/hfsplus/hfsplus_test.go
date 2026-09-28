@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/hfsplus/hfstest"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/hfsplus/hfstest"
 )
 
 var (

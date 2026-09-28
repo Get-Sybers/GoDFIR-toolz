@@ -24,8 +24,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/image"
 )
 
 const isoMicros = "2006-01-02T15:04:05.000000Z"

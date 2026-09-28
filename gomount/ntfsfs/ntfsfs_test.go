@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfsvol"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/partition"
+	"github.com/get-sybers/godfir-toolz/gomount/image"
+	"github.com/get-sybers/godfir-toolz/gomount/ntfsvol"
+	"github.com/get-sybers/godfir-toolz/gomount/partition"
 )
 
 // ---- pure unit tests (run anywhere, no ntfs-3g needed) ----------------------

@@ -9,8 +9,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/fsxtest"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/fsxtest"
+	"github.com/get-sybers/godfir-toolz/gomount/image"
 )
 
 func fixturePath(t *testing.T, name string) string {

@@ -27,7 +27,7 @@ import (
 
 	yaml "github.com/Velocidex/yaml/v2"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
 )
 
 // materialiseSetsYAML is the embedded artefact-set catalogue. Keeping the set

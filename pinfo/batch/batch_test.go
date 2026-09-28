@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
 )
 
 type fakeRecord struct {

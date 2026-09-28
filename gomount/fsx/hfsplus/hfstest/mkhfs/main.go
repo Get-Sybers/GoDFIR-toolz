@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/hfsplus/hfstest"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/hfsplus/hfstest"
 )
 
 func main() {

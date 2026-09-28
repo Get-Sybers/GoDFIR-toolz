@@ -19,7 +19,7 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
 )
 
 func init() {

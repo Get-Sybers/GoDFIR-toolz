@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
 )
 
 func run(t *testing.T, fam, owner, base, rel, content string) []map[string]any {

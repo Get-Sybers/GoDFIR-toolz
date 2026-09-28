@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image/imagetest"
+	"github.com/get-sybers/godfir-toolz/gomount/image/imagetest"
 )
 
 // rawDisk is a deterministic sector-aligned byte pattern with an all-zero

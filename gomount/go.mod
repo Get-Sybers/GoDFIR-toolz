@@ -1,6 +1,6 @@
-module github.com/Get-Sybers/GoDFIR-toolz/gomount
+module github.com/get-sybers/godfir-toolz/gomount
 
-go 1.27.1
+go 1.26.0
 
 require (
 	github.com/Velocidex/go-ewf v0.0.0-20260301075014-ed09cb7887b6

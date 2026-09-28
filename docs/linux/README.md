@@ -145,7 +145,7 @@ run-introspection role plaso's `pinfo` plays for a `.plaso` storage (§3.5).
 ### 3.2 Shape
 
 `pinfo/` is a directory-level Go module at the repo root,
-`github.com/Get-Sybers/GoDFIR-toolz/pinfo`, with no dependency on any parser
+`github.com/get-sybers/godfir-toolz/pinfo`, with no dependency on any parser
 and no cgo:
 
 ```

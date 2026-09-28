@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/knowledge"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
 )
 
 // a benign execve event (ls -la in /home/alice) plus a service start.
