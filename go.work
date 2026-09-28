@@ -1,16 +1,13 @@
 go 1.26.0
 
-// The GoDFIR-toolz Go modules. Each is its own module (own go.mod) so a heavy
-// or CGO dependency never spreads beyond the module that needs it
-// (go-standards.md §1). `pinfo` is the shared module; the modules that import
-// it wire it with a relative `replace` so they also build standalone with
-// GOWORK=off (§2). `signatures/goyara` needs libyara (CGO) — it builds where
-// the library is present (CI); the conform gate reports and skips it otherwise.
+// The remaining GoDFIR-toolz Go modules. Each is its own module (own go.mod).
+// gowindowlicker, godaemonhunter, gomount and the shared pinfo module have been
+// retired from this repo: the container images now import those tools from their
+// published modules (github.com/get-sybers/<tool>) at build time via `go install`
+// (see each tool's Dockerfile), so no Go source for them lives here. signatures
+// and zeek remain until they get their own standalone repos; signatures/goyara
+// needs libyara (CGO) and builds where the library is present (CI).
 use (
-	./pinfo
-	./godaemonhunter
-	./gomount
-	./gowindowlicker
 	./signatures
 	./signatures/goyara
 	./zeek
