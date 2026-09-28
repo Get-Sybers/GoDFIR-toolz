@@ -1,3 +1,3 @@
-module github.com/Get-Sybers/GoDFIR-toolz/pinfo
+module github.com/get-sybers/godfir-toolz/pinfo
 
-go 1.24
+go 1.26.0

@@ -26,7 +26,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/lzfse"
+	"github.com/get-sybers/godfir-toolz/gomount/lzfse"
 )
 
 const (

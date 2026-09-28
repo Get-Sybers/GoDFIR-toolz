@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/fsxtest"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/fsxtest"
 )
 
 func openFixture(t *testing.T, name string) *FS {

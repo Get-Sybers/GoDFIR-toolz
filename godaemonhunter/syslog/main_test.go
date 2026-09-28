@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
 )
 
 var ref = time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)

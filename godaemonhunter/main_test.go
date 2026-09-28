@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
+	"github.com/get-sybers/godfir-toolz/pinfo/batch"
 )
 
 func writeFixtures(t *testing.T, in string) {

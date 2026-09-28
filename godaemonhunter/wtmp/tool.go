@@ -40,12 +40,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/knowledge"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tarstream"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
+	"github.com/get-sybers/godfir-toolz/pinfo/batch"
+	"github.com/get-sybers/godfir-toolz/pinfo/discover"
+	"github.com/get-sybers/godfir-toolz/pinfo/knowledge"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/tarstream"
+	"github.com/get-sybers/godfir-toolz/pinfo/tstamp"
 )
 
 // utmp record types (utmp(5)); the native vocabulary is emitted verbatim.

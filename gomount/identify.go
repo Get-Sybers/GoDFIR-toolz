@@ -14,9 +14,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/lvm"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/image"
+	"github.com/get-sybers/godfir-toolz/gomount/lvm"
 )
 
 // identifyDoc is the one JSON document.

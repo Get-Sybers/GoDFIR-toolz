@@ -57,7 +57,7 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/batch"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/batch"
 )
 
 type record struct {

@@ -23,7 +23,7 @@ import (
 	"time"
 	_ "time/tzdata" // zones must resolve inside FROM scratch images
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
 )
 
 // Store is one image's knowledge, built from Layer-1 record files.

@@ -12,17 +12,17 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/apfs"
-	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/ext4"
-	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/hfsplus"
-	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/vfat"
-	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/xfs"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/lvm"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfsfs"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfsvol"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/partition"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/apfs"
+	_ "github.com/get-sybers/godfir-toolz/gomount/fsx/ext4"
+	_ "github.com/get-sybers/godfir-toolz/gomount/fsx/hfsplus"
+	_ "github.com/get-sybers/godfir-toolz/gomount/fsx/vfat"
+	_ "github.com/get-sybers/godfir-toolz/gomount/fsx/xfs"
+	"github.com/get-sybers/godfir-toolz/gomount/image"
+	"github.com/get-sybers/godfir-toolz/gomount/lvm"
+	"github.com/get-sybers/godfir-toolz/gomount/ntfsfs"
+	"github.com/get-sybers/godfir-toolz/gomount/ntfsvol"
+	"github.com/get-sybers/godfir-toolz/gomount/partition"
 )
 
 // volumeRef is one addressable volume of the resolved stack.

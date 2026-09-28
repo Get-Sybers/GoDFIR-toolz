@@ -38,12 +38,12 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfs3g"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfsvol"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/partition"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/userns"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/vfile"
+	"github.com/get-sybers/godfir-toolz/gomount/image"
+	"github.com/get-sybers/godfir-toolz/gomount/ntfs3g"
+	"github.com/get-sybers/godfir-toolz/gomount/ntfsvol"
+	"github.com/get-sybers/godfir-toolz/gomount/partition"
+	"github.com/get-sybers/godfir-toolz/gomount/userns"
+	"github.com/get-sybers/godfir-toolz/gomount/vfile"
 )
 
 func main() {

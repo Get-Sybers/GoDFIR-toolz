@@ -33,11 +33,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/families"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
+	"github.com/get-sybers/godfir-toolz/pinfo/batch"
+	"github.com/get-sybers/godfir-toolz/pinfo/discover"
+	"github.com/get-sybers/godfir-toolz/pinfo/families"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/tstamp"
 )
 
 // syslogRecord is one log line; RecordType is syslog_line or a typed

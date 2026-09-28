@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/decmpfs"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/decmpfs"
 )
 
 // The fsx view: paths resolve component by component through the catalog;

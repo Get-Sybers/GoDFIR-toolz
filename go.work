@@ -1,0 +1,17 @@
+go 1.26.0
+
+// The GoDFIR-toolz Go modules. Each is its own module (own go.mod) so a heavy
+// or CGO dependency never spreads beyond the module that needs it
+// (go-standards.md §1). `pinfo` is the shared module; the modules that import
+// it wire it with a relative `replace` so they also build standalone with
+// GOWORK=off (§2). `signatures/goyara` needs libyara (CGO) — it builds where
+// the library is present (CI); the conform gate reports and skips it otherwise.
+use (
+	./pinfo
+	./godaemonhunter
+	./gomount
+	./gowindowlicker
+	./signatures
+	./signatures/goyara
+	./zeek
+)

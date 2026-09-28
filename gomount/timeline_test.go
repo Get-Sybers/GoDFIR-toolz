@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image"
+	"github.com/get-sybers/godfir-toolz/gomount/image"
 )
 
 func TestIdentifyLVMStack(t *testing.T) {

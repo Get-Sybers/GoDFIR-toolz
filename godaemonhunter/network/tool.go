@@ -28,10 +28,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
+	"github.com/get-sybers/godfir-toolz/pinfo/batch"
+	"github.com/get-sybers/godfir-toolz/pinfo/discover"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/tstamp"
 )
 
 // netRecord is the one record shape; RecordType says which family a row is.

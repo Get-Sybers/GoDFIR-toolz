@@ -29,10 +29,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
+	"github.com/get-sybers/godfir-toolz/pinfo/batch"
+	"github.com/get-sybers/godfir-toolz/pinfo/discover"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/tstamp"
 )
 
 // historyRecord is one command (RecordType "shell_history").

@@ -51,7 +51,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/batch"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/batch"
 
 	ntfs "www.velocidex.com/golang/go-ntfs/parser"
 )

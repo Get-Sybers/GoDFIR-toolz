@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/batch"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
 )
 
 const info = "[Trash Info]\nPath=/home/alice/secret%20plans.docx\nDeletionDate=2026-03-01T22:14:02\n"

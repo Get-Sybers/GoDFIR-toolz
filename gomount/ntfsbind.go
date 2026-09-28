@@ -12,7 +12,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/ntfsfs"
+	"github.com/get-sybers/godfir-toolz/gomount/ntfsfs"
 )
 
 // ntfsFS adapts *ntfsfs.FS to the userspace volumeFS contract.

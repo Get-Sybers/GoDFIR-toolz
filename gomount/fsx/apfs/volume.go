@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/decmpfs"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/decmpfs"
 )
 
 // A volume: its superblock (apfs_superblock_t, "APSB") names the volume

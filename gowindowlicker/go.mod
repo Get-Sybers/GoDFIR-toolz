@@ -1,4 +1,4 @@
-module github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker
+module github.com/get-sybers/godfir-toolz/gowindowlicker
 
 go 1.26.0
 

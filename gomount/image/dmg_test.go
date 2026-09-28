@@ -21,12 +21,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/apfs"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/fsxtest"
-	_ "github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/hfsplus"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image/imagetest"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/partition"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	_ "github.com/get-sybers/godfir-toolz/gomount/fsx/apfs"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/fsxtest"
+	_ "github.com/get-sybers/godfir-toolz/gomount/fsx/hfsplus"
+	"github.com/get-sybers/godfir-toolz/gomount/image/imagetest"
+	"github.com/get-sybers/godfir-toolz/gomount/partition"
 )
 
 // openStack opens a DMG through OpenImage, finds its one partition and

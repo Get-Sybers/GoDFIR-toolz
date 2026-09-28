@@ -5,8 +5,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/decmpfs"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/decmpfs"
 )
 
 // TestEvidenceCompression walks the sealed System volume — where nearly

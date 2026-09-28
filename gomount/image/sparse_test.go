@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/image/imagetest"
+	"github.com/get-sybers/godfir-toolz/gomount/image/imagetest"
 )
 
 // TestSparseImageApple: a .sparseimage hdiutil wrote — dfvfs's

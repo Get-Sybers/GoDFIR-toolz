@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx/fsxtest"
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/partition"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx/fsxtest"
+	"github.com/get-sybers/godfir-toolz/gomount/partition"
 )
 
 func TestAppleWrittenVolume(t *testing.T) {

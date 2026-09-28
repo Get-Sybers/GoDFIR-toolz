@@ -29,11 +29,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/batch"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/discover"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/plist"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/record"
-	"github.com/Get-Sybers/GoDFIR-toolz/pinfo/tstamp"
+	"github.com/get-sybers/godfir-toolz/pinfo/batch"
+	"github.com/get-sybers/godfir-toolz/pinfo/discover"
+	"github.com/get-sybers/godfir-toolz/pinfo/plist"
+	"github.com/get-sybers/godfir-toolz/pinfo/record"
+	"github.com/get-sybers/godfir-toolz/pinfo/tstamp"
 )
 
 // userRecord is the one record shape; RecordType is account or group. The

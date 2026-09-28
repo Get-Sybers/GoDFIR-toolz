@@ -47,7 +47,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gowindowlicker/batch"
+	"github.com/get-sybers/godfir-toolz/gowindowlicker/batch"
 
 	lnk "github.com/parsiya/golnk"
 )

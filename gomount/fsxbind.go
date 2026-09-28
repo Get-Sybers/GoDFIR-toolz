@@ -10,7 +10,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/Get-Sybers/GoDFIR-toolz/gomount/fsx"
+	"github.com/get-sybers/godfir-toolz/gomount/fsx"
 )
 
 // fsxFS adapts an fsx.FS to volumeFS.
