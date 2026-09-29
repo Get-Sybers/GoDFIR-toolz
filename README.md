@@ -121,7 +121,7 @@ to end) — builds and hardening-verifies every entry from it.
 own, no consumer around): a thin launcher of the collection playbook
 (`get_sybers.godfir_build.build_images`), nothing more.
 
-The Ansible ships as native collections under
+The Ansible content ships as native collections under
 [`ansible_collections/get_sybers/`](ansible_collections/get_sybers)
 (ansible-standards §1), split by role:
 
