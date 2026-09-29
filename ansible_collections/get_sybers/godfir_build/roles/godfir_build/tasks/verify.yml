@@ -1,61 +1,17 @@
 ---
+# The runtime supply-chain gate is one home: get_sybers.godfir_run.godfir_images.
+# godfir_build delegates to it (passing this repo's manifest + run-as knobs) so
+# the producer and the consumer enforce the identical membership + posture gate.
 - name: "godfir-verify | assert the root inventory contract"
   ansible.builtin.include_tasks: inventory.yml
 
-# scope includes registry-qualified namespace refs (a first path component with a dot/colon, or localhost)
-- name: "godfir-verify | scope the gate to the namespace"
-  ansible.builtin.set_fact:
-    godfir_build_verify_scope: >-
-      {{ godfir_build_verify_images
-         | select('match', '^((localhost|[^/]*[.:][^/]*)/)?'
-                           ~ (godfir_build_namespace | regex_escape) ~ '/')
-         | list }}
-    godfir_build_verify_known: >-
-      {{ godfir_build_manifest.images | map(attribute='name')
-         | map('regex_replace', '^', godfir_build_namespace ~ '/') | list }}
-
-# membership on the normalised repo: registry stripped, then @digest, then a post-slash :tag
-- name: "godfir-verify | refuse namespace refs the manifest does not know"
+- name: "godfir-verify | gate the images through godfir_images"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_images
+    tasks_from: verify
   vars:
-    godfir_build_verify_unknown: >-
-      {{ godfir_build_verify_scope
-         | map('regex_replace', '^(localhost|[^/]*[.:][^/]*)/', '')
-         | map('regex_replace', '@.*$', '')
-         | map('regex_replace', ':[^/]+$', '')
-         | reject('in', godfir_build_verify_known) | list }}
-  ansible.builtin.assert:
-    that:
-      - godfir_build_verify_unknown | length == 0
-    fail_msg: >-
-      refusing to run {{ godfir_build_verify_unknown | join(', ') }}: not a
-      known {{ godfir_build_namespace }}/* tool image (expected one of:
-      {{ godfir_build_verify_known | sort | join(' ') }}).
-    quiet: true
-
-- name: "godfir-verify | inspect the gated images"
-  community.docker.docker_image_info:
-    name: "{{ item }}"
-  loop: "{{ godfir_build_verify_scope }}"
-  register: godfir_build_verify_info
-
-- name: "godfir-verify | assert each gated image still carries the hardened contract"
-  vars:
-    godfir_build_verify_img: "{{ item.images | first | default({}) }}"
-    godfir_build_verify_labels: "{{ godfir_build_verify_img.Config.Labels | default({}, true) }}"
-  ansible.builtin.assert:
-    that:
-      - item.images | length == 1
-      - godfir_build_verify_img.Config.User == (godfir_build_uid | string) ~ ':' ~ (godfir_build_gid | string)
-      - godfir_build_verify_labels['com.get-sybers.hardened'] | default('') == 'true'
-    fail_msg: >-
-      refusing to run {{ item.item }}: it is not the hardened build —
-      {{ 'image not present' if item.images | length == 0
-         else 'runs as ' ~ (godfir_build_verify_img.Config.User | default('root', true))
-              ~ ' / com.get-sybers.hardened='
-              ~ (godfir_build_verify_labels['com.get-sybers.hardened'] | default('unset')) }}.
-      Rebuild it through the build galaxy (godfir_build; from DX_DFIR:
-      dxdfir build-docker).
-    quiet: true
-  loop: "{{ godfir_build_verify_info.results }}"
-  loop_control:
-    label: "{{ item.item }}"
+    godfir_images_verify_images: "{{ godfir_build_verify_images }}"
+    godfir_images_namespace: "{{ godfir_build_namespace }}"
+    godfir_images_uid: "{{ godfir_build_uid }}"
+    godfir_images_gid: "{{ godfir_build_gid }}"
+    godfir_images_manifest_path: "{{ godfir_build_tree }}/images.yml"

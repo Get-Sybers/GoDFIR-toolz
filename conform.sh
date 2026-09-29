@@ -422,6 +422,30 @@ PY
     fi
 fi
 
+# ---- 7. shipped Ansible data in sync (get_sybers.godfir_run) ------------------
+# The godfir_run lanes each ship their tool's contract.yml, and godfir_images
+# ships images.yml, so the collection is self-contained when installed by a
+# consumer. Guard against silent drift from the repo-root source of truth.
+section "7. shipped Ansible data (get_sybers.godfir_run)"
+_gr_roles="$REPO_ROOT/ansible_collections/get_sybers/godfir_run/roles"
+_sha() { sha256sum <"$1" | cut -d' ' -f1; }
+_lane_contract="$_gr_roles/godfir_$TOOL/files/contract.yml"
+if [[ -f "$_lane_contract" ]]; then
+    if [[ -f "$TOOL_DIR/contract.yml" ]] && [[ "$(_sha "$_lane_contract")" == "$(_sha "$TOOL_DIR/contract.yml")" ]]; then
+        _p "godfir_$TOOL ships contract.yml in sync with $TOOL/contract.yml"
+    else
+        _f "godfir_$TOOL/files/contract.yml differs from $TOOL/contract.yml — re-copy (cp $TOOL/contract.yml $_lane_contract)"
+    fi
+fi
+_bundled_images="$_gr_roles/godfir_images/files/images.yml"
+if [[ -f "$_bundled_images" && -f "$IMAGES_YML" ]]; then
+    if [[ "$(_sha "$_bundled_images")" == "$(_sha "$IMAGES_YML")" ]]; then
+        _p "godfir_images ships images.yml in sync with the manifest"
+    else
+        _f "godfir_images/files/images.yml differs from $IMAGES_YML — re-copy (cp $IMAGES_YML $_bundled_images)"
+    fi
+fi
+
 # ---- summary -----------------------------------------------------------------
 printf '\n%ssummary%s  %sPASS %d%s  %sWARN %d%s  %sFAIL %d%s\n' \
     "$C_B" "$C_RST" "$C_OK" "$pass" "$C_RST" "$C_WARN" "$warn" "$C_RST" "$C_ERR" "$fail" "$C_RST"

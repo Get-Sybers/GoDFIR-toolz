@@ -9,6 +9,7 @@ skip_list:
 mock_modules:
   - community.docker.docker_image
   - community.docker.docker_image_build
+  - community.docker.docker_host_info
   - community.docker.docker_image_info
   - community.docker.docker_image_pull
   - community.docker.docker_image_tag

@@ -1,7 +1,8 @@
 ---
-# The runtime posture gate: every namespace ref about to run must be present and
-# still carry the hardened contract (non-root USER == uid:gid, the
-# com.get-sybers.hardened label). Refs outside the namespace pass untouched.
+# The runtime supply-chain gate: every namespace ref about to run must be a
+# KNOWN manifest image (membership) and still carry the hardened contract
+# (posture: present, non-root USER == uid:gid, com.get-sybers.hardened). Refs
+# outside the namespace pass untouched.
 # scope includes registry-qualified refs (a first path component with a dot/colon, or localhost)
 - name: "godfir-images | scope the gate to the namespace"
   ansible.builtin.set_fact:
@@ -10,6 +11,24 @@
          | select('match', '^((localhost|[^/]*[.:][^/]*)/)?'
                            ~ (godfir_images_namespace | regex_escape) ~ '/')
          | list }}
+
+# membership on the normalised repo: registry stripped, then @digest, then a post-slash :tag
+- name: "godfir-images | refuse namespace refs the manifest does not know"
+  vars:
+    godfir_images_verify_unknown: >-
+      {{ godfir_images_verify_scope
+         | map('regex_replace', '^(localhost|[^/]*[.:][^/]*)/', '')
+         | map('regex_replace', '@.*$', '')
+         | map('regex_replace', ':[^/]+$', '')
+         | reject('in', godfir_images_known) | list }}
+  ansible.builtin.assert:
+    that:
+      - godfir_images_verify_unknown | length == 0
+    fail_msg: >-
+      refusing to run {{ godfir_images_verify_unknown | join(', ') }}: not a
+      known {{ godfir_images_namespace }}/* tool image (expected one of:
+      {{ godfir_images_known | sort | join(' ') }}).
+    quiet: true
 
 - name: "godfir-images | inspect the gated images"
   community.docker.docker_image_info:

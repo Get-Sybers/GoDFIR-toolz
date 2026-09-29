@@ -1,15 +1,18 @@
 ---
-# The positives: verify accepts the hardened image, a non-namespace ref is
-# ignored by the scope, and ensure_present is a no-op when the image is present.
+# The positives: verify accepts the hardened, KNOWN image; a non-namespace ref is
+# ignored by the scope; ensure_present is a no-op when the image is present.
 - name: Converge
   hosts: localhost
   gather_facts: false
+  vars:
+    molecule_manifest: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/images.yml"
   tasks:
-    - name: "converge | verify accepts the hardened image"
+    - name: "converge | verify accepts the hardened, known image"
       ansible.builtin.include_role:
         name: godfir_images
         tasks_from: verify
       vars:
+        godfir_images_manifest_path: "{{ molecule_manifest }}"
         godfir_images_verify_images: [get-sybers/molecule-good:latest]
 
     - name: "converge | a non-namespace ref is out of scope"
@@ -17,6 +20,7 @@
         name: godfir_images
         tasks_from: verify
       vars:
+        godfir_images_manifest_path: "{{ molecule_manifest }}"
         godfir_images_verify_images: [docker.io/library/alpine:latest]
 
     - name: "converge | the non-namespace ref was ignored (empty scope)"

@@ -1,0 +1,65 @@
+# The canonical get-sybers/* image inventory — the one source of truth for
+# every consumer. Schema and consumers: README.md "The image inventory".
+namespace: get-sybers
+
+images:
+  # ---- pipeline images (repo-root context)
+  - name: signatures
+    aliases: [yara, suricata, hayabusa]
+  - name: byakugan
+    engine_ref: BYAKUGAN_REF
+    env_args: [BYAKUGAN_REF]
+    aliases: [mitrecar, car]
+  - name: zeek
+  - name: anamnesis
+    engine_ref: ANAMNESIS_REF
+    env_args: [ANAMNESIS_REF, MEMPROCFS_VERSION, MEMPROCFS_SHA256]
+    aliases: [memory]
+  - name: plaso
+    aliases: [log2timeline, psort]
+
+  # ---- the Windows Go parsers: one image (FROM scratch; repo-root context —
+  #      it bakes the sibling gomount/ to run the parsers on a disk image),
+  #      every parser a sub-tool
+  - name: gowindowlicker
+    aliases: [windowlicker, lick]
+    subtool_aliases: [goprefetch, prefetch, pecmd,
+                      goese, esedump, srum, srumecmd, sumecmd,
+                      gorb, rbcmd, gomft, mftecmd, goevtx, evtxecmd,
+                      goamcache, amcacheparser, goappcompat, appcompatcacheparser,
+                      gore, recmd, gosbe, sbecmd, gole, lecmd,
+                      gojle, jlecmd, gowxt, wxtcmd]
+
+  # ---- the Linux matrix (repo-root context: godaemonhunter copies the sibling pinfo/)
+  - name: godaemonhunter
+    aliases: [daemonhunter, hunt]
+    subtool_aliases: [gowtmp, gojournal, goauditd, gosyslog, goshell, gousers,
+                      gocron, gounit, gotrash, gohost, gonetwork, goctl]
+  - name: gomount
+    context: gomount
+    dockerfile: Dockerfile
+
+unbuildable:
+  vscmount: >-
+    VSCMount manipulates the Windows VSS device namespace and has no Linux
+    container; use libvshadow (vshadowinfo/vshadowmount) on the host.
+  # the retired .NET per-tool lane — succeeded, no image builds these any more
+  # (CHANGELOG 0.2.0)
+  sqlecmd: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  bstrings: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  iisgeolocate: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  recentfilecacheparser: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+  rla: >-
+    the .NET per-tool lane is retired — succeeded, no longer built
+    (CHANGELOG 0.2.0).
+
+non_tool_repos:
+  - get-sybers/molecule

@@ -11,7 +11,10 @@ Building is not here — that is [`get_sybers.godfir_build`](../../../godfir_bui
 | --- | --- |
 | `main` | Pull the images in `godfir_images_set` (a thin wrapper over `ensure_present`) — provision a host up front. |
 | `ensure_present` | Read the local image facts and pull any required ref that is missing (or all, under `godfir_images_force`), then tag each pulled registry image to its local name. Idempotent and self-healing; `godfir_run`'s preflight calls it at the head of every lane. |
-| `verify` | The runtime supply-chain posture gate: every namespace ref about to run must be present and still carry the hardened contract — the non-root `USER` (`uid:gid`) and the `com.get-sybers.hardened` label. Refs outside `get-sybers/*` pass untouched. |
+| `verify` | The runtime supply-chain gate: every namespace ref about to run must be a **known manifest image** (membership) and still carry the hardened contract — the non-root `USER` (`uid:gid`) and the `com.get-sybers.hardened` label (posture). Refs outside `get-sybers/*` pass untouched. |
+| `audit` | The full namespace inventory audit: every manifest image present and hardened, no unexpected `get-sybers/*` image on the host (allow-list = the manifest images + its `non_tool_repos`). One aggregated verdict. |
+
+The manifest (`images.yml`) that `verify`'s membership gate and `audit` read is shipped under `files/` (override `godfir_images_manifest_path` to drive them off another manifest — `get_sybers.godfir_build` delegates its own verify/audit here, passing the repo-root manifest).
 
 Variables are specified in `meta/argument_specs.yml`.
 

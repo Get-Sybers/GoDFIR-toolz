@@ -14,10 +14,22 @@ godfir_images_uid: 2000
 # gid follows the uid unless set, so a lone uid override still yields a matched USER
 godfir_images_gid: "{{ godfir_images_uid }}"
 
+# the image manifest (images.yml) shipped with the role: verify's membership
+# gate and audit read it. Override the path to drive them off another manifest
+# (e.g. a molecule fixture, or the repo-root manifest in-repo).
+godfir_images_manifest_path: "{{ role_path }}/files/images.yml"
+godfir_images_manifest: >-
+  {{ (lookup('file', godfir_images_manifest_path, errors='ignore') | default('', true) | from_yaml) or {} }}
+# the known namespace image repos (namespace/<name>) and the allow-list extras
+godfir_images_known: >-
+  {{ godfir_images_manifest.images | default([]) | map(attribute='name')
+     | map('regex_replace', '^', godfir_images_namespace ~ '/') | list }}
+godfir_images_non_tool_repos: "{{ godfir_images_manifest.non_tool_repos | default([]) }}"
+
 # ensure_present: local refs the caller needs present; missing ones are pulled
 godfir_images_required: []
 
-# verify: refs about to run — the posture gate scopes these to the namespace
+# verify: refs about to run — the posture + membership gate scopes these to the namespace
 godfir_images_verify_images: []
 
 # main: local refs to pull up front (a convenience; the lanes pull what they run)
