@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # get-sybers/godaemonhunter — the Linux daemon-parser matrix as one static
 # binary (every parser a sub-tool; hunt is the layered all-streams run).
-# Built from the REPO ROOT: the image copies the sibling pinfo/ module.
+# Imported from the published module at build time (go install); the shared
+# gopinfo module is pulled transitively. No Go source lives in this repo.
 
 ARG GO_VERSION=1.26
 ARG TOOL_VERSION=0.1.0
