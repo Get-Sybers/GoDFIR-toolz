@@ -119,20 +119,20 @@ the **`godfir_build` role** — the collection's build engine (ansible tasks end
 to end) — builds and hardening-verifies every entry from it.
 `build-all.sh` exists solely so this repo works **standalone** (cloned on its
 own, no consumer around): a thin launcher of the collection playbook
-(`playbooks/build_images.yml`), nothing more — an integrating consumer uses
-the role, never the script. A consumer plugs this repo in one of two
-ways, both reading the same files:
+(`get_sybers.godfir_build.build_images`), nothing more.
 
-- **Direct reference** — pin the repo (submodule or checkout) and read
-  `images.yml` at the pin. DX_DFIR consumes this way: its `dxdfir_images`
-  role builds every entry (CI included) and its runtime guard allow-lists
-  exactly these images from the same manifest.
-- **Ansible Galaxy** — the repo installs as the `get_sybers.godfir_toolz`
-  collection (`galaxy.yml`), carrying the manifest and every build context:
+The Ansible content ships as native collections under
+[`ansible_collections/get_sybers/`](ansible_collections/get_sybers)
+(ansible-standards §1), split by role:
 
-  ```sh
-  ansible-galaxy collection install 'git+https://github.com/Get-Sybers/GoDFIR-toolz.git'
-  ```
+- [**`get_sybers.godfir_build`**](ansible_collections/get_sybers/godfir_build) —
+  the **producer**. The `godfir_build` role and `build_images` playbook build
+  and hardening-verify every `images.yml` entry. Runs in-repo against this
+  checkout; not installed by consumers.
+- **`get_sybers.godfir_run`** — the **consumer**. It pulls the published images
+  from the registry and runs each tool under its confinement contract.
+  Downstreams (DX_DFIR) pin this collection and pull images — they do not
+  build.
 
 No image list exists anywhere else — a new tool is added in `images.yml`
 (and its own directory), in one place.
@@ -173,11 +173,11 @@ filesystem, so posture cannot drift from the images either.
 ./build-all.sh byakugan plaso signatures zeek
 ```
 
-`build-all.sh` is the launcher of `playbooks/build_images.yml` for
-standalone use of this repo **only** — this repository cloned by itself,
-no consumer around. It is never used by another repository: a consumer
-builds through the `godfir_build` role from its own tooling (DX_DFIR:
-`dxdfir build-docker`), and the script refuses to run from a checkout that
+`build-all.sh` is the launcher of the `get_sybers.godfir_build.build_images`
+playbook for standalone use of this repo **only** — this repository cloned by
+itself, no consumer around. It is never used by another repository: consumers
+pull the published images from the registry (via `get_sybers.godfir_run`) and
+do not build. The script refuses to run from a checkout that
 is a submodule of another repository. The inventory lives in `images.yml`
 and the build logic in the role; the script prepares the host, then
 forwards names and the optional stamp overrides.
@@ -267,9 +267,10 @@ Per tool, `conform.sh <tool>` checks the layout, the Dockerfile standards,
 the image and cross-checks the built artifact), and `<tool>/test/contract_test.sh`
 runs the image over `test/fixtures/` in batch mode and asserts the summary
 line, the exit code, idempotency and the config-error exit. The build galaxy
-itself is molecule-tested (`roles/godfir_build/molecule/default` — `molecule
-test` runs the whole gate matrix, negatives included, offline against a
-committed fixture). The `godfir_build`
+itself is molecule-tested
+(`ansible_collections/get_sybers/godfir_build/roles/godfir_build/molecule/default`
+— `molecule test` runs the whole gate matrix, negatives included, offline
+against a committed fixture). The `godfir_build`
 role stamps every image with the checkout revision and the release tag, and
 replaces any image whose `com.get-sybers.src` stamp went stale.
 

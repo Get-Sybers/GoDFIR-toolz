@@ -4,9 +4,9 @@
 #
 # This script exists for exactly one situation: this repository cloned by
 # itself, with no consumer around. It launches the collection playbook
-# (playbooks/build_images.yml → the godfir_build role): the inventory lives in
-# images.yml and the build logic in the role; the script only prepares the
-# host, forwards names and the optional stamp overrides.
+# (get_sybers.godfir_build.build_images → the godfir_build role): the inventory
+# lives in images.yml and the build logic in the role; the script only prepares
+# the host, forwards names and the optional stamp overrides.
 #
 # It is NEVER used by another repository. A consumer builds through the
 # godfir_build role from its own tooling (DX_DFIR: `dxdfir build-docker`), and
@@ -78,9 +78,10 @@ requests==2.34.2
 resolvelib==1.2.1
 urllib3==2.7.0
 '
-# The collection the godfir_build role's modules come from: exact, never a
-# range or :latest. It satisfies galaxy.yml's declared dependency range.
-COLLECTION_PIN='community.docker:3.10.3'
+# The collection the godfir_build role's modules come from. The exact pin is
+# NOT written here: it lives in the collection's requirements.yml (the single
+# source of Ansible pins, ansible-standards §2), installed from there below.
+REQUIREMENTS="$REPO_ROOT/ansible_collections/get_sybers/godfir_build/requirements.yml"
 COLLECTION_NAME='community.docker'
 
 # ---- styling (conform.sh's) --------------------------------------------------
@@ -183,8 +184,12 @@ _ansible_py="$("$ANSIBLE_PLAYBOOK" --version 2>/dev/null | sed -n 's/^ *python v
 # host that already has community.docker resolves it, a bare clone gets the
 # pin installed in-tree. (`collection list NAME` exits 0 whether or not NAME
 # is installed, so the JSON listing is parsed instead.)
+# The repo root leads the path so the in-repo ansible_collections/get_sybers
+# tree (the get_sybers.godfir_build collection and its FQCN playbook) resolves
+# uninstalled (ansible-standards §1); the in-tree community.docker install and
+# any host/system paths follow.
 COLLECTIONS="$REPO_ROOT/.ansible/collections"
-export ANSIBLE_COLLECTIONS_PATH="$COLLECTIONS:${ANSIBLE_COLLECTIONS_PATH:-$HOME/.ansible/collections:/usr/share/ansible/collections}"
+export ANSIBLE_COLLECTIONS_PATH="$REPO_ROOT:$COLLECTIONS:${ANSIBLE_COLLECTIONS_PATH:-$HOME/.ansible/collections:/usr/share/ansible/collections}"
 collection_version() {
     ansible-galaxy collection list --format json 2>/dev/null \
         | "$_ansible_py" -c 'import json, sys
@@ -194,9 +199,9 @@ for paths in json.load(sys.stdin).values():
 }
 _cd_ver="$(collection_version "$COLLECTION_NAME")"
 if [[ -z "$_cd_ver" ]]; then
-    step "Installing the pinned $COLLECTION_PIN collection into $COLLECTIONS ..."
+    step "Installing $COLLECTION_NAME (pinned in requirements.yml) into $COLLECTIONS ..."
     note "needs galaxy.ansible.com once; later runs are offline"
-    ansible-galaxy collection install "$COLLECTION_PIN" -p "$COLLECTIONS" \
+    ansible-galaxy collection install -r "$REQUIREMENTS" -p "$COLLECTIONS" \
         || die "installing the $COLLECTION_NAME collection failed (no route to galaxy.ansible.com?)" \
                "an offline host: install it once on a connected host and carry $COLLECTIONS across"
     _cd_ver="$(collection_version "$COLLECTION_NAME")"
@@ -244,4 +249,7 @@ fi
 [[ -n "${GODFIR_RELEASE:-}" ]] && EXTRA+=(-e "godfir_build_release=${GODFIR_RELEASE}")
 
 step "Building: ${NAMES[*]:-every image in images.yml}"
-exec "$ANSIBLE_PLAYBOOK" playbooks/build_images.yml "${EXTRA[@]}"
+# the collection's FQCN playbook; the repo root is the build tree (images.yml,
+# hardening/ and every build context live here)
+exec "$ANSIBLE_PLAYBOOK" get_sybers.godfir_build.build_images \
+    -e godfir_build_root="$REPO_ROOT" "${EXTRA[@]}"

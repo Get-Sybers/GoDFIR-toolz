@@ -6,4 +6,4 @@
   tasks:
     - name: "build-images | run the build role"
       ansible.builtin.include_role:
-        name: godfir_build
+        name: get_sybers.godfir_build.godfir_build

@@ -1,0 +1,6 @@
+---
+# The single source of exact version pins (ansible-standards §2). build-all.sh
+# and CI read this rather than carrying their own copy.
+collections:
+  - name: community.docker
+    version: "3.10.3"

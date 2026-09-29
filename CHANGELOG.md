@@ -1,4 +1,22 @@
-# Changelog — get_sybers.godfir_toolz
+# Changelog — GoDFIR-toolz
+
+## Unreleased
+
+- **Ansible split into native collections (ansible-standards §1).** The single
+  root `get_sybers.godfir_toolz` collection is retired in favour of native
+  `ansible_collections/get_sybers/` collections, split by role:
+  `get_sybers.godfir_build` (the producer — the `godfir_build` role and
+  `build_images` playbook, now at
+  `ansible_collections/get_sybers/godfir_build/`) and, next,
+  `get_sybers.godfir_run` (the consumer — pull the published images from the
+  registry and run each under its confinement contract). The root `galaxy.yml`,
+  `roles/`, `playbooks/` and `meta/` are gone; each collection carries its own
+  `galaxy.yml`, `requirements.yml` (the single source of exact pins, §2),
+  `README.md`, `CHANGELOG.md` and `.ansible-lint`. `ansible.cfg` now sets
+  `collections_path` for in-repo resolution (no submodule, no galaxy pull for
+  `get_sybers.*`); `build-all.sh` launches the FQCN playbook
+  `get_sybers.godfir_build.build_images` and installs `community.docker` from
+  `requirements.yml`.
 
 ## 0.4.0 (unreleased)
 

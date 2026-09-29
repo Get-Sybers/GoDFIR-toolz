@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: godfir_build
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    Build and hardening-verify the get-sybers/* DFIR images from images.yml,
+    the repo-root inventory. The role groups; the caller decides which images
+    to build. Producer side of the get_sybers.godfir_build collection.
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: EL
+      versions: [all]
+    - name: Debian
+      versions: [all]
+    - name: Ubuntu
+      versions: [all]
+  galaxy_tags: [dfir, forensics, docker, security, build]
+# No role dependencies: the docker modules come from the community.docker
+# collection (declared in galaxy.yml), not from another role.
+dependencies: []
