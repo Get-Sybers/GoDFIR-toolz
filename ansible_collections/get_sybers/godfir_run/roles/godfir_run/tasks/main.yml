@@ -9,15 +9,19 @@
           tags: [always]
       tags: [always]
 
+    # build_only stops after argv construction: no daemon, no pull, no run —
+    # a dry validate of a lane's run spec (a lane's molecule uses it)
     - name: "run preflight | {{ godfir_run_name }}"
       ansible.builtin.include_tasks:
         file: preflight.yml
         apply:
           tags: [always]
+      when: not godfir_run_build_only | bool
       tags: [always]
 
     - name: "run process | {{ godfir_run_name }}"
       ansible.builtin.include_tasks: process.yml
+      when: not godfir_run_build_only | bool
   always:
     - name: "lane | remove every secret env-file | {{ godfir_run_name }}"
       ansible.builtin.file:

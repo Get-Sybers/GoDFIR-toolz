@@ -1,0 +1,41 @@
+---
+argument_specs:
+  main:
+    short_description: "Run the offline anamnesis image over a memory-image tree."
+    description:
+      - >-
+        Declare one confined run of the anamnesis image (memory images under
+        /input -> per-plugin JSONL under /out, symbols from the read-write cache
+        at /opt/anamnesis/lib/Symbols) and delegate to godfir_run. Per-plugin
+        failures without symbols are normal, so the gate is output-present, not
+        failed==0. Evidence discovery is the caller's.
+    options:
+      godfir_anamnesis_memory_dir:
+        type: str
+        required: true
+        description: "The memory-image tree, mounted read-only at /input."
+      godfir_anamnesis_out_dir:
+        type: str
+        required: true
+        description: "The output root, mounted read-write at /out."
+      godfir_anamnesis_symbols_dir:
+        type: str
+        required: true
+        description: "The persistent symbol cache, mounted read-write at /opt/anamnesis/lib/Symbols."
+      godfir_anamnesis_contract:
+        type: str
+        required: false
+        description: "The tool contract (default: the copy shipped with the lane)."
+      godfir_anamnesis_image:
+        type: str
+        required: false
+        description: "Image ref overriding the contract's image (e.g. a digest pin)."
+      godfir_anamnesis_force:
+        type: bool
+        required: false
+        default: false
+        description: "Reprocess images that already have valid output (ANAMNESIS_FORCE)."
+      godfir_anamnesis_plugins:
+        type: str
+        required: false
+        description: "Comma-separated collector names; empty = the default CAR set."

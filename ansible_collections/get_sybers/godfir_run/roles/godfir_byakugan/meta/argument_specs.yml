@@ -1,0 +1,77 @@
+---
+argument_specs:
+  main:
+    short_description: "Materialise / verify / timeline the MITRE CAR via the byakugan image."
+    description:
+      - >-
+        One role, three CAR actions. build materialises the per-source CAR stores
+        from the processed evidence tree; verify runs the engine's promotion gate
+        (status ok is the only pass); timeline unions a source's stores into one
+        time-ordered CAR timeline. Each is one confined run delegated to godfir_run.
+    options:
+      godfir_byakugan_action:
+        type: str
+        required: false
+        default: build
+        choices: [build, verify, timeline]
+        description: "Which CAR action to run."
+      godfir_byakugan_dir:
+        type: str
+        required: true
+        description: "The materialised CAR tree (build /output, verify /input, timeline default /input)."
+      godfir_byakugan_processed_dir:
+        type: str
+        required: false
+        description: "The processed evidence tree read at build (/input); required for build."
+      godfir_byakugan_contract:
+        type: str
+        required: false
+        description: "The tool contract (default: the copy shipped with the lane)."
+      godfir_byakugan_image:
+        type: str
+        required: false
+        description: "Image ref overriding the contract's image (e.g. a digest pin)."
+      godfir_byakugan_rebuild:
+        type: bool
+        required: false
+        default: false
+        description: "build: rebuild sources whose stores already exist."
+      godfir_byakugan_derive:
+        type: bool
+        required: false
+        default: false
+        description: "build: also run the derived relationship pass."
+      godfir_byakugan_stix:
+        type: bool
+        required: false
+        default: false
+        description: "build: also derive the STIX 2.1 bundle."
+      godfir_byakugan_timeline_dir:
+        type: str
+        required: false
+        description: "timeline: the source car dir or tree to aggregate (default: the CAR tree)."
+      godfir_byakugan_timeline_out_dir:
+        type: str
+        required: false
+        description: "timeline: where timeline.jsonl lands (empty = beside the stores)."
+      godfir_byakugan_timeline_force:
+        type: bool
+        required: false
+        default: false
+        description: "timeline: overwrite an existing timeline.jsonl."
+      godfir_byakugan_timeline_host:
+        type: str
+        required: false
+        description: "timeline: filter to one host."
+      godfir_byakugan_timeline_after:
+        type: str
+        required: false
+        description: "timeline: lower time bound."
+      godfir_byakugan_timeline_before:
+        type: str
+        required: false
+        description: "timeline: upper time bound."
+      godfir_byakugan_verify_out_dir:
+        type: str
+        required: false
+        description: "verify: where verify.txt lands (empty = beside the stores)."

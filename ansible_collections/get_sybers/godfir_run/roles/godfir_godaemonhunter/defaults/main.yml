@@ -1,0 +1,31 @@
+---
+# the tool's contract, shipped with the lane (conform.sh sha256-checks it vs the
+# repo-root godaemonhunter/contract.yml). Every parser is a sub-tool of it.
+godfir_godaemonhunter_contract: "{{ role_path }}/files/contract.yml"
+
+# REQUIRED output roots, passed by the caller:
+godfir_godaemonhunter_out_dir: ""    # <subtool>/<host>/<item>/<subtool>.jsonl + knowledge/<host>/
+godfir_godaemonhunter_work_dir: ""   # disk-backed /work scratch per image (required when images given)
+
+# caller-discovered work items (evidence discovery lives in the consumer):
+# disk images to hunt ON, one host each: [{tree, rel, name}]
+godfir_godaemonhunter_images: []
+# loose Linux hosts (a staged root tree or a pile of its logs): [{name, export}]
+#   name = the host name; export = the host's tree (read-only /input)
+godfir_godaemonhunter_hosts: []
+
+# empty = the contract's image; set to pin a digest
+godfir_godaemonhunter_image: ""
+godfir_godaemonhunter_force: false
+
+# The layers come from the contract (its layer1/layer2 keys): Layer 1 builds the
+# host's knowledge store, Layer 2 the daemon parsers run with that store mounted.
+# The literal lists are only the fallback for a contract that predates the keys.
+godfir_godaemonhunter_contract_data: >-
+  {{ (lookup('file', godfir_godaemonhunter_contract, errors='ignore') | default('', true) | from_yaml) or {} }}
+godfir_godaemonhunter_layer1: >-
+  {{ godfir_godaemonhunter_contract_data.layer1
+  | default(['gohost', 'gousers', 'gonetwork', 'gomachost', 'gomacusers'], true) }}
+godfir_godaemonhunter_layer2: >-
+  {{ godfir_godaemonhunter_contract_data.layer2
+  | default(['gojournal', 'goauditd', 'gowtmp', 'gosyslog', 'gounit', 'gocron', 'goshell', 'gotrash', 'goctl', 'golaunchd'], true) }}

@@ -1,0 +1,95 @@
+---
+# godfir_plaso: disk images / VM exports / loose trees -> Plaso JSON Lines
+# (log2timeline then psort), delegated to godfir_run. Per-image failures are
+# tolerated — the gate is "some timeline was produced, or there were no sources".
+# Evidence discovery (which source trees) is the caller's.
+- name: "godfir-plaso | assert inputs"
+  ansible.builtin.assert:
+    that:
+      - godfir_plaso_input_dir | length > 0
+      - godfir_plaso_out_dir | length > 0
+    fail_msg: >-
+      godfir_plaso needs godfir_plaso_input_dir (the primary source tree) and
+      godfir_plaso_out_dir (the output root).
+    quiet: true
+  tags: [always]
+
+# freeze role_path-derived paths HERE (role_path inside godfir_run would name the engine)
+- name: "godfir-plaso | freeze the shipped contract path"
+  ansible.builtin.set_fact:
+    godfir_plaso_contract_resolved: "{{ godfir_plaso_contract }}"
+  tags: [always]
+
+# optional trees: a run is declared for each that exists
+- name: "godfir-plaso | stat the optional source trees"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ godfir_plaso_vm_dir }}"
+    - "{{ godfir_plaso_loose_dir }}"
+  when: item | length > 0
+  register: godfir_plaso_optional
+  tags: [always]
+
+# facts persist for the whole play, so the run list is reset before accumulating
+- name: "godfir-plaso | start from an empty run list"
+  ansible.builtin.set_fact:
+    godfir_plaso_runs: []
+  tags: [always]
+
+- name: "godfir-plaso | one log2timeline run per source tree"
+  ansible.builtin.set_fact:
+    godfir_plaso_runs: >-
+      {{ godfir_plaso_runs + [{
+           'name': 'log2timeline:' ~ (item | basename),
+           'contract': godfir_plaso_contract_resolved,
+           'image': godfir_plaso_image,
+           'subtool': 'log2timeline',
+           'env': {'PLASO_LOG2TIMELINE_FORCE': godfir_plaso_force,
+                   'PLASO_LOG2TIMELINE_VSS': godfir_plaso_vss,
+                   'PLASO_LOG2TIMELINE_PARSERS': godfir_plaso_parsers},
+           'mounts': [{'host': item, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_plaso_out_dir, 'path': '/output', 'mode': 'rw'}],
+         }] }}
+  loop: >-
+    {{ [godfir_plaso_input_dir]
+       + (godfir_plaso_optional.results | default([])
+          | selectattr('stat', 'defined') | selectattr('stat.isdir', 'defined')
+          | selectattr('stat.isdir') | map(attribute='item') | list) }}
+  tags: [always]
+
+# psort renders every storage file; it runs last over the SAME tree it writes
+# into, so timeline.jsonl lands beside <host>.plaso in the one <host>/ folder
+- name: "godfir-plaso | the psort run over the storage tree"
+  ansible.builtin.set_fact:
+    godfir_plaso_runs: >-
+      {{ godfir_plaso_runs + [{
+           'name': 'psort',
+           'contract': godfir_plaso_contract_resolved,
+           'image': godfir_plaso_image,
+           'subtool': 'psort',
+           'env': {'PLASO_PSORT_FORCE': godfir_plaso_force,
+                   'PLASO_PSORT_OUTPUT_FORMAT': godfir_plaso_output_format},
+           'mounts': [{'host': godfir_plaso_out_dir, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_plaso_out_dir, 'path': '/output', 'mode': 'rw'}],
+         }] }}
+  tags: [always]
+
+# the output tree pre-exists (container-writable) so psort's ro-mount check passes on a fresh host
+- name: "godfir-plaso | ensure the output tree exists"
+  ansible.builtin.file:
+    path: "{{ godfir_plaso_out_dir }}"
+    state: directory
+    mode: "0777"
+  tags: [always]
+
+- name: "godfir-plaso | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: plaso
+    godfir_run_runs: "{{ godfir_plaso_runs }}"
+    godfir_run_verify_dir: "{{ godfir_plaso_out_dir }}"
+    godfir_run_verify_glob: "timeline.jsonl"
+    godfir_run_require_no_failures: false
+  tags: [always]

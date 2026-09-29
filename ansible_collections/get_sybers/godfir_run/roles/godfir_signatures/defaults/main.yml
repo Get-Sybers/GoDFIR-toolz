@@ -1,0 +1,39 @@
+---
+# the tool's contract, shipped with the lane (conform.sh sha256-checks it vs
+# the repo-root signatures/contract.yml)
+godfir_signatures_contract: "{{ role_path }}/files/contract.yml"
+
+# REQUIRED outputs, passed by the caller:
+godfir_signatures_out_dir: ""   # output root: yara/, suricata/, hayabusa/ subtrees land here
+# disk-backed scratch bound at /work for the image-reading runs (hayabusa and
+# scan over the disk-image and VM trees); required when those sub-tools run
+godfir_signatures_work_dir: ""
+
+# evidence trees, passed by the caller (discovery lives in the consumer). A tree
+# left empty ("") or absent on disk is skipped — its run is not declared.
+godfir_signatures_files_dir: ""
+godfir_signatures_memory_dir: ""
+godfir_signatures_pcap_dir: ""
+godfir_signatures_evtx_dir: ""
+godfir_signatures_disk_dir: ""
+godfir_signatures_vm_dir: ""
+
+# empty = all four sub-tools (yara / suricata / hayabusa / scan)
+godfir_signatures_lanes: []
+# yara sources: files and/or memory (disk images are the scan sub-tool)
+godfir_signatures_yara_sources: [files, memory]
+
+# operator rulesets, mounted ro; empty = the baked set
+godfir_signatures_yara_rules: ""        # a rules file or compiled index (yara + scan)
+godfir_signatures_suricata_rules: ""    # a suricata.rules file
+godfir_signatures_hayabusa_rules: ""    # a Sigma rules directory
+# --set entries, e.g. "vars.address-groups.HOME_NET=[10.0.0.0/8]"
+godfir_signatures_suricata_set: ""
+# empty = the contract's default profile (verbose carries the MITRE columns)
+godfir_signatures_hayabusa_profile: ""
+# gomount --filter glob; empty = every file
+godfir_signatures_scan_filter: ""
+
+# empty = the contract's image; set to pin a digest
+godfir_signatures_image: ""
+godfir_signatures_force: false

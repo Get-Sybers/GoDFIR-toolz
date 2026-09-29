@@ -1,0 +1,37 @@
+---
+argument_specs:
+  main:
+    short_description: "Run the get-sybers/zeek image over a pcap tree."
+    description:
+      - >-
+        Declare one confined run of the self-orchestrating get-sybers/zeek image
+        (PCAPs under /input -> Zeek JSON under /output, one folder per capture)
+        and delegate the build+preflight+process skeleton to godfir_run. Evidence
+        discovery (which pcap tree, where the output goes) is the caller's; this
+        lane takes the paths it is given.
+    options:
+      godfir_zeek_pcap_dir:
+        type: str
+        required: true
+        description: "The pcap tree, mounted read-only at /input."
+      godfir_zeek_out_dir:
+        type: str
+        required: true
+        description: "The output root, mounted read-write at /output."
+      godfir_zeek_contract:
+        type: str
+        required: false
+        description: "The tool contract (default: the copy shipped with the lane)."
+      godfir_zeek_image:
+        type: str
+        required: false
+        description: "Image ref overriding the contract's image (e.g. a digest pin)."
+      godfir_zeek_scripts:
+        type: str
+        required: false
+        description: "Extra argv after -C -r <capture>; empty = zeek's default script set."
+      godfir_zeek_force:
+        type: bool
+        required: false
+        default: false
+        description: "Reprocess captures that already have valid output (ZEEK_FORCE)."

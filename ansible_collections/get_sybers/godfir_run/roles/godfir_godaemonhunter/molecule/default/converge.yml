@@ -1,0 +1,39 @@
+---
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    m_export: /tmp/godfir_gdh_molecule/linux/HOST1
+    m_tree: /tmp/godfir_gdh_molecule/disk
+    m_out: /tmp/godfir_gdh_molecule/out
+    m_work: /tmp/godfir_gdh_molecule/work
+  tasks:
+    - name: "converge | the input trees exist"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ m_export }}", "{{ m_tree }}"]
+
+    - name: "converge | build the godaemonhunter run specs"
+      ansible.builtin.include_role:
+        name: godfir_godaemonhunter
+      vars:
+        godfir_godaemonhunter_out_dir: "{{ m_out }}"
+        godfir_godaemonhunter_work_dir: "{{ m_work }}"
+        godfir_godaemonhunter_hosts:
+          - {name: HOST1, export: "{{ m_export }}"}
+        godfir_godaemonhunter_images:
+          - {tree: "{{ m_tree }}", rel: "disk.e01", name: "disk.e01"}
+
+    - name: "converge | Layer1 + Layer2 runs per host, a hunt per image, all on the image"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | map(attribute='image') | unique | list == ['get-sybers/godaemonhunter:latest']
+          # Layer 2 mounts the knowledge store read-only
+          - godfir_run_runs_built | map(attribute='argv') | map('join', ' ') | select('search', '/knowledge:ro') | list | length > 0
+          # the hunt run over the disk image
+          - godfir_run_runs_built | map(attribute='argv') | map('join', ' ') | select('search', 'GODAEMONHUNTER_IMAGE=disk.e01') | list | length == 1
+          - godfir_run_runs_built | selectattr('name', 'equalto', 'hunt:disk.e01') | list | length == 1
+        fail_msg: "built gdh runs: {{ godfir_run_runs_built | map(attribute='name') | list }}"
+        quiet: true

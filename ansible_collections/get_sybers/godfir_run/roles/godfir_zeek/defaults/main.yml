@@ -1,0 +1,15 @@
+---
+# The tool's contract, shipped with the lane so the collection is self-contained
+# on install (conform.sh sha256-checks it against the repo-root zeek/contract.yml).
+godfir_zeek_contract: "{{ role_path }}/files/contract.yml"
+
+# REQUIRED inputs, passed by the caller (evidence discovery lives in the
+# consumer, e.g. DX_DFIR): the pcap tree (read-only) and the output root.
+godfir_zeek_pcap_dir: ""
+godfir_zeek_out_dir: ""
+
+# empty = the contract's image; set to pin a digest
+godfir_zeek_image: ""
+# extra argv after -C -r <capture>; empty = zeek's default script set
+godfir_zeek_scripts: ""
+godfir_zeek_force: false

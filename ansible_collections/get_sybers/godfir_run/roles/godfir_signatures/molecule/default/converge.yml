@@ -1,0 +1,33 @@
+---
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    m_files: /tmp/godfir_signatures_molecule/files
+    m_out: /tmp/godfir_signatures_molecule/out
+  tasks:
+    - name: "converge | the files evidence tree exists"
+      ansible.builtin.file:
+        path: "{{ m_files }}"
+        state: directory
+        mode: "0755"
+
+    - name: "converge | build the signatures run specs (yara over files only)"
+      ansible.builtin.include_role:
+        name: godfir_signatures
+      vars:
+        godfir_signatures_files_dir: "{{ m_files }}"
+        godfir_signatures_out_dir: "{{ m_out }}"
+        godfir_signatures_lanes: [yara]
+        godfir_signatures_yara_sources: [files]
+
+    - name: "converge | one yara run on the signatures image, dispatched as the yara sub-tool"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 1
+          - godfir_run_runs_built[0].image == 'get-sybers/signatures:latest'
+          - godfir_run_runs_built[0].argv | last == 'yara'
+          - godfir_run_runs_built[0].argv | select('search', m_files ~ ':/input:ro') | list | length == 1
+          - godfir_run_runs_built[0].argv | select('search', m_out ~ '/yara:/output:rw') | list | length == 1
+        fail_msg: "built signatures argv: {{ godfir_run_runs_built | map(attribute='argv') | list }}"
+        quiet: true

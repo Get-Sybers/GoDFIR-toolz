@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  role_name: godfir_gowindowlicker
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    The Windows artefact lane: gowindowlicker's parsers over loose event-log
+    hosts (goevtx) and directly ON disk images (the lick sweep, the baked gomount
+    pulling artefact sets into /work), under the godfir_run confinement skeleton.
+    Takes caller-discovered image and host item lists; evidence discovery is the
+    caller's.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, windows, gowindowlicker]
+dependencies: []

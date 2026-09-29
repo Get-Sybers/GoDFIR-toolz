@@ -1,0 +1,88 @@
+---
+argument_specs:
+  main:
+    short_description: "Run the get-sybers/signatures sub-tools over the evidence trees."
+    description:
+      - >-
+        Declare one run per selected sub-tool (yara/suricata/hayabusa/scan) and
+        present evidence tree, then delegate to godfir_run. Exits 1/3 are tolerated
+        (gate on output). Every evidence tree is optional — a tree left empty or
+        absent on disk is skipped. Evidence discovery is the caller's.
+    options:
+      godfir_signatures_out_dir:
+        type: str
+        required: true
+        description: "Output root; the yara/, suricata/, hayabusa/ subtrees land here."
+      godfir_signatures_work_dir:
+        type: str
+        required: false
+        description: "Disk-backed scratch bound at /work for the image-reading runs (required when hayabusa or scan is selected)."
+      godfir_signatures_files_dir:
+        type: str
+        required: false
+        description: "Loose-files tree (yara source), read-only; empty/absent = skipped."
+      godfir_signatures_memory_dir:
+        type: str
+        required: false
+        description: "Memory-image tree (yara source), read-only; empty/absent = skipped."
+      godfir_signatures_pcap_dir:
+        type: str
+        required: false
+        description: "PCAP tree (suricata), read-only; empty/absent = skipped."
+      godfir_signatures_evtx_dir:
+        type: str
+        required: false
+        description: "Loose event-log tree (hayabusa), read-only; empty/absent = skipped."
+      godfir_signatures_disk_dir:
+        type: str
+        required: false
+        description: "Disk-image tree (hayabusa + scan), read-only; empty/absent = skipped."
+      godfir_signatures_vm_dir:
+        type: str
+        required: false
+        description: "VM-export tree (hayabusa + scan), read-only; empty/absent = skipped."
+      godfir_signatures_lanes:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: "Sub-tools to run (subset of yara/suricata/hayabusa/scan); empty = all four."
+      godfir_signatures_yara_sources:
+        type: list
+        elements: str
+        required: false
+        default: [files, memory]
+        description: "Which trees the yara sub-tool scans (files and/or memory)."
+      godfir_signatures_yara_rules:
+        type: str
+        required: false
+        description: "Operator YARA rules file/index mounted ro (yara + scan); empty = the baked set."
+      godfir_signatures_suricata_rules:
+        type: str
+        required: false
+        description: "Operator suricata.rules file mounted ro; empty = the baked set."
+      godfir_signatures_hayabusa_rules:
+        type: str
+        required: false
+        description: "Operator Sigma rules directory mounted ro; empty = the baked set."
+      godfir_signatures_suricata_set:
+        type: str
+        required: false
+        description: "Suricata --set entries, e.g. vars.address-groups.HOME_NET=[10.0.0.0/8]."
+      godfir_signatures_hayabusa_profile:
+        type: str
+        required: false
+        description: "Hayabusa output profile; empty = the contract default."
+      godfir_signatures_scan_filter:
+        type: str
+        required: false
+        description: "gomount --filter glob for the disk scan; empty = every file."
+      godfir_signatures_image:
+        type: str
+        required: false
+        description: "Image ref overriding the contract's image (e.g. a digest pin)."
+      godfir_signatures_force:
+        type: bool
+        required: false
+        default: false
+        description: "Reprocess items that already have valid output."

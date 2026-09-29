@@ -20,3 +20,7 @@ godfir_run_verify_glob: ""
 godfir_run_gate_extra: ""
 
 godfir_run_require_no_failures: true
+
+# build_only: construct the argv and stop — no daemon, no pull, no container run.
+# A dry validate of a lane's run spec (a lane's molecule uses it offline).
+godfir_run_build_only: false

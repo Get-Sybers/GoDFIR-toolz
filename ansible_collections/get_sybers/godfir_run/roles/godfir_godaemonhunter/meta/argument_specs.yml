@@ -1,0 +1,54 @@
+---
+argument_specs:
+  main:
+    short_description: "Run godaemonhunter's layered matrix over Linux hosts and disk images."
+    description:
+      - >-
+        Declare Layer 1 then Layer 2 runs per loose host (product of hosts and
+        the contract's layer lists) and one hunt run per disk image, then delegate
+        to godfir_run. Content decides; exits 1/3 are tolerated (gate on output).
+        Evidence discovery is the caller's — this lane takes the discovered lists.
+    options:
+      godfir_godaemonhunter_out_dir:
+        type: str
+        required: true
+        description: "Output root; the <subtool>/<host>/ tree and knowledge/<host>/ land here."
+      godfir_godaemonhunter_work_dir:
+        type: str
+        required: false
+        description: "Disk-backed /work scratch per image (required when images are given)."
+      godfir_godaemonhunter_images:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: "Disk images to hunt ON, one host each: [{tree, rel, name}]."
+      godfir_godaemonhunter_hosts:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: "Loose Linux hosts: [{name, export}] — name the host, export its tree (read-only /input)."
+      godfir_godaemonhunter_contract:
+        type: str
+        required: false
+        description: "The tool contract (default: the copy shipped with the lane)."
+      godfir_godaemonhunter_image:
+        type: str
+        required: false
+        description: "Image ref overriding the contract's image (e.g. a digest pin)."
+      godfir_godaemonhunter_layer1:
+        type: list
+        elements: str
+        required: false
+        description: "Layer-1 parsers (the knowledge store); default from the contract."
+      godfir_godaemonhunter_layer2:
+        type: list
+        elements: str
+        required: false
+        description: "Layer-2 daemon parsers; default from the contract."
+      godfir_godaemonhunter_force:
+        type: bool
+        required: false
+        default: false
+        description: "Reprocess items that already have valid output."

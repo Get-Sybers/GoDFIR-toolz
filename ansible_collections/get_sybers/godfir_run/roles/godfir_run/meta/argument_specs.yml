@@ -73,3 +73,11 @@ argument_specs:
         description: >-
           Assert every run reported failed==0. Set false for lanes whose tools
           tolerate per-item failures (exit 3, partial).
+      godfir_run_build_only:
+        type: bool
+        required: false
+        default: false
+        description: >-
+          Construct the argv and stop — skip preflight (daemon, pull, posture)
+          and process (the container run). A dry validate of a lane's run spec;
+          a lane's molecule uses it to assert the built argv offline.

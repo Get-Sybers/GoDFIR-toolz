@@ -40,6 +40,21 @@ ansible_collections/get_sybers/godfir_run/
 Resolved uninstalled from the repo root in-repo; downstreams pin this collection
 via their own `requirements.yml` (§2) and pull the images.
 
+## Lane conventions
+
+Each `godfir_<tool>` lane is thin and follows the same shape:
+
+- it **ships the tool's `contract.yml`** under `roles/godfir_<tool>/files/` so the
+  collection is self-contained on install (`conform.sh` sha256-checks each copy
+  against the repo-root `<tool>/contract.yml`);
+- it **freezes** any `role_path`-derived path (the contract, a `gate_extra` file)
+  with a `set_fact` before delegating — `role_path` evaluated lazily inside
+  `godfir_run` would resolve to the *engine's* directory, not the lane's;
+- it takes **inputs** (paths, item lists), never doing evidence discovery — that
+  stays in the consumer (DX_DFIR);
+- its **molecule** scenario sets `godfir_run_build_only: true` and asserts the
+  built `docker run` argv, so it runs offline with no daemon and no image.
+
 ## Dependencies
 
 - `community.docker` (declared in `galaxy.yml`, pinned in `requirements.yml`).

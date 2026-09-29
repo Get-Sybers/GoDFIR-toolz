@@ -1,0 +1,198 @@
+---
+# godfir_signatures: the detection lane — one contract-driven run per selected
+# sub-tool (yara/suricata/hayabusa/scan) and present evidence tree, delegated to
+# godfir_run. Exits 1/3 are tolerated (gate on output). Evidence discovery (which
+# trees exist, where they are) is the caller's; this lane takes the paths it is
+# given and declares a run only for a tree that is present.
+- name: "godfir-signatures | assert inputs"
+  ansible.builtin.assert:
+    that:
+      - godfir_signatures_out_dir | length > 0
+      - godfir_signatures_lanes | difference(['yara', 'suricata', 'hayabusa', 'scan']) | length == 0
+      - godfir_signatures_yara_sources | difference(['files', 'memory']) | length == 0
+    fail_msg: >-
+      godfir_signatures needs godfir_signatures_out_dir; lanes may only contain
+      yara/suricata/hayabusa/scan and yara_sources only files/memory.
+    quiet: true
+  tags: [always]
+
+# freeze role_path-derived paths HERE (role_path inside godfir_run would name the engine)
+- name: "godfir-signatures | freeze the shipped contract path"
+  ansible.builtin.set_fact:
+    godfir_signatures_contract_resolved: "{{ godfir_signatures_contract }}"
+  tags: [always]
+
+- name: "godfir-signatures | resolve the selected sub-tools"
+  ansible.builtin.set_fact:
+    godfir_signatures_selected: >-
+      {{ godfir_signatures_lanes if godfir_signatures_lanes | length > 0
+         else ['yara', 'suricata', 'hayabusa', 'scan'] }}
+  tags: [always]
+
+- name: "godfir-signatures | work dir is set when a disk-reading sub-tool runs"
+  ansible.builtin.assert:
+    that:
+      - godfir_signatures_work_dir | length > 0
+    fail_msg: "godfir_signatures needs godfir_signatures_work_dir when hayabusa or scan is selected."
+    quiet: true
+  when: godfir_signatures_selected | intersect(['hayabusa', 'scan']) | length > 0
+  tags: [always]
+
+# every evidence tree is optional: a run is declared only for the ones present
+- name: "godfir-signatures | stat each evidence tree"
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop:
+    - {name: files, path: "{{ godfir_signatures_files_dir }}"}
+    - {name: memory, path: "{{ godfir_signatures_memory_dir }}"}
+    - {name: pcaps, path: "{{ godfir_signatures_pcap_dir }}"}
+    - {name: evtx, path: "{{ godfir_signatures_evtx_dir }}"}
+    - {name: disk, path: "{{ godfir_signatures_disk_dir }}"}
+    - {name: vm, path: "{{ godfir_signatures_vm_dir }}"}
+  loop_control:
+    label: "{{ item.name }}"
+  register: godfir_signatures_stats
+  tags: [always]
+
+- name: "godfir-signatures | resolve which evidence trees are present"
+  ansible.builtin.set_fact:
+    godfir_signatures_present: >-
+      {{ dict(godfir_signatures_stats.results | map(attribute='item.name')
+              | zip(godfir_signatures_stats.results | map(attribute='stat.isdir', default=false))) }}
+  tags: [always]
+
+# facts persist for the whole play, so the run list is reset before accumulating
+- name: "godfir-signatures | start from an empty run list"
+  ansible.builtin.set_fact:
+    godfir_signatures_runs: []
+    godfir_signatures_yara_rules_mount: >-
+      {{ [{'host': godfir_signatures_yara_rules, 'path': '/rules/yara.yar', 'mode': 'ro'}]
+         if godfir_signatures_yara_rules | length > 0 else [] }}
+    godfir_signatures_yara_rules_env: "{{ '/rules/yara.yar' if godfir_signatures_yara_rules | length > 0 else '' }}"
+  tags: [always]
+
+- name: "godfir-signatures | one yara run per selected source"
+  ansible.builtin.set_fact:
+    godfir_signatures_runs: >-
+      {{ godfir_signatures_runs + [{
+           'name': 'yara:' ~ item.name,
+           'contract': godfir_signatures_contract_resolved,
+           'image': godfir_signatures_image,
+           'subtool': 'yara',
+           'env': {'SIGNATURES_YARA_FORCE': godfir_signatures_force,
+                   'SIGNATURES_YARA_RULES': godfir_signatures_yara_rules_env},
+           'mounts': [{'host': item.path, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_signatures_out_dir ~ '/yara', 'path': '/output', 'mode': 'rw'}]
+                     + godfir_signatures_yara_rules_mount,
+         }] }}
+  loop:
+    - {name: files, path: "{{ godfir_signatures_files_dir }}"}
+    - {name: memory, path: "{{ godfir_signatures_memory_dir }}"}
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - "'yara' in godfir_signatures_selected"
+    - item.name in godfir_signatures_yara_sources
+    - godfir_signatures_present[item.name] | bool
+  tags: [always]
+
+- name: "godfir-signatures | the suricata run over the captures"
+  ansible.builtin.set_fact:
+    godfir_signatures_runs: >-
+      {{ godfir_signatures_runs + [{
+           'name': 'suricata',
+           'contract': godfir_signatures_contract_resolved,
+           'image': godfir_signatures_image,
+           'subtool': 'suricata',
+           'env': {'SIGNATURES_SURICATA_FORCE': godfir_signatures_force,
+                   'SIGNATURES_SURICATA_SET': godfir_signatures_suricata_set,
+                   'SIGNATURES_SURICATA_RULES': ('/rules/suricata.rules' if godfir_signatures_suricata_rules | length > 0 else '')},
+           'mounts': [{'host': godfir_signatures_pcap_dir, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_signatures_out_dir ~ '/suricata', 'path': '/output', 'mode': 'rw'}]
+                     + ([{'host': godfir_signatures_suricata_rules, 'path': '/rules/suricata.rules', 'mode': 'ro'}]
+                        if godfir_signatures_suricata_rules | length > 0 else []),
+         }] }}
+  when:
+    - "'suricata' in godfir_signatures_selected"
+    - godfir_signatures_present.pcaps | bool
+  tags: [always]
+
+# hayabusa reads the loose event-log tree and, ON the image, every disk image
+# under the disk-image and VM trees (its event logs pulled by the baked gomount
+# into the disk-backed /work while it runs — nothing exported)
+- name: "godfir-signatures | one hayabusa run per event-log source"
+  ansible.builtin.set_fact:
+    godfir_signatures_runs: >-
+      {{ godfir_signatures_runs + [{
+           'name': 'hayabusa:' ~ item.name,
+           'contract': godfir_signatures_contract_resolved,
+           'image': godfir_signatures_image,
+           'subtool': 'hayabusa',
+           'env': {'SIGNATURES_HAYABUSA_FORCE': godfir_signatures_force,
+                   'SIGNATURES_HAYABUSA_PROFILE': godfir_signatures_hayabusa_profile,
+                   'SIGNATURES_HAYABUSA_RULES': ('/rules/hayabusa' if godfir_signatures_hayabusa_rules | length > 0 else '')},
+           'mounts': [{'host': item.path, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_signatures_out_dir ~ '/hayabusa', 'path': '/output', 'mode': 'rw'},
+                      {'host': godfir_signatures_work_dir ~ '/hayabusa-' ~ item.name, 'path': '/work', 'mode': 'rw'}]
+                     + ([{'host': godfir_signatures_hayabusa_rules, 'path': '/rules/hayabusa', 'mode': 'ro'}]
+                        if godfir_signatures_hayabusa_rules | length > 0 else []),
+         }] }}
+  loop:
+    - {name: evtx, path: "{{ godfir_signatures_evtx_dir }}"}
+    - {name: disk, path: "{{ godfir_signatures_disk_dir }}"}
+    - {name: vm, path: "{{ godfir_signatures_vm_dir }}"}
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - "'hayabusa' in godfir_signatures_selected"
+    - godfir_signatures_present[item.name] | bool
+  tags: [always]
+
+# the scan streams every disk image of the disk-image and VM trees through
+# gomount into goyara — VMDK, VHDX, VHD, QCOW2 and VDI besides E01 and raw
+- name: "godfir-signatures | one scan run per disk-image tree"
+  ansible.builtin.set_fact:
+    godfir_signatures_runs: >-
+      {{ godfir_signatures_runs + [{
+           'name': 'scan:' ~ item.name,
+           'contract': godfir_signatures_contract_resolved,
+           'image': godfir_signatures_image,
+           'subtool': 'scan',
+           'env': {'SIGNATURES_SCAN_FORCE': godfir_signatures_force,
+                   'SIGNATURES_SCAN_FILTER': godfir_signatures_scan_filter,
+                   'SIGNATURES_SCAN_RULES': godfir_signatures_yara_rules_env},
+           'mounts': [{'host': item.path, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_signatures_out_dir ~ '/yara', 'path': '/output', 'mode': 'rw'},
+                      {'host': godfir_signatures_work_dir ~ '/scan-' ~ item.name, 'path': '/work', 'mode': 'rw'}]
+                     + godfir_signatures_yara_rules_mount,
+         }] }}
+  loop:
+    - {name: disk, path: "{{ godfir_signatures_disk_dir }}"}
+    - {name: vm, path: "{{ godfir_signatures_vm_dir }}"}
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - "'scan' in godfir_signatures_selected"
+    - godfir_signatures_present[item.name] | bool
+  tags: [always]
+
+# nothing to scan is a legitimate no-op — say so and stop before the skeleton
+- name: "godfir-signatures | note when no evidence tree is present for the selected sub-tools"
+  ansible.builtin.debug:
+    msg: >-
+      signatures: no evidence tree present for {{ godfir_signatures_selected }}
+      (present: {{ godfir_signatures_present }}) — nothing to scan.
+  when: godfir_signatures_runs | length == 0
+  tags: [always]
+
+- name: "godfir-signatures | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: signatures
+    godfir_run_runs: "{{ godfir_signatures_runs }}"
+    godfir_run_verify_dir: "{{ godfir_signatures_out_dir }}"
+    godfir_run_verify_glob: "*.jsonl"
+    godfir_run_require_no_failures: false
+  when: godfir_signatures_runs | length > 0
+  tags: [always]

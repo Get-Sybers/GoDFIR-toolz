@@ -1,0 +1,35 @@
+---
+# The car-verify gate replacing the lane default: `ok` is the only pass (the
+# default gate would let failed/nothing through as "nothing to do"); the report
+# is shown on pass AND fail, and its on-disk presence is asserted.
+- name: "godfir-byakugan-verify | the gate report"
+  ansible.builtin.debug:
+    msg: "{{ (godfir_run_results.results | first).stderr_lines }}"
+
+- name: "godfir-byakugan-verify | judge the run on the summary verdict (status ok)"
+  ansible.builtin.assert:
+    that:
+      - (godfir_run_summaries | first).status == 'ok'
+    fail_msg: >-
+      car-verify: status {{ (godfir_run_summaries | first).status }} over
+      {{ godfir_byakugan_dir }} —
+      {{ (godfir_run_summaries | first).failures | default([])
+         | map(attribute='item') | join('; ')
+         | default('no materialised CAR under the tree (build the CAR first)', true) }}
+    quiet: true
+
+- name: "godfir-byakugan-verify | stat the report the contract promises"
+  ansible.builtin.stat:
+    path: "{{ godfir_byakugan_verify_out_resolved }}/verify.txt"
+  register: godfir_byakugan_verify_report
+
+- name: "godfir-byakugan-verify | the report landed through the output mount"
+  ansible.builtin.assert:
+    that:
+      - godfir_byakugan_verify_report.stat.exists
+      - godfir_byakugan_verify_report.stat.size | int > 0
+    fail_msg: >-
+      car-verify passed but wrote no report: {{ godfir_byakugan_verify_out_resolved }}/verify.txt
+      is missing or empty (the contract promises it whenever a materialised CAR
+      source is found).
+    quiet: true

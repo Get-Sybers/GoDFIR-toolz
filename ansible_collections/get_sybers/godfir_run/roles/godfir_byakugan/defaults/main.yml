@@ -1,0 +1,29 @@
+---
+# one role, three CAR actions (build / verify / timeline); the caller picks
+godfir_byakugan_action: build
+
+# the tool's contract, shipped with the lane (conform.sh sha256-checks it vs the
+# repo-root byakugan/contract.yml)
+godfir_byakugan_contract: "{{ role_path }}/files/contract.yml"
+# empty = the contract's image; set to pin a digest
+godfir_byakugan_image: ""
+
+# REQUIRED inputs, passed by the caller:
+godfir_byakugan_processed_dir: ""   # build: the processed evidence tree, read-only /input
+godfir_byakugan_dir: ""             # the materialised CAR tree (build /output, verify /input, timeline default /input)
+
+# build: rebuild sources whose stores already exist; also derive / STIX passes
+godfir_byakugan_rebuild: false
+godfir_byakugan_derive: false
+godfir_byakugan_stix: false
+
+# timeline: source, destination (empty = beside the stores) and filters
+godfir_byakugan_timeline_dir: "{{ godfir_byakugan_dir }}"
+godfir_byakugan_timeline_out_dir: ""
+godfir_byakugan_timeline_force: false
+godfir_byakugan_timeline_host: ""
+godfir_byakugan_timeline_after: ""
+godfir_byakugan_timeline_before: ""
+
+# verify: where verify.txt lands (empty = beside the stores); judged on status == ok
+godfir_byakugan_verify_out_dir: ""
