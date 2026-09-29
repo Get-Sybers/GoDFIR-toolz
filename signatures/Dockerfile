@@ -8,18 +8,18 @@ ARG BASE=debian:trixie-slim
 ARG HAYABUSA_VERSION=4.1.0
 ARG GO_IMAGE=golang:trixie
 ARG TOOL_VERSION=0.3.0
+ARG GOMOUNT_VERSION=0.1.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
-# gomount: CGO-free (the stream verb links nothing; mount only execs ntfs-3g)
+# gomount: imported from its published module at build time
+# (github.com/get-sybers/gomount); CGO-free (the stream verb links nothing;
+# mount only execs ntfs-3g) — no Go source lives in this repo.
 FROM ${GO_IMAGE} AS gomount-build
-ARG TOOL_VERSION
-ENV GOTOOLCHAIN=auto
-WORKDIR /src/gomount
-COPY gomount/go.mod gomount/go.sum ./
-RUN go mod download
-COPY gomount/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" -o /out/gomount .
+ARG GOMOUNT_VERSION
+ENV GOTOOLCHAIN=auto CGO_ENABLED=0
+RUN go install -trimpath -ldflags="-s -w -X main.version=${GOMOUNT_VERSION}" \
+      github.com/get-sybers/gomount@v${GOMOUNT_VERSION}
 
 # goyara: cgo against libyara (headers from libyara-dev; runtime .so from the yara package)
 FROM ${GO_IMAGE} AS goyara-build
@@ -106,7 +106,7 @@ RUN set -eux; \
 FROM scratch
 COPY --from=hardened / /
 # goyara's libyara.so and its deps ride in with the hardened rootfs above; nothing extra needed
-COPY --from=gomount-build /out/gomount /usr/local/bin/gomount
+COPY --from=gomount-build /go/bin/gomount /usr/local/bin/gomount
 COPY --from=goyara-build  /out/goyara  /usr/local/bin/goyara
 COPY --from=entry-build   /out/signatures-entry /usr/local/bin/signatures-entry
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
