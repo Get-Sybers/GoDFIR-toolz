@@ -13,8 +13,10 @@ exclude_paths:
 skip_list:
   - name[casing]
 
-# community.docker is the collection's declared dependency (galaxy.yml)
+# community.docker is declared per collection (ansible_collections/get_sybers/*/galaxy.yml);
+# mocked here so a repo-root lint run resolves it without an install
 mock_modules:
+  - community.docker.docker_host_info
   - community.docker.docker_image
   - community.docker.docker_image_build
   - community.docker.docker_image_info

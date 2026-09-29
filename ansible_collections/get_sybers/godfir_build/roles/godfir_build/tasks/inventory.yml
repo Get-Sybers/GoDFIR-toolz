@@ -1,9 +1,15 @@
 ---
-- name: "godfir-build | normalise the tree (empty root = this role's own)"
+- name: "godfir-build | normalise the tree (empty root = the repo checkout)"
   ansible.builtin.set_fact:
+    # Native layout (ansible-standards §1): this role lives at
+    #   <repo>/ansible_collections/get_sybers/godfir_build/roles/godfir_build
+    # so the repo root — where images.yml, hardening/ and every build context
+    # live — is role_path's fifth parent. build-all.sh and molecule pass
+    # godfir_build_root explicitly; this default serves only a direct
+    # `ansible-playbook get_sybers.godfir_build.build_images` from the checkout.
     godfir_build_tree: >-
       {{ (godfir_build_root | default('', true))
-         or (role_path | dirname | dirname) }}
+         or (role_path | dirname | dirname | dirname | dirname | dirname) }}
 
 - name: "godfir-build | stat the root inventory (images.yml)"
   ansible.builtin.stat:

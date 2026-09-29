@@ -11,9 +11,9 @@ argument_specs:
         surface, and the image's own /etc/dfir-hardened posture declaration
         (shell=false / python=false are held to the actual filesystem).
       - The role groups; the caller decides. build-all.sh launches the
-        collection playbook, DX_DFIR's dxdfir_images delegates here at its
-        submodule pin, and a galaxy install exposes the same role as
-        get_sybers.godfir_toolz.godfir_build.
+        collection playbook (get_sybers.godfir_build.build_images); the role is
+        also usable directly as get_sybers.godfir_build.godfir_build, resolved
+        in-repo. It is producer-only — consumers pull the published images.
     options:
       godfir_build_set:
         type: list

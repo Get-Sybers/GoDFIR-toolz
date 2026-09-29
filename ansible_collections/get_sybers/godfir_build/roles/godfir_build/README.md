@@ -2,30 +2,33 @@
 
 The build galaxy's one role: build `get-sybers/*` images from `images.yml`
 (the root inventory) and verify the hardening contract on every result. The
-role groups; the caller decides. It is consumed three ways over the same
-tasks:
+role groups; the caller decides. It is the **producer** side — it runs
+in-repo against the GoDFIR-toolz checkout, two ways over the same tasks:
 
-- `build-all.sh` launches the collection playbook (standalone use of this
-  repo only);
-- DX_DFIR's `dxdfir_images` delegates here at its submodule pin;
-- a galaxy install exposes it as `get_sybers.godfir_toolz.godfir_build`.
+- `build-all.sh` launches the collection playbook
+  (`get_sybers.godfir_build.build_images`) for standalone use of this repo;
+- directly as `get_sybers.godfir_build.godfir_build`, resolved uninstalled
+  from the repo's `ansible_collections/` tree (ansible-standards §1).
+
+Consumers do **not** build through this role: they pin
+`get_sybers.godfir_run` and pull the published images from the registry.
 
 Variables are documented in `meta/argument_specs.yml` (per entry point);
-`ansible-doc -t role` renders them. What follows is the design contract the
-variables sit on.
+`ansible-doc -t role get_sybers.godfir_build.godfir_build` renders them. What
+follows is the design contract the variables sit on.
 
 ## The tree contract
 
 Everything resolves from one root, `godfir_build_root`:
 
-- **Empty (the default) means this role's own tree.** `roles/godfir_build`
-  sits two levels below the repo/collection root in a source checkout and in
-  an installed collection alike, so `inventory.yml` normalises empty to
-  `role_path/../..` — the manifest and every build context resolve
-  identically in both consumption modes, and a galaxy-installed copy is
-  fully self-contained.
-- A consumer that pins the tree elsewhere (DX_DFIR's submodule checkout, the
-  molecule fixture) passes that root instead.
+- **Empty (the default) means the repo checkout.** In the native layout the
+  role sits at
+  `ansible_collections/get_sybers/godfir_build/roles/godfir_build`, five
+  levels below the repo root, so `inventory.yml` normalises empty to
+  `role_path`'s fifth parent — the repo root, where the manifest and every
+  build context live. `build-all.sh` passes it explicitly all the same.
+- A caller that pins the tree elsewhere (the molecule fixture) passes that
+  root instead.
 
 `images.yml` lives **at the tree root by contract** — `conform.sh`,
 `build-all.sh`, DX_DFIR and a galaxy install all rely on it. The manifest
@@ -113,7 +116,7 @@ un-hardened image stops the caller before any evidence is touched.
 
 ```yaml
 - ansible.builtin.include_role:
-    name: get_sybers.godfir_toolz.godfir_build
+    name: get_sybers.godfir_build.godfir_build
     tasks_from: verify
   vars:
     godfir_build_verify_images: ["get-sybers/goevtx:latest"]
