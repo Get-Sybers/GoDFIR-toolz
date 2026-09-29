@@ -1,0 +1,62 @@
+---
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    m_proc: /tmp/godfir_byakugan_molecule/processed
+    m_car: /tmp/godfir_byakugan_molecule/processed/byakugan
+  tasks:
+    - name: "converge | the processed + CAR trees exist"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ m_proc }}", "{{ m_car }}"]
+
+    - name: "converge | build action"
+      ansible.builtin.include_role:
+        name: godfir_byakugan
+      vars:
+        godfir_byakugan_action: build
+        godfir_byakugan_processed_dir: "{{ m_proc }}"
+        godfir_byakugan_dir: "{{ m_car }}"
+
+    - name: "converge | the build run dispatches byakugan build"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 1
+          - godfir_run_runs_built[0].image == 'get-sybers/byakugan:latest'
+          - godfir_run_runs_built[0].argv | last == 'build'
+          - godfir_run_runs_built[0].argv | select('search', m_proc ~ ':/input:ro') | list | length == 1
+        fail_msg: "build argv: {{ godfir_run_runs_built[0].argv }}"
+        quiet: true
+
+    - name: "converge | verify action"
+      ansible.builtin.include_role:
+        name: godfir_byakugan
+      vars:
+        godfir_byakugan_action: verify
+        godfir_byakugan_dir: "{{ m_car }}"
+
+    - name: "converge | the verify run dispatches byakugan verify"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 1
+          - godfir_run_runs_built[0].argv | last == 'verify'
+        fail_msg: "verify argv: {{ godfir_run_runs_built[0].argv }}"
+        quiet: true
+
+    - name: "converge | timeline action"
+      ansible.builtin.include_role:
+        name: godfir_byakugan
+      vars:
+        godfir_byakugan_action: timeline
+        godfir_byakugan_dir: "{{ m_car }}"
+
+    - name: "converge | the timeline run dispatches byakugan timeline"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 1
+          - godfir_run_runs_built[0].argv | last == 'timeline'
+        fail_msg: "timeline argv: {{ godfir_run_runs_built[0].argv }}"
+        quiet: true

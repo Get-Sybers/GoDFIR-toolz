@@ -1,0 +1,30 @@
+---
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    m_in: /tmp/godfir_plaso_molecule/in
+    m_out: /tmp/godfir_plaso_molecule/out
+  tasks:
+    - name: "converge | the primary source tree exists"
+      ansible.builtin.file:
+        path: "{{ m_in }}"
+        state: directory
+        mode: "0755"
+
+    - name: "converge | build the plaso run specs"
+      ansible.builtin.include_role:
+        name: godfir_plaso
+      vars:
+        godfir_plaso_input_dir: "{{ m_in }}"
+        godfir_plaso_out_dir: "{{ m_out }}"
+
+    - name: "converge | one log2timeline run + a final psort, both on the plaso image"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 2
+          - godfir_run_runs_built | map(attribute='image') | unique | list == ['get-sybers/plaso:latest']
+          - godfir_run_runs_built | map(attribute='argv') | map('last') | sort | list == ['log2timeline', 'psort']
+          - godfir_run_runs_built[0].argv | select('search', m_in ~ ':/input:ro') | list | length == 1
+        fail_msg: "built plaso argv: {{ godfir_run_runs_built | map(attribute='argv') | list }}"
+        quiet: true

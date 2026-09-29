@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: "Pull a set of get-sybers/* tool images from the registry."
+    description:
+      - >-
+        Pull the images named in godfir_images_set from the registry and tag
+        each to its local get-sybers/<tool>:latest name (a thin wrapper over
+        ensure_present). The lanes pull what they run via preflight, so this is
+        a convenience for provisioning a host up front.
+    options:
+      godfir_images_set:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: "Local image refs to pull, e.g. get-sybers/zeek:latest."
+      godfir_images_registry:
+        type: str
+        required: false
+        default: ghcr.io/get-sybers
+        description: "The registry namespace the published images are pulled from."
+      godfir_images_tag:
+        type: str
+        required: false
+        default: latest
+        description: "The release tag to pull for every image."
+      godfir_images_force:
+        type: bool
+        required: false
+        default: false
+        description: "Re-pull images that are already present."
+  ensure_present:
+    short_description: "Ensure a set of tool images is present (pull the missing ones)."
+    description:
+      - >-
+        Reusable, idempotent gate (tasks/ensure_present.yml): read the local
+        image facts and pull any required ref that is not present, tagging each
+        pulled registry image to its local get-sybers/<tool>:latest name — a
+        missing image self-heals in place, an already-present one is a no-op.
+        Presence only; the posture gate (verify) enforces the hardened contract.
+    options:
+      godfir_images_required:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: "Local image refs the caller needs present, e.g. get-sybers/gowindowlicker:latest."
+      godfir_images_force:
+        type: bool
+        required: false
+        default: false
+        description: "Re-pull even when the image is already present."
+  verify:
+    short_description: "The runtime supply-chain posture gate."
+    description:
+      - >-
+        Every namespace ref in godfir_images_verify_images must be present and
+        still carry the hardened contract on this host — the non-root USER
+        (uid:gid) and the com.get-sybers.hardened label. Refs outside
+        get-sybers/* pass untouched. Lane preflights call this before any
+        container runs.
+    options:
+      godfir_images_verify_images:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: "The image refs the caller is about to run."
+      godfir_images_uid:
+        type: int
+        required: false
+        default: 2000
+        description: "The non-root uid every hardened image must run as."
+      godfir_images_gid:
+        type: int
+        required: false
+        description: "The gid every hardened image must run as (defaults to the uid)."

@@ -1,0 +1,42 @@
+---
+# godfir_zeek: PCAPs -> Zeek JSON. The self-orchestrating get-sybers/zeek image
+# discovers every capture under /input, parses each into its own /output folder,
+# and skips a capture with valid output unless ZEEK_FORCE. The lane asserts its
+# inputs and declares the run, then delegates the confined build+preflight+process
+# skeleton to godfir_run. Evidence discovery (which pcap tree) is the caller's.
+- name: "godfir-zeek | assert inputs"
+  ansible.builtin.assert:
+    that:
+      - godfir_zeek_pcap_dir | length > 0
+      - godfir_zeek_out_dir | length > 0
+    fail_msg: >-
+      godfir_zeek needs godfir_zeek_pcap_dir (the pcap tree, read-only) and
+      godfir_zeek_out_dir (the output root).
+    quiet: true
+  tags: [always]
+
+# freeze role_path-derived paths HERE: role_path inside godfir_run would resolve
+# to the engine's dir, not this lane's (see the collection README)
+- name: "godfir-zeek | freeze the shipped contract path"
+  ansible.builtin.set_fact:
+    godfir_zeek_contract_resolved: "{{ godfir_zeek_contract }}"
+  tags: [always]
+
+- name: "godfir-zeek | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: zeek
+    godfir_run_runs:
+      - name: zeek
+        contract: "{{ godfir_zeek_contract_resolved }}"
+        image: "{{ godfir_zeek_image }}"
+        env:
+          ZEEK_FORCE: "{{ godfir_zeek_force }}"
+          ZEEK_SCRIPTS: "{{ godfir_zeek_scripts }}"
+        mounts:
+          - {host: "{{ godfir_zeek_pcap_dir }}", path: /input, mode: ro}
+          - {host: "{{ godfir_zeek_out_dir }}", path: /output, mode: rw}
+    godfir_run_verify_dir: "{{ godfir_zeek_out_dir }}"
+    godfir_run_verify_glob: "*.json"
+  tags: [always]

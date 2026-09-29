@@ -1,0 +1,37 @@
+---
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    m_tree: /tmp/godfir_gwl_molecule/disk
+    m_host: /tmp/godfir_gwl_molecule/winevt/HOST1
+    m_out: /tmp/godfir_gwl_molecule/out
+    m_work: /tmp/godfir_gwl_molecule/work
+  tasks:
+    - name: "converge | the input trees exist"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ m_tree }}", "{{ m_host }}"]
+
+    - name: "converge | build the gowindowlicker run specs"
+      ansible.builtin.include_role:
+        name: godfir_gowindowlicker
+      vars:
+        godfir_gowindowlicker_out_dir: "{{ m_out }}"
+        godfir_gowindowlicker_work_dir: "{{ m_work }}"
+        godfir_gowindowlicker_winevt_hosts: ["{{ m_host }}"]
+        godfir_gowindowlicker_images:
+          - {tree: "{{ m_tree }}", rel: "disk.e01", name: "disk.e01"}
+
+    - name: "converge | a goevtx run per host and a lick sweep per image"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 2
+          - godfir_run_runs_built | map(attribute='image') | unique | list == ['get-sybers/gowindowlicker:latest']
+          - godfir_run_runs_built | map(attribute='argv') | map('last') | sort | list == ['goevtx', 'lick']
+          - godfir_run_runs_built | map(attribute='argv') | map('join', ' ') | select('search', 'GOWINDOWLICKER_IMAGE=disk.e01') | list | length == 1
+          - godfir_run_runs_built | map(attribute='argv') | map('join', ' ') | select('search', ':/work:rw') | list | length == 1
+        fail_msg: "built gwl argv: {{ godfir_run_runs_built | map(attribute='argv') | list }}"
+        quiet: true

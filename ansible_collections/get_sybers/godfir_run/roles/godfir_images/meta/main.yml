@@ -1,0 +1,21 @@
+---
+galaxy_info:
+  role_name: godfir_images
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    Image lifecycle for the get-sybers DFIR tool images on the consumer side:
+    pull the published image from the registry (ghcr.io/get-sybers/<tool>:<tag>)
+    and tag it to the local get-sybers/<tool>:latest name the contracts use
+    (ensure_present), and verify each image's hardened posture — present, runs
+    as the non-root uid, carries com.get-sybers.hardened (verify). Building is
+    NOT here; that is get_sybers.godfir_build.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, docker, security, registry]
+# the docker modules come from community.docker (collection dependency), not a role
+dependencies: []

@@ -1,0 +1,33 @@
+---
+# The negative: the posture gate must REFUSE the un-hardened image, naming it.
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "molecule-verify | verify refuses the un-hardened image"
+      block:
+        - name: "molecule-verify | run the posture gate on the bad image"
+          ansible.builtin.include_role:
+            name: godfir_images
+            tasks_from: verify
+          vars:
+            godfir_images_verify_images: [get-sybers/molecule-bad:latest]
+
+        - name: "molecule-verify | the bad image was accepted — that is the failure"
+          ansible.builtin.fail:
+            msg: "ACCEPTED an un-hardened image"
+      rescue:
+        # a looped assert fails as "One or more items failed"; the per-item
+        # refusal (naming the image) is in ansible_failed_result.results
+        - name: "molecule-verify | the refusal names the offender"
+          vars:
+            _msgs: >-
+              {{ (ansible_failed_result.results | default([]) | map(attribute='msg') | list
+                  + [ansible_failed_result.msg | default('')]) | join(' ') }}
+          ansible.builtin.assert:
+            that:
+              - "'get-sybers/molecule-bad:latest' in _msgs"
+            fail_msg: >-
+              expected a refusal naming get-sybers/molecule-bad:latest, got:
+              {{ _msgs }}
+            quiet: true

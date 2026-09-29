@@ -1,0 +1,21 @@
+---
+# the tool's contract, shipped with the lane (conform.sh sha256-checks it vs
+# the repo-root gowindowlicker/contract.yml). Every parser is a sub-tool of it.
+godfir_gowindowlicker_contract: "{{ role_path }}/files/contract.yml"
+
+# REQUIRED output roots, passed by the caller:
+godfir_gowindowlicker_out_dir: ""    # processed/<subtool>/<host>/<item>/<subtool>.jsonl
+godfir_gowindowlicker_work_dir: ""   # disk-backed /work scratch per image (required when images given)
+
+# caller-discovered work items (evidence discovery lives in the consumer, e.g.
+# DX_DFIR's evidence role — the disk-image regex walk is not repeated here):
+# disk images to sweep ON, one host each: [{tree, rel, name}]
+#   tree = the mounted tree (read-only /input); rel = image path within the tree
+#   (GOWINDOWLICKER_IMAGE); name = the folded host/item name for the scratch + labels
+godfir_gowindowlicker_images: []
+# loose Windows event-log hosts (goevtx only), one folder per host: [dir, ...]
+godfir_gowindowlicker_winevt_hosts: []
+
+# empty = the contract's image; set to pin a digest
+godfir_gowindowlicker_image: ""
+godfir_gowindowlicker_force: false

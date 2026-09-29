@@ -1,0 +1,31 @@
+---
+# Union a source's car_<object>.jsonl + car_relationships.jsonl into one
+# property-rich, time-ordered CAR timeline: `byakugan timeline` reads
+# BYAKUGAN_TIMELINE_INPUT_DIR (a source's car dir or a tree to aggregate,
+# read-only) and writes timeline.jsonl into BYAKUGAN_TIMELINE_OUT_DIR (by
+# default the car dir itself). An existing timeline.jsonl is kept unless FORCE.
+- name: "godfir-byakugan-timeline | resolve where timeline.jsonl lands"
+  ansible.builtin.set_fact:
+    godfir_byakugan_timeline_out_resolved: >-
+      {{ godfir_byakugan_timeline_out_dir | default(godfir_byakugan_timeline_dir, true) }}
+
+- name: "godfir-byakugan-timeline | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: car-timeline
+    godfir_run_runs:
+      - name: timeline
+        contract: "{{ godfir_byakugan_contract_resolved }}"
+        image: "{{ godfir_byakugan_image }}"
+        subtool: timeline
+        env:
+          BYAKUGAN_TIMELINE_FORCE: "{{ godfir_byakugan_timeline_force }}"
+          BYAKUGAN_TIMELINE_HOST: "{{ godfir_byakugan_timeline_host }}"
+          BYAKUGAN_TIMELINE_AFTER: "{{ godfir_byakugan_timeline_after }}"
+          BYAKUGAN_TIMELINE_BEFORE: "{{ godfir_byakugan_timeline_before }}"
+        mounts:
+          - {host: "{{ godfir_byakugan_timeline_dir }}", path: /input, mode: ro}
+          - {host: "{{ godfir_byakugan_timeline_out_resolved }}", path: /output, mode: rw}
+    godfir_run_verify_dir: "{{ godfir_byakugan_timeline_out_resolved }}"
+    godfir_run_verify_glob: "timeline.jsonl"

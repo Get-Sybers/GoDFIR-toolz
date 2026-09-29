@@ -1,0 +1,14 @@
+---
+profile: production
+exclude_paths:
+  - .git/
+  # shipped tool contracts are data (the images' contract.yml), not ansible
+  - "roles/*/files/contract.yml"
+skip_list:
+  - name[casing]   # house task-name prefix "<role>-<stage> | lowercase description"
+mock_modules:
+  - community.docker.docker_image
+  - community.docker.docker_image_build
+  - community.docker.docker_image_info
+  - community.docker.docker_image_pull
+  - community.docker.docker_image_tag

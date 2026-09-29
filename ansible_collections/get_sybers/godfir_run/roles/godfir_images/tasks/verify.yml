@@ -1,0 +1,44 @@
+---
+# The runtime posture gate: every namespace ref about to run must be present and
+# still carry the hardened contract (non-root USER == uid:gid, the
+# com.get-sybers.hardened label). Refs outside the namespace pass untouched.
+# scope includes registry-qualified refs (a first path component with a dot/colon, or localhost)
+- name: "godfir-images | scope the gate to the namespace"
+  ansible.builtin.set_fact:
+    godfir_images_verify_scope: >-
+      {{ godfir_images_verify_images
+         | select('match', '^((localhost|[^/]*[.:][^/]*)/)?'
+                           ~ (godfir_images_namespace | regex_escape) ~ '/')
+         | list }}
+
+- name: "godfir-images | inspect the gated images"
+  community.docker.docker_image_info:
+    name: "{{ item }}"
+  loop: "{{ godfir_images_verify_scope }}"
+  register: godfir_images_verify_info
+
+- name: "godfir-images | assert each gated image carries the hardened contract"
+  vars:
+    # an un-hardened image may omit USER entirely (root) — access every field
+    # through defaults so a missing key is a refusal, never a template error
+    _img: "{{ item.images | first | default({}) }}"
+    _config: "{{ _img.Config | default({}, true) }}"
+    _user: "{{ _config.User | default('', true) }}"
+    _labels: "{{ _config.Labels | default({}, true) }}"
+  ansible.builtin.assert:
+    that:
+      - item.images | length == 1
+      - _user == (godfir_images_uid | string) ~ ':' ~ (godfir_images_gid | string)
+      - _labels['com.get-sybers.hardened'] | default('') == 'true'
+    fail_msg: >-
+      refusing to run {{ item.item }}: it is not the hardened image —
+      {{ 'image not present' if item.images | length == 0
+         else 'runs as ' ~ (_user if _user | length > 0 else 'root')
+              ~ ' / com.get-sybers.hardened='
+              ~ (_labels['com.get-sybers.hardened'] | default('unset')) }}.
+      Re-pull it (godfir_images ensure_present) or rebuild it through
+      get_sybers.godfir_build.
+    quiet: true
+  loop: "{{ godfir_images_verify_info.results }}"
+  loop_control:
+    label: "{{ item.item }}"

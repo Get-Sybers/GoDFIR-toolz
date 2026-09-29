@@ -1,0 +1,27 @@
+---
+# one knob renames the whole image family
+godfir_images_namespace: get-sybers
+
+# where the published images live, and which release tag to pull. The lanes and
+# contracts reference the local name get-sybers/<tool>:latest; ensure_present
+# pulls <registry>/<tool>:<tag> and tags it to that local name, so nothing
+# downstream has to carry a registry-qualified ref.
+godfir_images_registry: ghcr.io/get-sybers
+godfir_images_tag: latest
+
+# the single run-as knob: the hardened images' non-root uid:gid (verify asserts it)
+godfir_images_uid: 2000
+# gid follows the uid unless set, so a lone uid override still yields a matched USER
+godfir_images_gid: "{{ godfir_images_uid }}"
+
+# ensure_present: local refs the caller needs present; missing ones are pulled
+godfir_images_required: []
+
+# verify: refs about to run — the posture gate scopes these to the namespace
+godfir_images_verify_images: []
+
+# main: local refs to pull up front (a convenience; the lanes pull what they run)
+godfir_images_set: []
+
+# re-pull even when already present
+godfir_images_force: false

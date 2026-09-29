@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  role_name: godfir_run
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    The generic, contract-driven confined docker-run engine for the get-sybers
+    DFIR tool images: build (turn each declared run into a hardened `docker run`
+    argv from the tool's contract.yml), preflight (docker reachable, pull any
+    missing get-sybers/* image via godfir_images, run the hardened supply-chain
+    guard), and process (run each container, judge it by the contract exit
+    table, verify output, gate on the JSON summary). A per-image lane role
+    declares its runs and delegates here so the skeleton lives once.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, docker, security, run]
+# coupling to godfir_images is a runtime include_role (preflight), not a galaxy
+# dependency, so lanes that skip preflight need not pull it in
+dependencies: []

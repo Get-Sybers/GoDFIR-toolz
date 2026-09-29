@@ -1,0 +1,48 @@
+---
+# godfir_anamnesis: memory images -> per-plugin JSONL via the offline anamnesis
+# image, delegated to godfir_run. Per-plugin failures are NORMAL without symbols,
+# so the gate (gate_extra) is "some plugin produced output, or there were no
+# images", not failed==0. Evidence discovery (which memory tree) is the caller's.
+- name: "godfir-anamnesis | assert inputs"
+  ansible.builtin.assert:
+    that:
+      - godfir_anamnesis_memory_dir | length > 0
+      - godfir_anamnesis_out_dir | length > 0
+      - godfir_anamnesis_symbols_dir | length > 0
+    fail_msg: >-
+      godfir_anamnesis needs godfir_anamnesis_memory_dir (the memory tree),
+      godfir_anamnesis_out_dir (the output root) and godfir_anamnesis_symbols_dir
+      (the persistent symbol cache).
+    quiet: true
+  tags: [always]
+
+# freeze role_path-derived paths HERE: role_path inside godfir_run would name
+# the engine's dir, not this lane's (see the collection README)
+- name: "godfir-anamnesis | freeze lane-specific task/contract paths"
+  ansible.builtin.set_fact:
+    godfir_anamnesis_contract_resolved: "{{ godfir_anamnesis_contract }}"
+    godfir_anamnesis_gate_extra: "{{ role_path }}/tasks/gate_extra.yml"
+  tags: [always]
+
+- name: "godfir-anamnesis | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: anamnesis
+    godfir_run_runs:
+      - name: anamnesis
+        contract: "{{ godfir_anamnesis_contract_resolved }}"
+        image: "{{ godfir_anamnesis_image }}"
+        env:
+          ANAMNESIS_INPUT_DIR: /input
+          ANAMNESIS_FORCE: "{{ godfir_anamnesis_force }}"
+          ANAMNESIS_PLUGINS: "{{ godfir_anamnesis_plugins }}"
+        mounts:
+          - {host: "{{ godfir_anamnesis_memory_dir }}", path: /input, mode: ro}
+          - {host: "{{ godfir_anamnesis_out_dir }}", path: /out, mode: rw}
+          - {host: "{{ godfir_anamnesis_symbols_dir }}", path: /opt/anamnesis/lib/Symbols, mode: rw}
+    godfir_run_verify_dir: "{{ godfir_anamnesis_out_dir }}"
+    godfir_run_verify_glob: "*.jsonl"
+    godfir_run_require_no_failures: false
+    godfir_run_gate_extra: "{{ godfir_anamnesis_gate_extra }}"
+  tags: [always]

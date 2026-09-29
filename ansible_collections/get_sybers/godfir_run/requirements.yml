@@ -1,0 +1,5 @@
+---
+# The single source of exact version pins (ansible-standards §2).
+collections:
+  - name: community.docker
+    version: "3.10.3"

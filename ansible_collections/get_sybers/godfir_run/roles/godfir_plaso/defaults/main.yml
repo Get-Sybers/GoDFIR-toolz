@@ -1,0 +1,21 @@
+---
+# the tool's contract, shipped with the lane (conform.sh sha256-checks it vs
+# the repo-root plaso/contract.yml)
+godfir_plaso_contract: "{{ role_path }}/files/contract.yml"
+
+# REQUIRED inputs, passed by the caller (discovery lives in the consumer):
+godfir_plaso_input_dir: ""   # the primary source tree (e.g. disk images), read-only
+godfir_plaso_out_dir: ""     # the output root (holds <host>.plaso + timeline.jsonl)
+# optional extra source trees (processed when non-empty); empty = skipped
+godfir_plaso_vm_dir: ""
+godfir_plaso_loose_dir: ""
+
+# empty = the contract's image; set to pin a digest
+godfir_plaso_image: ""
+# process every VSS store of an image
+godfir_plaso_vss: true
+# parser preset/list; empty = plaso's default
+godfir_plaso_parsers: ""
+# json_line renders one event per line
+godfir_plaso_output_format: json_line
+godfir_plaso_force: false

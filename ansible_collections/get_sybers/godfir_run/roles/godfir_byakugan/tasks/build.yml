@@ -1,0 +1,24 @@
+---
+# Materialise the per-source CAR stores (car_relationships.jsonl is the
+# done/skip marker, always written); per-source failures tolerated — the gate
+# is "a store landed, or there were no sources".
+- name: "godfir-byakugan-build | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: car-build
+    godfir_run_runs:
+      - name: build
+        contract: "{{ godfir_byakugan_contract_resolved }}"
+        image: "{{ godfir_byakugan_image }}"
+        subtool: build
+        env:
+          BYAKUGAN_BUILD_FORCE: "{{ godfir_byakugan_rebuild }}"
+          BYAKUGAN_BUILD_DERIVE: "{{ godfir_byakugan_derive }}"
+          BYAKUGAN_BUILD_STIX: "{{ godfir_byakugan_stix }}"
+        mounts:
+          - {host: "{{ godfir_byakugan_processed_dir }}", path: /input, mode: ro}
+          - {host: "{{ godfir_byakugan_dir }}", path: /output, mode: rw}
+    godfir_run_verify_dir: "{{ godfir_byakugan_dir }}"
+    godfir_run_verify_glob: "car_relationships.jsonl"
+    godfir_run_require_no_failures: false

@@ -1,0 +1,18 @@
+---
+# the tool's contract, shipped with the lane (conform.sh sha256-checks it vs
+# the repo-root anamnesis/contract.yml). The image is always offline — symbols
+# come from the mounted cache, never a download.
+godfir_anamnesis_contract: "{{ role_path }}/files/contract.yml"
+
+# REQUIRED inputs, passed by the caller (discovery lives in the consumer):
+godfir_anamnesis_memory_dir: ""   # the memory-image tree, read-only at /input
+godfir_anamnesis_out_dir: ""      # the output root, read-write at /out
+# the persistent symbol cache (symsrv layout), read-write at the image's
+# /opt/anamnesis/lib/Symbols — accumulates across runs; drop PDBs straight in
+godfir_anamnesis_symbols_dir: ""
+
+# empty = the contract's image; set to pin a digest
+godfir_anamnesis_image: ""
+godfir_anamnesis_force: false
+# comma-separated collector names; empty = the default CAR set
+godfir_anamnesis_plugins: ""

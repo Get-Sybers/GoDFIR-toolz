@@ -1,0 +1,123 @@
+---
+# godfir_godaemonhunter: the Linux daemon lane — godaemonhunter's layered matrix
+# over every host, delegated to godfir_run. A loose host gets one confined run
+# per (parser, host): Layer 1 (gohost/gousers/gonetwork) into the host's
+# knowledge store, then Layer 2 (the daemon parsers) with that store mounted
+# read-only. A disk image is hunted ON directly (one hunt run per image), the
+# baked gomount pulling the linux-core surface into /work. Content decides; exits
+# 1/3 tolerated. Evidence discovery (finding images/hosts) is the caller's.
+- name: "godfir-godaemonhunter | assert inputs"
+  ansible.builtin.assert:
+    that:
+      - godfir_godaemonhunter_out_dir | length > 0
+      - (godfir_godaemonhunter_images | length > 0) or (godfir_godaemonhunter_hosts | length > 0)
+    fail_msg: >-
+      godfir_godaemonhunter needs godfir_godaemonhunter_out_dir and at least one
+      of godfir_godaemonhunter_images (disk images) or godfir_godaemonhunter_hosts
+      (loose Linux hosts).
+    quiet: true
+  tags: [always]
+
+- name: "godfir-godaemonhunter | work dir is set when disk images are given"
+  ansible.builtin.assert:
+    that:
+      - godfir_godaemonhunter_work_dir | length > 0
+    fail_msg: "godfir_godaemonhunter needs godfir_godaemonhunter_work_dir when hunting disk images."
+    quiet: true
+  when: godfir_godaemonhunter_images | length > 0
+  tags: [always]
+
+# freeze role_path-derived paths HERE (role_path inside godfir_run would name the engine)
+- name: "godfir-godaemonhunter | freeze lane-specific task/contract paths"
+  ansible.builtin.set_fact:
+    godfir_godaemonhunter_contract_resolved: "{{ godfir_godaemonhunter_contract }}"
+    godfir_godaemonhunter_gate_extra: "{{ role_path }}/tasks/gate_extra.yml"
+  tags: [always]
+
+# the knowledge stores pre-exist: Layer 2 binds them read-only, and a read-only
+# mount must exist before the argv is built
+- name: "godfir-godaemonhunter | ensure each host's knowledge store exists"
+  ansible.builtin.file:
+    path: "{{ godfir_godaemonhunter_out_dir }}/knowledge/{{ item.name }}"
+    state: directory
+    mode: "0777"
+  loop: "{{ godfir_godaemonhunter_hosts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [always]
+
+# facts persist for the whole play, so the run list is reset before accumulating
+- name: "godfir-godaemonhunter | start from an empty run list"
+  ansible.builtin.set_fact:
+    godfir_godaemonhunter_runs: []
+  tags: [always]
+
+# Layer 1 first, every host: <out_dir>/knowledge/<host>/<item>/<subtool>.jsonl
+- name: "godfir-godaemonhunter | Layer 1 — the knowledge store of each host"
+  ansible.builtin.set_fact:
+    godfir_godaemonhunter_runs: >-
+      {{ godfir_godaemonhunter_runs + [{
+           'name': item.1 ~ ':' ~ item.0.name,
+           'contract': godfir_godaemonhunter_contract_resolved,
+           'image': godfir_godaemonhunter_image,
+           'subtool': item.1,
+           'env': {(item.1 | upper) ~ '_FORCE': godfir_godaemonhunter_force | bool | ternary('1', '0')},
+           'mounts': [{'host': item.0.export, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_godaemonhunter_out_dir ~ '/knowledge/' ~ item.0.name, 'path': '/output', 'mode': 'rw'}],
+         }] }}
+  loop: "{{ godfir_godaemonhunter_hosts | product(godfir_godaemonhunter_layer1) | list }}"
+  loop_control:
+    label: "{{ item.1 }}:{{ item.0.name }}"
+  tags: [always]
+
+# then Layer 2, enriched by the host's store: <out_dir>/<subtool>/<host>/<item>/<subtool>.jsonl
+- name: "godfir-godaemonhunter | Layer 2 — the daemon parsers over each host"
+  ansible.builtin.set_fact:
+    godfir_godaemonhunter_runs: >-
+      {{ godfir_godaemonhunter_runs + [{
+           'name': item.1 ~ ':' ~ item.0.name,
+           'contract': godfir_godaemonhunter_contract_resolved,
+           'image': godfir_godaemonhunter_image,
+           'subtool': item.1,
+           'env': {(item.1 | upper) ~ '_FORCE': godfir_godaemonhunter_force | bool | ternary('1', '0')},
+           'mounts': [{'host': item.0.export, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_godaemonhunter_out_dir ~ '/knowledge/' ~ item.0.name, 'path': '/knowledge', 'mode': 'ro'},
+                      {'host': godfir_godaemonhunter_out_dir ~ '/' ~ item.1 ~ '/' ~ item.0.name, 'path': '/output', 'mode': 'rw'}],
+         }] }}
+  loop: "{{ godfir_godaemonhunter_hosts | product(godfir_godaemonhunter_layer2) | list }}"
+  loop_control:
+    label: "{{ item.1 }}:{{ item.0.name }}"
+  tags: [always]
+
+# one hunt run per disk image, ON the image: the tree read-only at /input, the
+# lane's output root at /output, a disk-backed scratch at /work
+- name: "godfir-godaemonhunter | the layered hunt ON each disk image"
+  ansible.builtin.set_fact:
+    godfir_godaemonhunter_runs: >-
+      {{ godfir_godaemonhunter_runs + [{
+           'name': 'hunt:' ~ item.name,
+           'contract': godfir_godaemonhunter_contract_resolved,
+           'image': godfir_godaemonhunter_image,
+           'subtool': 'hunt',
+           'env': {'GODAEMONHUNTER_IMAGE': item.rel,
+                   'GODAEMONHUNTER_FORCE': godfir_godaemonhunter_force | bool | ternary('1', '0')},
+           'mounts': [{'host': item.tree, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_godaemonhunter_out_dir, 'path': '/output', 'mode': 'rw'},
+                      {'host': godfir_godaemonhunter_work_dir ~ '/' ~ item.name, 'path': '/work', 'mode': 'rw'}],
+         }] }}
+  loop: "{{ godfir_godaemonhunter_images | sort(attribute='name') }}"
+  loop_control:
+    label: "hunt:{{ item.name }}"
+  tags: [always]
+
+- name: "godfir-godaemonhunter | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: godaemonhunter
+    godfir_run_runs: "{{ godfir_godaemonhunter_runs }}"
+    godfir_run_verify_dir: "{{ godfir_godaemonhunter_out_dir }}"
+    godfir_run_verify_glob: "*.jsonl"
+    godfir_run_require_no_failures: false
+    godfir_run_gate_extra: "{{ godfir_godaemonhunter_gate_extra }}"
+  tags: [always]

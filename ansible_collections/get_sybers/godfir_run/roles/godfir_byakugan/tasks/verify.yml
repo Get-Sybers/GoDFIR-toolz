@@ -1,0 +1,28 @@
+---
+# The CAR promotion gate = the engine's own `byakugan verify` sub-tool; `ok` is
+# the only pass (failed/nothing both exit 1), so the lane's own gate
+# (gate_verify.yml) judges the summary status instead of the default gate.
+- name: "godfir-byakugan-verify | resolve where verify.txt lands and the lane's gate"
+  ansible.builtin.set_fact:
+    godfir_byakugan_verify_out_resolved: >-
+      {{ godfir_byakugan_verify_out_dir | default(godfir_byakugan_dir, true) }}
+    # role_path here is this lane's (an included task file of it), so the gate resolves correctly
+    godfir_byakugan_verify_gate: "{{ role_path }}/tasks/gate_verify.yml"
+
+- name: "godfir-byakugan-verify | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: car-verify
+    godfir_run_runs:
+      - name: verify
+        contract: "{{ godfir_byakugan_contract_resolved }}"
+        image: "{{ godfir_byakugan_image }}"
+        subtool: verify
+        mounts:
+          - {host: "{{ godfir_byakugan_dir }}", path: /input, mode: ro}
+          - {host: "{{ godfir_byakugan_verify_out_resolved }}", path: /output, mode: rw}
+    godfir_run_verify_dir: "{{ godfir_byakugan_verify_out_resolved }}"
+    godfir_run_verify_glob: "verify.txt"
+    godfir_run_require_no_failures: false
+    godfir_run_gate_extra: "{{ godfir_byakugan_verify_gate }}"

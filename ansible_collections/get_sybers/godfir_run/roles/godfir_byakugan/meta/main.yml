@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  role_name: godfir_byakugan
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    The CAR lane: materialise / verify / timeline the MITRE CAR from processed
+    evidence via the multi-tool get-sybers/byakugan image, under the godfir_run
+    confinement skeleton. One role, three actions; takes the processed tree and
+    CAR tree as inputs.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, car, byakugan]
+dependencies: []
