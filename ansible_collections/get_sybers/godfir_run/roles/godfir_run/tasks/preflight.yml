@@ -1,0 +1,26 @@
+---
+- name: "godfir-run | docker daemon reachable | {{ godfir_run_name }}"
+  ansible.builtin.command: docker version
+  register: godfir_run_docker
+  changed_when: false
+
+- name: "godfir-run | resolve the tool images this lane runs | {{ godfir_run_name }}"
+  ansible.builtin.set_fact:
+    godfir_run_images: "{{ godfir_run_runs_built | map(attribute='image') | unique | list }}"
+
+# self-heal: pull any get-sybers/* image this lane needs that is not already
+# present (registry-qualified refs included), via the images role's pull path
+- name: "godfir-run | ensure this lane's tool images are present | {{ godfir_run_name }}"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_images
+    tasks_from: ensure_present
+  vars:
+    godfir_images_required: "{{ godfir_run_images | select('match', '^([^/]+/)?get-sybers/') | list }}"
+
+# supply-chain gate: every image about to run must be a hardened get-sybers/* image
+- name: "godfir-run | tool images are known hardened get-sybers/* images | {{ godfir_run_name }}"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_images
+    tasks_from: verify
+  vars:
+    godfir_images_verify_images: "{{ godfir_run_images }}"

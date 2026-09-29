@@ -1,0 +1,23 @@
+---
+- name: Prepare
+  hosts: localhost
+  gather_facts: false
+  vars:
+    molecule_fixtures: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/fixture"
+  tasks:
+    - name: "prepare | remove leftover fixture images"
+      community.docker.docker_image:
+        name: "{{ item }}"
+        state: absent
+        force_absent: true
+      loop:
+        - get-sybers/molecule-good:latest
+        - get-sybers/molecule-bad:latest
+
+    - name: "prepare | build the hardened and un-hardened fixture images"
+      community.docker.docker_image_build:
+        name: "get-sybers/molecule-{{ item }}"
+        tag: latest
+        path: "{{ molecule_fixtures }}/{{ item }}"
+        rebuild: always
+      loop: [good, bad]

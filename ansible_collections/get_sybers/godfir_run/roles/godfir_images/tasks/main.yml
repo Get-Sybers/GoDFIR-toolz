@@ -1,0 +1,5 @@
+---
+- name: "godfir-images | pull the requested set"
+  ansible.builtin.include_tasks: ensure_present.yml
+  vars:
+    godfir_images_required: "{{ godfir_images_set }}"

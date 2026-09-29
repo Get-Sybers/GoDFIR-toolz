@@ -1,0 +1,23 @@
+---
+- name: "verify-negative | refusal expected | {{ molecule_case.name }}"
+  block:
+    - name: "verify-negative | build the bad run spec | {{ molecule_case.run.name }}"
+      ansible.builtin.include_role:
+        name: godfir_run
+        tasks_from: build
+      vars:
+        godfir_run_name: "molecule-{{ molecule_case.run.name }}"
+        godfir_run_runs: ["{{ molecule_case.run }}"]
+
+    - name: "verify-negative | the bad spec was accepted — that is the failure"
+      ansible.builtin.fail:
+        msg: "ACCEPTED: {{ molecule_case.name }}"
+  rescue:
+    - name: "verify-negative | the refusal names the offender | {{ molecule_case.run.name }}"
+      ansible.builtin.assert:
+        that:
+          - molecule_case.needle in (ansible_failed_result.msg | default(''))
+        fail_msg: >-
+          expected a refusal naming {{ molecule_case.needle }}, got:
+          {{ ansible_failed_result.msg | default('(no message)') }}
+        quiet: true

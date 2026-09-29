@@ -1,0 +1,202 @@
+---
+# read-only against the daemon; the one write is the secret env-file (see README)
+- name: "argv | read the tool contract | {{ godfir_run_spec.name }}"
+  ansible.builtin.set_fact:
+    godfir_run_contract: "{{ lookup('file', godfir_run_spec.contract) | from_yaml }}"
+
+- name: "argv | the run spec is within the contract | {{ godfir_run_spec.name }}"
+  vars:
+    # a multi-tool sub-run may also use the selected sub-tool's own
+    # <SUBTOOL>_* block — the convention those contracts themselves declare
+    _subtool_env_prefix: "{{ (godfir_run_spec.subtool | default('none')) | upper ~ '_' }}"
+    _env_outside: >-
+      {{ ((godfir_run_spec.env | default({})) | list
+          + (godfir_run_spec.secret_env | default({})) | list)
+         | difference(godfir_run_contract.env | default({}) | list) }}
+    _env_undeclared: >-
+      {{ _env_outside | reject('match', _subtool_env_prefix) | list
+         if godfir_run_contract.entrypoint | default('') == 'multi-tool'
+         else _env_outside }}
+    _bound: "{{ godfir_run_spec.mounts | default([]) | map(attribute='path') | list }}"
+    _declared: "{{ godfir_run_contract.mounts | default([]) | map(attribute='path') | list }}"
+    _env_named: >-
+      {{ ((godfir_run_spec.env | default({})).values() | list
+          + (godfir_run_spec.secret_env | default({})).values() | list)
+         | reject('none') | map('string') | list }}
+    _mounts_undeclared: "{{ _bound | difference(_declared + _env_named) }}"
+    _required_unbound: >-
+      {{ godfir_run_contract.mounts | default([])
+         | selectattr('required', 'equalto', true) | map(attribute='path') | difference(_bound) }}
+    _subtool: "{{ godfir_run_spec.subtool | default('') }}"
+    _mounts_lhs_conflict: >-
+      {{ godfir_run_spec.mounts | default([])
+         | selectattr('host', 'defined') | selectattr('source', 'defined') | map(attribute='path') | list }}
+    _mounts_lhs_missing: >-
+      {{ godfir_run_spec.mounts | default([])
+         | rejectattr('host', 'defined') | rejectattr('source', 'defined') | map(attribute='path') | list }}
+    _volume_unsourced: >-
+      {{ godfir_run_spec.mounts | default([])
+         | selectattr('volume', 'defined') | selectattr('volume', 'equalto', true)
+         | rejectattr('source', 'defined') | map(attribute='path') | list }}
+  ansible.builtin.assert:
+    that:
+      - godfir_run_contract.tool is defined
+      - godfir_run_contract.image is defined
+      - _env_undeclared | length == 0
+      - _mounts_undeclared | length == 0
+      - (_required_unbound | length == 0) or (godfir_run_spec.entrypoint is defined)
+      - (_subtool | length == 0) or (_subtool in (godfir_run_contract.subtools | default([])))
+      - >-
+        (_subtool | length > 0)
+        or (godfir_run_contract.entrypoint | default('') != 'multi-tool')
+        or (godfir_run_spec.entrypoint is defined)
+      - _mounts_lhs_conflict | length == 0
+      - _mounts_lhs_missing | length == 0
+      - _volume_unsourced | length == 0
+    fail_msg: >-
+      {{ godfir_run_name }}/{{ godfir_run_spec.name }} does not fit
+      {{ godfir_run_spec.contract }}: undeclared env {{ _env_undeclared }},
+      undeclared mount paths {{ _mounts_undeclared }} (declared:
+      {{ _declared }}, env-named: {{ _env_named }}), unbound required mounts
+      {{ _required_unbound }}, sub-tool '{{ _subtool }}' (declared:
+      {{ godfir_run_contract.subtools | default([]) }}), mounts naming both
+      host and source {{ _mounts_lhs_conflict }}, mounts naming neither
+      {{ _mounts_lhs_missing }}, volume mounts missing source
+      {{ _volume_unsourced }}.
+    quiet: true
+
+# ro mounts must pre-exist (docker would create an empty root-owned dir); volume mounts have no path to stat
+- name: "argv | stat each read-only mount | {{ godfir_run_spec.name }}"
+  ansible.builtin.stat:
+    path: "{{ item.host }}"
+  loop: >-
+    {{ godfir_run_spec.mounts | default([]) | selectattr('mode', 'equalto', 'ro')
+       | rejectattr('volume', 'defined') | list }}
+  loop_control:
+    label: "{{ item.path }}"
+  register: godfir_run_ro_stats
+
+- name: "argv | every read-only mount exists on the host | {{ godfir_run_spec.name }}"
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      {{ godfir_run_name }}/{{ godfir_run_spec.name }}: read-only mount
+      {{ item.item.path }} <- {{ item.item.host }} is missing on the host.
+    quiet: true
+  loop: "{{ godfir_run_ro_stats.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+# changed_when false: per-invocation scratch, not operator state — the
+# always: block in main.yml removes it on every exit path, so its recreation
+# on the next run is plumbing for that run's docker argv, never drift
+- name: "argv | create the secret env-file | {{ godfir_run_spec.name }}"
+  ansible.builtin.tempfile:
+    state: file
+    suffix: ".env"
+  register: godfir_run_secret_env_file
+  changed_when: false
+  when: (godfir_run_spec.secret_env | default({})) | length > 0
+
+# content: carries the cleartext values, hence no_log
+- name: "argv | write the secret env-file (0600, never logged) | {{ godfir_run_spec.name }}"
+  no_log: true
+  vars:
+    _secret: "{{ godfir_run_spec.secret_env | default({}) }}"
+    _secret_bool_keys: >-
+      {{ godfir_run_contract.env | default({}) | dict2items
+         | selectattr('value.type', 'defined') | selectattr('value.type', 'equalto', 'bool')
+         | map(attribute='key') | list }}
+    _secret_bools: "{{ _secret | dict2items | selectattr('key', 'in', _secret_bool_keys) | list }}"
+    _secret_strings: >-
+      {{ _secret | dict2items | rejectattr('key', 'in', _secret_bool_keys)
+         | rejectattr('value', 'none') | rejectattr('value', 'equalto', '') | list }}
+    _secret_kv: >-
+      {{ (_secret_bools | map(attribute='key')
+          | zip(_secret_bools | map(attribute='value') | map('bool') | map('ternary', '1', '0'))
+          | map('join', '=') | list)
+         + (_secret_strings | map(attribute='key')
+            | zip(_secret_strings | map(attribute='value') | map('string'))
+            | map('join', '=') | list) }}
+  ansible.builtin.copy:
+    dest: "{{ godfir_run_secret_env_file.path }}"
+    content: "{{ _secret_kv | join('\n') }}"
+    mode: "0600"
+  changed_when: false
+  when: (godfir_run_spec.secret_env | default({})) | length > 0
+
+# filter-only expressions: a jinja block would come back as a string, not a list
+- name: "argv | build the confined docker run | {{ godfir_run_spec.name }}"
+  vars:
+    _env: "{{ godfir_run_spec.env | default({}) }}"
+    _bool_keys: >-
+      {{ godfir_run_contract.env | default({}) | dict2items
+         | selectattr('value.type', 'defined') | selectattr('value.type', 'equalto', 'bool')
+         | map(attribute='key') | list }}
+    _bools: "{{ _env | dict2items | selectattr('key', 'in', _bool_keys) | list }}"
+    _strings: >-
+      {{ _env | dict2items | rejectattr('key', 'in', _bool_keys)
+         | rejectattr('value', 'none') | rejectattr('value', 'equalto', '') | list }}
+    _env_kv: >-
+      {{ (_bools | map(attribute='key')
+          | zip(_bools | map(attribute='value') | map('bool') | map('ternary', '1', '0'))
+          | map('join', '=') | list)
+         + (_strings | map(attribute='key')
+            | zip(_strings | map(attribute='value') | map('string'))
+            | map('join', '=') | list) }}
+    _mounts: "{{ godfir_run_spec.mounts | default([]) }}"
+    # host XOR source per entry (asserted above), so joining the pair with '' picks the set one
+    _lhs: >-
+      {{ (_mounts | map(attribute='host', default='') | list)
+         | zip(_mounts | map(attribute='source', default='') | list)
+         | map('join', '') | list }}
+    _binds: >-
+      {{ _lhs
+         | zip(_mounts | map(attribute='path'), _mounts | map(attribute='mode'))
+         | map('join', ':') | list }}
+    _tmpfs_paths: >-
+      {{ (['/tmp'] + (godfir_run_contract.mounts | default([])
+                      | selectattr('mode', 'equalto', 'rw')
+                      | rejectattr('required', 'equalto', true)
+                      | map(attribute='path') | reject('match', '^/dev/') | list))
+         | difference(_mounts | map(attribute='path') | list) | unique }}
+    _tmpfs: "{{ _tmpfs_paths | map('regex_replace', '$', ':' ~ godfir_run_tmpfs_opts) | list }}"
+    _gids: >-
+      {{ godfir_run_ro_stats.results | map(attribute='stat.gid') | map('string')
+         | reject('equalto', '0') | unique | list }}
+    # a boolean-shaped string is never a docker network name (CLI extra-vars arrive as strings)
+    _network_value: "{{ godfir_run_spec.network | default('') }}"
+    _network_optional: "{{ godfir_run_contract.network | default('none') == 'optional' }}"
+    _network_boolish: >-
+      {{ (_network_value is not string)
+         or (_network_value | lower in ['', 'true', 'false', '1', '0', 'yes', 'no', 'on', 'off']) }}
+    _network_name: >-
+      {{ _network_value
+         if (not _network_boolish | bool and _network_optional | bool)
+         else '' }}
+    _image: "{{ godfir_run_spec.image | default(godfir_run_contract.image, true) }}"
+    _subtool: "{{ godfir_run_spec.subtool | default('') }}"
+    _secret: "{{ godfir_run_spec.secret_env | default({}) }}"
+    _env_file: "{{ godfir_run_secret_env_file.path | default('') if (_secret | length > 0) else '' }}"
+  ansible.builtin.set_fact:
+    godfir_run_runs_built: >-
+      {{ godfir_run_runs_built + [{
+           'name': godfir_run_spec.name,
+           'tool': godfir_run_contract.tool,
+           'image': _image,
+           'mounts': _mounts,
+           'env_file': _env_file,
+           'argv': ['docker', 'run', '--rm'] + godfir_run_confinement
+                   + (['--tmpfs'] | product(_tmpfs) | flatten)
+                   + (['--network', _network_name] if _network_name | length > 0
+                      else ['--network', 'none'])
+                   + (['--group-add'] | product(_gids) | flatten)
+                   + (['--entrypoint', godfir_run_spec.entrypoint] if godfir_run_spec.entrypoint is defined else [])
+                   + (['-v'] | product(_binds) | flatten)
+                   + (['-e'] | product(_env_kv) | flatten)
+                   + (['--env-file', _env_file] if _env_file | length > 0 else [])
+                   + [_image]
+                   + ([_subtool] if _subtool | length > 0 else [])
+                   + (godfir_run_spec.args | default([])),
+         }] }}

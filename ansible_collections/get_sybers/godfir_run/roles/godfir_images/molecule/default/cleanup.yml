@@ -1,0 +1,13 @@
+---
+- name: Cleanup
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "cleanup | remove the fixture images"
+      community.docker.docker_image:
+        name: "{{ item }}"
+        state: absent
+        force_absent: true
+      loop:
+        - get-sybers/molecule-good:latest
+        - get-sybers/molecule-bad:latest
