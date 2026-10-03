@@ -34,7 +34,7 @@ ARG ZEEK_KEY_FPR
 RUN set -eux; \
     echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-dxdfir-retries; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl ca-certificates gnupg ansible-core; \
+    apt-get install -y --no-install-recommends curl ca-certificates gnupg python3 python3-pip; \
     curl -fsSL -o /tmp/zeek-release.key "${ZEEK_REPO}/Release.key"; \
     # fail-closed: trust the key only if it IS the pinned security:zeek key
     gpg --show-keys --with-fingerprint --with-colons /tmp/zeek-release.key \
@@ -46,13 +46,18 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends "${ZEEK_PACKAGE}${ZEEK_VERSION:+=${ZEEK_VERSION}}"; \
     apt-get purge -y curl gnupg; apt-get autoremove -y --purge
-COPY hardening/harden.yml /tmp/hardening/harden.yml
+COPY hardening/harden.yml hardening/requirements.txt /tmp/hardening/
 RUN set -eux; \
-    ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
+    # the hardening controller, pinned by hardening/requirements.txt, installed
+    # into a throwaway dir the last line removes with the rest of python
+    pip3 install --no-cache-dir --break-system-packages --target /tmp/ansible \
+      -r /tmp/hardening/requirements.txt; \
+    PYTHONPATH=/tmp/ansible /tmp/ansible/bin/ansible-playbook -c local -i localhost, \
+      /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=zeek -e harden_static_binary=false -e harden_shell=false -e harden_python=false \
       -e '{"harden_extra_remove": ["/opt/zeek/bin/zkg", "/opt/zeek/bin/zeekctl", "/opt/zeek/bin/zeek-client", "/opt/zeek/var"]}'; \
-    rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
+    rm -rf /tmp/ansible \
            /etc/ansible /root/.ansible /tmp/hardening \
            /usr/bin/python3* /usr/lib/python3* \
            /bin/sh /bin/dash /bin/bash /bin/rbash /usr/bin/sh /usr/bin/dash /usr/bin/bash /usr/bin/rbash

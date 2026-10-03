@@ -1,0 +1,5 @@
+# The single exact pin for the in-image hardening controller (ansible-standards
+# §2: every pinned version lives in a requirements file, nowhere else). Every
+# Dockerfile that runs harden.yml installs ansible from this file; none carries
+# its own copy or an unpinned apt/pip install.
+ansible-core==2.21.4

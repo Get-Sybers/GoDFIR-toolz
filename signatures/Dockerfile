@@ -6,7 +6,7 @@
 # docs: README.md.
 ARG BASE=debian:trixie-slim
 ARG HAYABUSA_VERSION=4.1.0
-ARG GO_IMAGE=golang:trixie
+ARG GO_IMAGE=golang:1.26-trixie
 ARG TOOL_VERSION=0.3.0
 ARG GOMOUNT_VERSION=0.2.0
 ARG GODFIR_REVISION=unknown
@@ -55,7 +55,7 @@ ARG HB_SHA_arm64=9a112ed5ead6850c0f7f1b2a18b2c9c71c6eddc469cc2e1a31f5ed1170afa62
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        yara suricata ansible-core ca-certificates curl unzip \
+        yara suricata python3 python3-pip ca-certificates curl unzip \
         ewf-tools ntfs-3g fuse3; \
     case "${TARGETARCH:-amd64}" in \
       amd64) hbarch=x64;     hbsha="${HB_SHA_amd64}" ;; \
@@ -88,17 +88,22 @@ RUN set -eux; \
     python3 /tmp/suricata_rules.py --rules-dir /opt/dxdfir/suricata-rules; \
     test -s /opt/dxdfir/suricata-rules/suricata.rules; \
     rm -f /tmp/suricata_rules.py
-COPY hardening/harden.yml /tmp/hardening/harden.yml
+COPY hardening/harden.yml hardening/requirements.txt /tmp/hardening/
 RUN set -eux; \
     chmod 0755 /opt/dxdfir/scan-list.sh; \
     chmod 0644 /opt/dxdfir/contract.yml; \
     chmod -R a+rX /opt/dxdfir/yara-rules /opt/dxdfir/suricata-rules /opt/dxdfir/hayabusa; \
-    ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
+    # the hardening controller, pinned by hardening/requirements.txt, installed
+    # into a throwaway dir the last line removes with the rest of python
+    pip3 install --no-cache-dir --break-system-packages --target /tmp/ansible \
+      -r /tmp/hardening/requirements.txt; \
+    PYTHONPATH=/tmp/ansible /tmp/ansible/bin/ansible-playbook -c local -i localhost, \
+      /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=signatures -e harden_static_binary=false -e harden_shell=true -e harden_python=false \
       -e '{"harden_extra_remove": ["/usr/bin/suricata-update", "/usr/bin/suricatasc", "/usr/bin/suricatactl", "/var/lib/suricata/update"]}'; \
     # ansible, python and bash go; sh/dash stay (declared); glibc/libgcc stay for the gnu Hayabusa build
-    rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
+    rm -rf /tmp/ansible \
            /etc/ansible /root/.ansible /tmp/hardening \
            /usr/bin/python3* /usr/lib/python3* /usr/bin/bash /bin/bash /usr/bin/perl* \
            /usr/bin/curl /usr/bin/unzip

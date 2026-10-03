@@ -8,10 +8,11 @@
 # overrides. Shape B; declared deviation python=true; no shell. Dispatch
 # semantics, env blocks and run docs: README.md.
 ARG BASE=debian:trixie-slim
-ARG GO_BASE=golang:1.24-bookworm
+ARG GO_BASE=golang:1.26-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/Byakugan
-# the ONE place the engine version is set; consumers build without a REF arg and inherit it
-ARG BYAKUGAN_REF=608879dc5b8ec065e66452640820eeb7c9a046ff
+# the ONE place the engine version is set; consumers build without a REF arg and
+# inherit it. Full commit SHA (immutable), tag v0.2.0 on the engine repo.
+ARG BYAKUGAN_REF=9c73252a1c47e05d7b1baf01323626ae9be198ce
 ARG TOOL_VERSION=0.4.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
@@ -44,7 +45,7 @@ ARG TOOL_VERSION
 # python3-yaml from apt (no pip); ca-certificates = TLS trust for the load sub-tool's push mode
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends python3 python3-yaml ca-certificates ansible-core; \
+    apt-get install -y --no-install-recommends python3 python3-yaml python3-pip ca-certificates; \
     rm -rf /var/lib/apt/lists/*
 # the engine resolves its model dir relative to the package: run from this tree via PYTHONPATH, never site-packages
 COPY --from=engine /src /opt/byakugan
@@ -53,7 +54,7 @@ COPY byakugan/contract.yml /opt/byakugan/contract.yml
 # the engine repo ships the rules-as-code: its rules/ rides the clone, baked
 # at /rules where stix-export defaults its pattern resolution
 COPY --from=engine /src/rules/ /rules/
-COPY hardening/harden.yml /tmp/hardening/harden.yml
+COPY hardening/harden.yml hardening/requirements.txt /tmp/hardening/
 RUN chmod 0755 /usr/local/bin/byakugan && chmod 0644 /opt/byakugan/contract.yml
 # the baked rules-as-code gate (the engine's own rules/validate.py, riding
 # the clone): a malformed, dropped or unpinned rule FAILS THE BUILD; a
@@ -65,12 +66,17 @@ RUN set -eux; \
 # sanity gate before the hardener strips the shell this RUN needs
 RUN BYAKUGAN_VERSION=${TOOL_VERSION} BYAKUGAN_REF=${BYAKUGAN_REF} PYTHONPATH=/opt/byakugan /usr/local/bin/byakugan --version
 RUN set -eux; \
-    ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
+    # the hardening controller, pinned by hardening/requirements.txt, installed
+    # into a throwaway dir removed below (python itself stays: python IS the tool)
+    pip3 install --no-cache-dir --break-system-packages --target /tmp/ansible \
+      -r /tmp/hardening/requirements.txt; \
+    PYTHONPATH=/tmp/ansible /tmp/ansible/bin/ansible-playbook -c local -i localhost, \
+      /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=byakugan -e harden_static_binary=false -e harden_shell=false -e harden_python=true; \
     PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel, byakugan.elastic.load, byakugan.elastic.projection, byakugan.elastic.inverse_projection, byakugan.exchange.cli, byakugan.exchange.behaviour'; \
     # every shell goes; python3 + python3-yaml + the baked engine tree stay (python IS the tool)
-    rm -rf /usr/bin/ansible* /usr/lib/python3/dist-packages/ansible* \
+    rm -rf /tmp/ansible /usr/bin/pip3* /usr/lib/python3/dist-packages/pip* \
            /etc/ansible /root/.ansible /tmp/hardening \
            /usr/bin/bash /bin/bash /usr/bin/bashbug /usr/bin/perl* \
            /bin/sh /bin/dash /bin/rbash /usr/bin/sh /usr/bin/dash /usr/bin/rbash

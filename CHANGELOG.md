@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **Every cross-repo pin points at published, verifiable history.** The clean
+  import rewrote the engine repos' history and left every pin dangling: the
+  three Go-module images pinned `@v0.2.0` tags that never existed, byakugan
+  pinned a commit absent from its repo, and anamnesis pinned an orphaned
+  commit. gopinfo/gomount/godaemonhunter/gowindowlicker are now tagged
+  `v0.2.0` on their rewritten main (with the dependents' stale gopinfo
+  checksums refreshed to the canonical module hashes first), anamnesis is
+  imported from its published module at tag `v1.1.0` (`go install
+  …/cmd/anamnesis@v1.1.0`, seeds staged from the module cache — the git
+  clone stage is gone), and `BYAKUGAN_REF` pins the commit tagged `v0.2.0`.
+  Floating `golang:trixie` builder tags are pinned to `golang:1.26-trixie`.
+- **The in-image hardening controller is pinned in one place.** Every
+  Dockerfile that runs `harden.yml` installed `ansible-core` unpinned (apt in
+  zeek/byakugan/signatures, pip in anamnesis/plaso). All five now pip-install
+  from `hardening/requirements.txt` (`ansible-core==2.21.4`, the single
+  source of that pin per ansible-standards §2) into a throwaway
+  `/tmp/ansible` the hardener removes behind itself.
+- **`community.docker` raised to 4.8.8** in both collections'
+  `requirements.yml` — the ceiling the `<5.0.0` `galaxy.yml` bound allows
+  (§13 `upgrade`).
+- **Build & Push workflow hardened.** The checkout no longer persists the
+  job token into the work tree (`persist-credentials: false`); the runner is
+  pinned to `ubuntu-24.04`; the free-text `tag` input is validated against
+  the OCI tag grammar through an env var (never shell-interpolated); the
+  workflow token is empty by default with the job granting only
+  `contents: read` + `packages: write`; and a per-tool concurrency group
+  serialises builds without cancelling a push mid-flight.
+
 - **READMEs state fact after the engine extraction.** The root README and the
   gowindowlicker / godaemonhunter / gomount image READMEs still narrated the
   pre-extraction monolith: 35 links to parser packages that now live in the

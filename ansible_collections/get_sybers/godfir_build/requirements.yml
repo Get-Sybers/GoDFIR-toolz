@@ -3,4 +3,4 @@
 # and CI read this rather than carrying their own copy.
 collections:
   - name: community.docker
-    version: "3.10.3"
+    version: "4.8.8"
