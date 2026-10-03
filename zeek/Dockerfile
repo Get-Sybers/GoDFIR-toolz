@@ -3,18 +3,18 @@
 # static Go batch entrypoint. Shape B: glibc stays; no shell, no python,
 # zkg/zeekctl stripped. Batch semantics, env and run docs: README.md.
 ARG BASE=debian:trixie-slim
-ARG GO_VERSION=1.26
+ARG GO_VERSION=1.27
 ARG ZEEK_PACKAGE=zeek-lts
 ARG ZEEK_VERSION=8.0.10-0
 # the OBS MASTER server (direct content, no mirrorbrain geo-redirect: a mid-sync
 # mirror can never serve a stale deb); the repo key is pinned fail-closed below
 ARG ZEEK_REPO=https://downloadcontent.opensuse.org/repositories/security:/zeek/Debian_13
-ARG ZEEK_KEY_FPR=F9FA0223B56B116C363737EF5DA57BDD6DD785CA
+ARG ZEEK_REPO_FPR=F9FA0223B56B116C363737EF5DA57BDD6DD785CA
 ARG TOOL_VERSION=8.0.10
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.0
+ARG GODFIR_RELEASE=v0.2.1
 
 FROM golang:${GO_VERSION}-alpine AS runner
 ARG TOOL_VERSION
@@ -32,7 +32,7 @@ ARG DFIR_GID=2000
 ARG ZEEK_PACKAGE
 ARG ZEEK_VERSION
 ARG ZEEK_REPO
-ARG ZEEK_KEY_FPR
+ARG ZEEK_REPO_FPR
 RUN set -eux; \
     echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-dxdfir-retries; \
     apt-get update; \
@@ -40,7 +40,7 @@ RUN set -eux; \
     curl -fsSL -o /tmp/zeek-release.key "${ZEEK_REPO}/Release.key"; \
     # fail-closed: trust the key only if it IS the pinned security:zeek key
     gpg --show-keys --with-fingerprint --with-colons /tmp/zeek-release.key \
-      | grep -q "^fpr:::::::::${ZEEK_KEY_FPR}:$"; \
+      | grep -q "^fpr:::::::::${ZEEK_REPO_FPR}:$"; \
     gpg --dearmor -o /usr/share/keyrings/zeek.gpg /tmp/zeek-release.key; \
     rm /tmp/zeek-release.key; \
     echo "deb [signed-by=/usr/share/keyrings/zeek.gpg] ${ZEEK_REPO}/ /" \

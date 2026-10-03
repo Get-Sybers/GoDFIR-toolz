@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **Every pin raised to its hard ceiling (§13 `upgrade`), fleet-wide and
+  simulated before release.** Builders `golang:1.26-*` → `1.27-*` and the
+  in-repo Go modules' directives → 1.27.1 (current stable); plaso base
+  `python:3.12-slim` → `3.14-slim`; workflow actions raised to their
+  latest releases and re-pinned by SHA (checkout v7.0.1, setup-buildx
+  v4.4.1, login v4.6.0, build-push v7.4.0 — also clears the node20
+  deprecation warning); DetectRaptor pin advanced to `c67158a`
+  (2026-09-27) with all seven asset sha256s regenerated; ET Open feed
+  moved to the `suricata-7.0.10` path matching trixie's suricata;
+  `build-all.sh` controller lock refreshed (charset-normalizer 3.5.2,
+  cryptography 50.0.2, idna 3.20, MarkupSafe 3.0.4, urllib3 2.8.0 —
+  ansible-core 2.19.13 is the py3.11 contract ceiling). Engine releases
+  this wave: gomount/godaemonhunter/gowindowlicker/gopinfo v0.2.1,
+  Anamnesis v1.1.1, Byakugan v0.2.1 (submodule gitlinks restored);
+  image pins follow. At ceiling already: zeek-lts 8.0.10-0, Hayabusa
+  4.1.0, MemProcFS 5.18.11, ansible-core 2.21.4 (hardening),
+  community.docker 4.8.8 (`<5.0.0` bound), go-yara v4.3.4.
+- **Collections released as 0.2.1** (`galaxy.yml` version in both
+  godfir_build and godfir_run) and the repo gains release tags so
+  git-pinned collection installs (DX_DFIR's `godfir_run` requirement)
+  resolve again.
+- **zeek Dockerfile**: `ZEEK_KEY_FPR` ARG renamed `ZEEK_REPO_FPR` — the
+  value is a public repo-signing fingerprint; the old name tripped
+  BuildKit's SecretsUsedInArgOrEnv lint on every build.
+
 - **Every cross-repo pin points at published, verifiable history.** The clean
   import rewrote the engine repos' history and left every pin dangling: the
   three Go-module images pinned `@v0.2.0` tags that never existed, byakugan

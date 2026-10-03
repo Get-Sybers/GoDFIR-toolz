@@ -65,18 +65,18 @@ PIP_LOCK='
 ansible-core==2.19.13
 certifi==2026.7.22
 cffi==2.1.1
-charset-normalizer==3.5.1
-cryptography==50.0.1
+charset-normalizer==3.5.2
+cryptography==50.0.2
 docker==7.2.0
-idna==3.19
+idna==3.20
 Jinja2==3.1.6
-MarkupSafe==3.0.3
+MarkupSafe==3.0.4
 packaging==26.3
 pycparser==3.0
 PyYAML==6.0.3
 requests==2.34.2
 resolvelib==1.2.1
-urllib3==2.7.0
+urllib3==2.8.0
 '
 # The collection the godfir_build role's modules come from. The exact pin is
 # NOT written here: it lives in the collection's requirements.yml (the single

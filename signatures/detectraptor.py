@@ -43,7 +43,7 @@ import urllib.request
 # tampered with — same discipline as dev-scripts/samples-manifest.tsv. To advance
 # the pin: bump _PIN, re-run with --print-hashes, paste the new digests.
 _REPO = "mgreen27/DetectRaptor"
-_PIN = "4c3cdddcfff334edeeda8875d5839be43978ea8b"  # master @ 2026-08-23
+_PIN = "c67158a0d7414b241e995e82ee33d8dc8325c949"  # master @ 2026-09-27
 _RAW = f"https://raw.githubusercontent.com/{_REPO}/{_PIN}/yara/"
 
 # name -> (upstream file, sha256 of the download, gzipped?). Merge precedence is
@@ -51,25 +51,25 @@ _RAW = f"https://raw.githubusercontent.com/{_REPO}/{_PIN}/yara/"
 ASSETS: dict[str, tuple[str, str, bool]] = {
     "webshells": (
         "webshells.yar",
-        "3a44da109b7033c059aca99b1b8c04ebb8886cf03daacb9fefc435d44f28361a", False),
+        "82863773fa63be52597b1f687d1e354aa5c42a0f12395a0e4f356dd73f09ff37", False),
     "windows_file": (
         "full_windows_file.yar.gz",
-        "0b10ae6bd90258bcf1819f56544ffc61de8ec7cca7a3915b825c261053b333c7", True),
+        "b636e8273caadd7d2a12f8c0a2f127294a8f2dcf83754dffa20f592ae11cdcd7", True),
     "linux_file": (
         "full_linux_file.yar.gz",
-        "d7a764a599fc2b5092d6145d4c2c099fa663242d6a482eba931569bb57c34256", True),
+        "269ecf7e847a1dc32517ae332dd311a8455e06394b049bbd312904ea4da9c1e0", True),
     "macos_file": (
         "full_macos_file.yar.gz",
-        "242ac57b50f3ea76e4fad44a6c09fcea1dbdadacd548b6285929daa7b95edb4b", True),
+        "8ee05bb97f51ee79722fe8fd9dc6dfe639c7ced166dd855a1ecf6a3c2c13d113", True),
     "windows_process": (
         "full_windows_process.yar",
-        "6bd4d1344c810441726450c4b9a1a75c644dc488fe7e8c6dd03a37c0bb567dd4", False),
+        "954973a791fa0e0065797dde5fad08aa9548f06903b83b86a7b4ef6d3b5e4ff5", False),
     "linux_process": (
         "full_linux_process.yar",
-        "87415b8adf088a34d6a12a9dc63b6ebfce1e0a123420ec3ba76b656dc947318c", False),
+        "c46277253696d0f9530a7fb7d6094e6083b82b3f4a291ad1674cc830c200b50a", False),
     "macos_process": (
         "full_macos_process.yar",
-        "1891f46edecb4a6ac51748be4be1f426499540bf591a15953ce2905331a0869a", False),
+        "a6ce7f4a0576c5948b1076eed9691e2b3651aade4bbbc57bda50558a0b317b07", False),
 }
 
 # NOT fetched: yara/yara-rules-full.yar (20 MB) — it IS the YARA-Forge "full"

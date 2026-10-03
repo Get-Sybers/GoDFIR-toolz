@@ -33,7 +33,7 @@ import urllib.request
 # rolling tarball per version; we pin the VERSION path (stable), not the content
 # (it rolls daily — see the module docstring). To advance: bump _SURICATA_VER to
 # match the get-sybers/signatures image's Suricata engine.
-_SURICATA_VER = "7.0.3"
+_SURICATA_VER = "7.0.10"
 _ET_OPEN_URL = f"https://rules.emergingthreats.net/open/suricata-{_SURICATA_VER}/emerging.rules.tar.gz"
 _RULES_FILE = "suricata.rules"
 
