@@ -5,8 +5,8 @@
 # gopinfo module is pulled transitively. No Go source lives in this repo.
 
 ARG GO_VERSION=1.27
-ARG TOOL_VERSION=0.2.0
-ARG GOMOUNT_VERSION=0.2.0
+ARG TOOL_VERSION=0.2.1
+ARG GOMOUNT_VERSION=0.2.1
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)

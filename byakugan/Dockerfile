@@ -12,7 +12,7 @@ ARG GO_BASE=golang:1.27-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/Byakugan
 # the ONE place the engine version is set; consumers build without a REF arg and
 # inherit it. Full commit SHA (immutable), tag v0.2.0 on the engine repo.
-ARG BYAKUGAN_REF=9c73252a1c47e05d7b1baf01323626ae9be198ce
+ARG BYAKUGAN_REF=fd4bb68ea4f6800a35abd10394750b3cae91e219
 ARG TOOL_VERSION=0.4.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the

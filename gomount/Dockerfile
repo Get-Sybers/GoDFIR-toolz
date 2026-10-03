@@ -7,7 +7,7 @@
 
 ARG GO_IMAGE=golang:1.27-trixie
 ARG RUNTIME_IMAGE=debian:trixie-slim
-ARG TOOL_VERSION=0.2.0
+ARG TOOL_VERSION=0.2.1
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
