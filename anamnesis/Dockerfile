@@ -9,7 +9,7 @@ ARG GO_VERSION=1.27
 ARG BASE=debian:trixie-slim
 # the ONE place the engine version is set: a release tag of the published
 # module; consumers build without a REF arg and inherit it
-ARG ANAMNESIS_REF=v1.1.0
+ARG ANAMNESIS_REF=v1.1.2
 # MemProcFS pin: the release TAG is major.minor but the asset name carries the full
 # patch + date stamp — bump tag, asset and checksum together
 ARG MEMPROCFS_VERSION=5.18.11
