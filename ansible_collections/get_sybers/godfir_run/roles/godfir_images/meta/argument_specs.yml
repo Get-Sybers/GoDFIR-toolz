@@ -18,12 +18,15 @@ argument_specs:
       godfir_images_registry:
         type: str
         required: false
-        default: ghcr.io/get-sybers/GoDFIR-toolz
+        default: ghcr.io/get-sybers/godfir-toolz
         description: "The registry namespace the published images are pulled from."
       godfir_images_tag:
         type: str
         required: false
-        default: latest
+        default: ""
+        description: >-
+          Global override of the pull tag. Empty (the default) pulls each
+          image's own `release:` from the manifest — never 'latest'.
         description: "The release tag to pull for every image."
       godfir_images_force:
         type: bool

@@ -2,12 +2,22 @@
 # one knob renames the whole image family
 godfir_images_namespace: get-sybers
 
-# where the published images live, and which release tag to pull. The lanes and
-# contracts reference the local name get-sybers/<tool>:latest; ensure_present
-# pulls <registry>/<tool>:<tag> and tags it to that local name, so nothing
+# where the published images live. The lanes and contracts reference the
+# local name get-sybers/<tool>:latest; ensure_present pulls
+# <registry>/<tool>:<release> and tags it to that local name, so nothing
 # downstream has to carry a registry-qualified ref.
-godfir_images_registry: ghcr.io/get-sybers/GoDFIR-toolz
-godfir_images_tag: latest
+godfir_images_registry: ghcr.io/get-sybers/godfir-toolz
+# which release tag to pull: each image's `release:` in the manifest is the
+# ONE source (kept in step with its Dockerfile's GODFIR_RELEASE — releases
+# move per image, never as one floating tag, standards §31). Setting
+# godfir_images_tag non-empty overrides every image (fixtures, pinning a
+# whole older wave); it is never 'latest'.
+godfir_images_tag: ""
+godfir_images_releases: >-
+  {{ dict(godfir_images_manifest.images | default([])
+          | selectattr('release', 'defined') | map(attribute='name')
+          | zip(godfir_images_manifest.images | default([])
+                | selectattr('release', 'defined') | map(attribute='release'))) }}
 
 # the single run-as knob: the hardened images' non-root uid:gid (verify asserts it)
 godfir_images_uid: 2000

@@ -18,12 +18,31 @@
                                   | map(attribute='RepoTags') | flatten
                                   | select('string') | unique | list))) }}
 
+- name: "godfir-images | every image to pull resolves a release"
+  vars:
+    _tool: >-
+      {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
+              | regex_replace('[@:].*$', '') }}
+  ansible.builtin.assert:
+    that:
+      - (godfir_images_tag | length > 0) or (godfir_images_releases[_tool] | default('') | length > 0)
+    fail_msg: >-
+      no release resolves for '{{ _tool }}': the manifest
+      ({{ godfir_images_manifest_path }}) has no `release:` for it and
+      godfir_images_tag is empty — add the image's release to the manifest.
+  loop: "{{ godfir_images_to_pull | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+
 - name: "godfir-images | pull each missing image from the registry"
   vars:
     _tool: >-
       {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
               | regex_replace('[@:].*$', '') }}
-    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ godfir_images_tag }}"
+    _release: >-
+      {{ godfir_images_tag if (godfir_images_tag | length > 0)
+         else godfir_images_releases[_tool] | default('') }}
+    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ _release }}"
   community.docker.docker_image_pull:
     name: "{{ _registry_ref }}"
     pull: "{{ 'always' if godfir_images_force | bool else 'not_present' }}"
@@ -40,7 +59,10 @@
     _tool: >-
       {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
               | regex_replace('[@:].*$', '') }}
-    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ godfir_images_tag }}"
+    _release: >-
+      {{ godfir_images_tag if (godfir_images_tag | length > 0)
+         else godfir_images_releases[_tool] | default('') }}
+    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ _release }}"
   community.docker.docker_image_tag:
     name: "{{ _registry_ref }}"
     repository: ["{{ item }}"]

@@ -5,23 +5,29 @@ namespace: get-sybers
 images:
   # ---- pipeline images (repo-root context)
   - name: signatures
+    release: v0.2.1
     aliases: [yara, suricata, hayabusa]
   - name: byakugan
+    release: v0.2.1
     engine_ref: BYAKUGAN_REF
     env_args: [BYAKUGAN_REF]
     aliases: [mitrecar, car]
   - name: zeek
+    release: v0.2.2
   - name: anamnesis
+    release: v0.2.1
     engine_ref: ANAMNESIS_REF
     env_args: [ANAMNESIS_REF, MEMPROCFS_VERSION, MEMPROCFS_SHA256]
     aliases: [memory]
   - name: plaso
+    release: v0.2.2
     aliases: [log2timeline, psort]
 
   # ---- the Windows Go parsers: one image (FROM scratch; gowindowlicker and
   #      the gomount disk-image reader are go-installed from their published
   #      modules at build time), every parser a sub-tool
   - name: gowindowlicker
+    release: v0.2.1
     aliases: [windowlicker, lick]
     subtool_aliases: [goprefetch, prefetch, pecmd,
                       goese, esedump, srum, srumecmd, sumecmd,
@@ -33,10 +39,12 @@ images:
   # ---- the Linux matrix (go-installed from its published module; the shared
   #      gopinfo module arrives transitively)
   - name: godaemonhunter
+    release: v0.2.1
     aliases: [daemonhunter, hunt]
     subtool_aliases: [gowtmp, gojournal, goauditd, gosyslog, goshell, gousers,
                       gocron, gounit, gotrash, gohost, gonetwork, goctl]
   - name: gomount
+    release: v0.2.1
     context: gomount
     dockerfile: Dockerfile
 
