@@ -1,0 +1,52 @@
+name: Version Gate
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  dockerfile-pin:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # a changed image ships as a new version: any diff to a tool Dockerfile
+      # must come with a forward GODFIR_RELEASE bump in the same PR (semver,
+      # §31 — breaking: major, feat: minor, fix/chore: patch). The release
+      # workflow's no-overwrite guard is the backstop; this is the gate.
+      - name: Changed Dockerfiles must bump GODFIR_RELEASE
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch -q --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
+          fail=0
+          for tool in signatures byakugan zeek anamnesis plaso gowindowlicker godaemonhunter gomount; do
+            df="$tool/Dockerfile"
+            git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- "$df" && continue
+            git cat-file -e "$HEAD_SHA:$df" 2>/dev/null || continue  # image removed
+            new="$(git show "$HEAD_SHA:$df" | sed -nE 's/^ARG GODFIR_RELEASE=//p' | head -n 1)"
+            if ! echo "$new" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error file=$df::GODFIR_RELEASE must be a pinned vX.Y.Z (got '$new')"
+              fail=1; continue
+            fi
+            old="$(git show "$BASE_SHA:$df" 2>/dev/null | sed -nE 's/^ARG GODFIR_RELEASE=//p' | head -n 1)"
+            if [ -z "$old" ]; then
+              echo "$df: new image, releases as $new"
+            elif [ "$new" = "$old" ]; then
+              echo "::error file=$df::$df changed but GODFIR_RELEASE stayed $old — bump it in this PR (semver, §31)"
+              fail=1
+            elif [ "$(printf '%s\n' "$old" "$new" | sort -V | tail -n 1)" != "$new" ]; then
+              echo "::error file=$df::GODFIR_RELEASE went backwards: $old -> $new"
+              fail=1
+            else
+              echo "$df: $old -> $new"
+            fi
+          done
+          exit "$fail"
