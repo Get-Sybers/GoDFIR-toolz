@@ -12,7 +12,9 @@ ARG ZEEK_REPO=https://downloadcontent.opensuse.org/repositories/security:/zeek/D
 ARG ZEEK_KEY_FPR=F9FA0223B56B116C363737EF5DA57BDD6DD785CA
 ARG TOOL_VERSION=8.0.10
 ARG GODFIR_REVISION=unknown
-ARG GODFIR_RELEASE=dev
+# the get-sybers image release this Dockerfile ships as: the ONE version the
+# workflow tags the pushed container with (synchronised across images, §31)
+ARG GODFIR_RELEASE=v0.2.0
 
 FROM golang:${GO_VERSION}-alpine AS runner
 ARG TOOL_VERSION

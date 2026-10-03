@@ -22,7 +22,9 @@ ARG DFIR_GID=2000
 # stays v1.x because go.mod carries no /v2 major suffix
 ARG TOOL_VERSION=2.0.0
 ARG GODFIR_REVISION=unknown
-ARG GODFIR_RELEASE=dev
+# the get-sybers image release this Dockerfile ships as: the ONE version the
+# workflow tags the pushed container with (synchronised across images, §31)
+ARG GODFIR_RELEASE=v0.2.0
 
 # glibc builder, NOT alpine: purego's cgo-free dlopen still links libc, so the
 # binary carries a dynamic loader reference — built on musl it cannot exec on
