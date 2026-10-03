@@ -23,7 +23,6 @@ ARG PLASO_VERSION
 COPY --from=wheels /wheels /wheels
 RUN set -eux; \
     pip install --no-cache-dir --no-index --find-links /wheels "plaso==${PLASO_VERSION}"; \
-    pip install --no-cache-dir ansible-core; \
     rm -rf /wheels; \
     ln -s /usr/local/bin/log2timeline /usr/local/bin/log2timeline.py; \
     ln -s /usr/local/bin/psort /usr/local/bin/psort.py; \
@@ -33,14 +32,19 @@ RUN set -eux; \
 COPY plaso/psort_wrapper.py /opt/dxdfir/psort_wrapper.py
 COPY plaso/plaso-entry.py /opt/dxdfir/plaso-entry.py
 COPY plaso/contract.yml /opt/dxdfir/contract.yml
-COPY hardening/harden.yml /tmp/hardening/harden.yml
+COPY hardening/harden.yml hardening/requirements.txt /tmp/hardening/
 RUN set -eux; \
     chmod 0644 /opt/dxdfir/psort_wrapper.py /opt/dxdfir/contract.yml; \
     chmod 0755 /opt/dxdfir/plaso-entry.py; \
-    ansible-playbook -c local -i localhost, /tmp/hardening/harden.yml \
+    # the hardening controller, pinned by hardening/requirements.txt, installed
+    # into a throwaway dir removed below (never into plaso's site-packages)
+    pip install --no-cache-dir --target /tmp/ansible \
+      -r /tmp/hardening/requirements.txt; \
+    PYTHONPATH=/tmp/ansible /tmp/ansible/bin/ansible-playbook -c local -i localhost, \
+      /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=plaso -e harden_static_binary=false -e harden_shell=true -e harden_python=true; \
-    rm -rf /usr/local/bin/ansible* /usr/local/lib/python3*/site-packages/ansible* \
+    rm -rf /tmp/ansible \
            /etc/ansible /root/.ansible /tmp/hardening \
            /bin/bash /usr/bin/bash /bin/rbash /usr/bin/rbash /usr/bin/bashbug
 # build-stage sanity gate: the dispatcher answers --version and plaso's tools load

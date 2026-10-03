@@ -1,12 +1,15 @@
 # syntax=docker/dockerfile:1
 # get-sybers/anamnesis — the Anamnesis memory-forensics engine (pure Go on
-# MemProcFS) in one hardened image. Runtime interface: contract.yml; symbol
-# cache, offline recovery and hardening shape: README.md.
+# MemProcFS) in one hardened image. The engine is imported from its published
+# module at build time (github.com/Get-Sybers/Anamnesis via the Go module
+# proxy, checksum-verified against sum.golang.org) — no git clone, no Go
+# source in this repo. Runtime interface: contract.yml; symbol cache, offline
+# recovery and hardening shape: README.md.
 ARG GO_VERSION=1.26
 ARG BASE=debian:trixie-slim
-ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
-# the ONE place the engine version is set; consumers build without a REF arg and inherit it
-ARG ANAMNESIS_REF=5a5175829fe4a7203e8b1e9ab1c7e695fbbdfd9b
+# the ONE place the engine version is set: a release tag of the published
+# module; consumers build without a REF arg and inherit it
+ARG ANAMNESIS_REF=v1.1.0
 # MemProcFS pin: the release TAG is major.minor but the asset name carries the full
 # patch + date stamp — bump tag, asset and checksum together
 ARG MEMPROCFS_VERSION=5.18.11
@@ -15,28 +18,25 @@ ARG MEMPROCFS_ASSET=MemProcFS_files_and_binaries_v5.18.11-linux_x64-20260914.tar
 ARG MEMPROCFS_SHA256=55648725838cae111c428131b619845b88fee45be61ea2d962e869ec0e8012aa
 ARG DFIR_UID=2000
 ARG DFIR_GID=2000
-ARG TOOL_VERSION=2.2.0
+# what the engine binary self-reports (`anamnesis --version`); the module tag
+# stays v1.x because go.mod carries no /v2 major suffix
+ARG TOOL_VERSION=2.0.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
-FROM debian:trixie-slim AS src
-ARG ANAMNESIS_REPO
+FROM golang:${GO_VERSION}-alpine AS build
 ARG ANAMNESIS_REF
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends git ca-certificates; \
-    rm -rf /var/lib/apt/lists/*
-RUN set -eux; \
-    git clone "${ANAMNESIS_REPO}" /src; \
-    git -C /src checkout "${ANAMNESIS_REF}"; \
-    find /src -name .git -prune -exec rm -rf {} +
-
-FROM golang:${GO_VERSION}-bookworm AS build
-WORKDIR /src
-COPY --from=src /src /src
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -tags memprocfs -o /anamnesis ./cmd/anamnesis
+ENV GOTOOLCHAIN=auto CGO_ENABLED=0
+RUN go install -trimpath -ldflags='-s -w' -tags memprocfs \
+      "github.com/Get-Sybers/Anamnesis/cmd/anamnesis@${ANAMNESIS_REF}"
 # build-stage sanity gate
-RUN /anamnesis --version
+RUN /go/bin/anamnesis --version
+# the engine's seed data travels with the published module; stage it out of the
+# module cache (the glob-free path uses Go's case-escaping of Get-Sybers/Anamnesis)
+RUN set -eux; \
+    MODDIR="$(go env GOMODCACHE)/github.com/!get-!sybers/!anamnesis@${ANAMNESIS_REF}"; \
+    cp -a "$MODDIR/seeds/anamnesis-offsets" /seed-offsets; \
+    cp -a "$MODDIR/seeds/anamnesis-signatures" /seed-signatures
 
 FROM debian:trixie-slim AS memprocfs
 ARG MEMPROCFS_TAG
@@ -68,12 +68,12 @@ RUN set -eux; \
 FROM ${BASE} AS hardened
 ARG DFIR_UID
 ARG DFIR_GID
-COPY --from=build /anamnesis /opt/anamnesis/anamnesis
+COPY --from=build /go/bin/anamnesis /opt/anamnesis/anamnesis
 COPY --from=memprocfs /opt/anamnesis/lib /opt/anamnesis/lib
-COPY --from=src /src/seeds/anamnesis-offsets/ /opt/anamnesis/seed-offsets/
-COPY --from=src /src/seeds/anamnesis-signatures/ /opt/anamnesis/seed-signatures/
+COPY --from=build /seed-offsets/ /opt/anamnesis/seed-offsets/
+COPY --from=build /seed-signatures/ /opt/anamnesis/seed-signatures/
 COPY anamnesis/contract.yml /opt/anamnesis/contract.yml
-COPY hardening/harden.yml /tmp/hardening/harden.yml
+COPY hardening/harden.yml hardening/requirements.txt /tmp/hardening/
 RUN set -eux; \
     # the symbol-cache mount point (contract mount `symbols`; README: Symbols)
     mkdir -p /opt/anamnesis/lib/Symbols; \
@@ -86,7 +86,8 @@ RUN set -eux; \
       test -n "$libusb_path"; \
       cp -a "$libusb_path" /opt/anamnesis/lib/; \
     fi; \
-    pip3 install --no-cache-dir --break-system-packages --target /tmp/ansible ansible-core; \
+    pip3 install --no-cache-dir --break-system-packages --target /tmp/ansible \
+      -r /tmp/hardening/requirements.txt; \
     chmod -R a+rX /opt/anamnesis; \
     PYTHONPATH=/tmp/ansible /tmp/ansible/bin/ansible-playbook -c local -i localhost, \
       /tmp/hardening/harden.yml \
@@ -116,7 +117,7 @@ ENV PATH=/opt/anamnesis:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["/opt/anamnesis/anamnesis"]
 LABEL org.opencontainers.image.title="get-sybers/anamnesis" \
-      org.opencontainers.image.description="Anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR memory lane: the engine cloned + built at the pinned ref (-tags memprocfs, CGO_ENABLED=0), the MemProcFS vmm/leechcore/libpdbcrust/libMSCompression libraries bundled at a pinned, sha256-verified release, and the PDB symbol cache supplied by a read-write bind mount at /opt/anamnesis/lib/Symbols that persists across runs (always offline — no symbol variable, no PDB download, no network). Self-orchestrating, env-driven batch over a mounted memory-image tree, one JSON summary line. Hardened: uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as uid 2000; glibc + libusb-1.0 kept for the native libraries." \
+      org.opencontainers.image.description="Anamnesis (pure-Go memory forensics on MemProcFS) for the DX_DFIR memory lane: the engine imported from its published Go module at the pinned release tag (-tags memprocfs, CGO_ENABLED=0, proxy + checksum-db verified), the MemProcFS vmm/leechcore/libpdbcrust/libMSCompression libraries bundled at a pinned, sha256-verified release, and the PDB symbol cache supplied by a read-write bind mount at /opt/anamnesis/lib/Symbols that persists across runs (always offline — no symbol variable, no PDB download, no network). Self-orchestrating, env-driven batch over a mounted memory-image tree, one JSON summary line. Hardened: uid0 renamed+locked, no python/apt/pip/sudo/setuid/shell, runs as uid 2000; glibc + libusb-1.0 kept for the native libraries." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/Anamnesis" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${TOOL_VERSION}" \

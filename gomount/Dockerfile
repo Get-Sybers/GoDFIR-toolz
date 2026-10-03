@@ -5,7 +5,7 @@
 # runtime, shell=true declared; apt/dpkg removed, setuid stripped. Pipeline,
 # build and run docs: README.md.
 
-ARG GO_IMAGE=golang:trixie
+ARG GO_IMAGE=golang:1.26-trixie
 ARG RUNTIME_IMAGE=debian:trixie-slim
 ARG TOOL_VERSION=0.2.0
 ARG GODFIR_REVISION=unknown
