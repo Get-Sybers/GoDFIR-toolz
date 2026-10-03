@@ -1,4 +1,4 @@
-go 1.26.0
+go 1.27.1
 
 // The remaining GoDFIR-toolz Go modules. Each is its own module (own go.mod).
 // gowindowlicker, godaemonhunter, gomount and the shared pinfo module have been

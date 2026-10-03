@@ -3,12 +3,12 @@
 # behind the plaso-entry dispatcher. Shape B; declared deviations python=true,
 # shell=true (sh/dash for the console-script wrappers; bash removed).
 # Dispatch semantics, env blocks and run docs: README.md.
-ARG BASE=python:3.12-slim
+ARG BASE=python:3.14-slim
 ARG PLASO_VERSION=20260720
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.0
+ARG GODFIR_RELEASE=v0.2.1
 
 FROM ${BASE} AS wheels
 ARG PLASO_VERSION

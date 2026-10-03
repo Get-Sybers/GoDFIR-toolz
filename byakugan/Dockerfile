@@ -8,16 +8,16 @@
 # overrides. Shape B; declared deviation python=true; no shell. Dispatch
 # semantics, env blocks and run docs: README.md.
 ARG BASE=debian:trixie-slim
-ARG GO_BASE=golang:1.26-bookworm
+ARG GO_BASE=golang:1.27-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/Byakugan
 # the ONE place the engine version is set; consumers build without a REF arg and
 # inherit it. Full commit SHA (immutable), tag v0.2.0 on the engine repo.
-ARG BYAKUGAN_REF=9c73252a1c47e05d7b1baf01323626ae9be198ce
+ARG BYAKUGAN_REF=fd4bb68ea4f6800a35abd10394750b3cae91e219
 ARG TOOL_VERSION=0.4.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.0
+ARG GODFIR_RELEASE=v0.2.1
 
 # stdlib-only Go → static binary; GOTOOLCHAIN=local keeps the build offline.
 # The clone is RECURSIVE: the engine rebuilds its object model from the pinned

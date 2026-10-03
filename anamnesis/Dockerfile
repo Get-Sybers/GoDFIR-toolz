@@ -5,11 +5,11 @@
 # proxy, checksum-verified against sum.golang.org) — no git clone, no Go
 # source in this repo. Runtime interface: contract.yml; symbol cache, offline
 # recovery and hardening shape: README.md.
-ARG GO_VERSION=1.26
+ARG GO_VERSION=1.27
 ARG BASE=debian:trixie-slim
 # the ONE place the engine version is set: a release tag of the published
 # module; consumers build without a REF arg and inherit it
-ARG ANAMNESIS_REF=v1.1.0
+ARG ANAMNESIS_REF=v1.1.2
 # MemProcFS pin: the release TAG is major.minor but the asset name carries the full
 # patch + date stamp — bump tag, asset and checksum together
 ARG MEMPROCFS_VERSION=5.18.11
@@ -24,7 +24,7 @@ ARG TOOL_VERSION=2.0.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.0
+ARG GODFIR_RELEASE=v0.2.1
 
 # glibc builder, NOT alpine: purego's cgo-free dlopen still links libc, so the
 # binary carries a dynamic loader reference — built on musl it cannot exec on
@@ -37,9 +37,11 @@ RUN go install -trimpath -ldflags='-s -w' -tags memprocfs \
 # build-stage sanity gate
 RUN /go/bin/anamnesis --version
 # the engine's seed data travels with the published module; stage it out of the
-# module cache (the glob-free path uses Go's case-escaping of Get-Sybers/Anamnesis)
+# module cache. Globbed, not spelled from ANAMNESIS_REF: a commit-sha override
+# lands in the cache under its resolved pseudo-version, not the raw ref, and
+# this stage's cache holds exactly one anamnesis version either way.
 RUN set -eux; \
-    MODDIR="$(go env GOMODCACHE)/github.com/!get-!sybers/!anamnesis@${ANAMNESIS_REF}"; \
+    MODDIR="$(ls -d "$(go env GOMODCACHE)"/github.com/\!get-\!sybers/\!anamnesis@* | head -n 1)"; \
     cp -a "$MODDIR/seeds/anamnesis-offsets" /seed-offsets; \
     cp -a "$MODDIR/seeds/anamnesis-signatures" /seed-signatures
 
