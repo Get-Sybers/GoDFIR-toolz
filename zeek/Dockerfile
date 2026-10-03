@@ -14,7 +14,7 @@ ARG TOOL_VERSION=9.0.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.3.0
+ARG GODFIR_RELEASE=v0.2.2
 
 FROM golang:${GO_VERSION}-alpine AS runner
 ARG TOOL_VERSION

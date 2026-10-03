@@ -18,7 +18,8 @@ jobs:
 
       # a changed image ships as a new version: any diff to a tool Dockerfile
       # must come with a forward GODFIR_RELEASE bump in the same PR (semver,
-      # §31 — breaking: major, feat: minor, fix/chore: patch). The release
+      # §31 — breaking change to OUR contract: major; new capability in OUR
+      # code: minor; everything else incl. dependency-only raises: patch). The release
       # workflow's no-overwrite guard is the backstop; this is the gate.
       - name: Changed Dockerfiles must bump GODFIR_RELEASE
         env:
