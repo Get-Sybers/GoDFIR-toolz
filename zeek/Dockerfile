@@ -3,7 +3,7 @@
 # static Go batch entrypoint. Shape B: glibc stays; no shell, no python,
 # zkg/zeekctl stripped. Batch semantics, env and run docs: README.md.
 ARG BASE=debian:trixie-slim
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26
 ARG ZEEK_PACKAGE=zeek-lts
 ARG ZEEK_VERSION=8.0.10-0
 # the OBS MASTER server (direct content, no mirrorbrain geo-redirect: a mid-sync

@@ -2,7 +2,7 @@
 # get-sybers/anamnesis — the Anamnesis memory-forensics engine (pure Go on
 # MemProcFS) in one hardened image. Runtime interface: contract.yml; symbol
 # cache, offline recovery and hardening shape: README.md.
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26
 ARG BASE=debian:trixie-slim
 ARG ANAMNESIS_REPO=https://github.com/Get-Sybers/Anamnesis
 # the ONE place the engine version is set; consumers build without a REF arg and inherit it
