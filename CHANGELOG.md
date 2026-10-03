@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Image pulls resolve each image's own release, never `:latest`.** The
+  `godfir_images` role pulled `<registry>/<tool>:latest` — a tag nothing
+  publishes any more (and §31 forbids): seven of eight pulls 404'd and the
+  eighth was a v0.1.0-era leftover. The manifest (`images.yml`, both
+  copies) now carries each image's `release:` (kept in step with its
+  Dockerfile's `GODFIR_RELEASE`), `ensure_present` resolves the pull tag
+  per image from it (asserting a release exists before pulling), and
+  `godfir_images_tag` becomes an empty-by-default global override. Also
+  fixes the registry constant's casing (`GoDFIR-toolz` → `godfir-toolz` —
+  Docker repository names are lowercase, so every pull failed regardless
+  of tag). Verified live: gomount pulled at v0.2.1 and tagged to its
+  local contract name. Collections released as 0.2.2.
+
 - **Every pin raised to its hard ceiling (§13 `upgrade`), fleet-wide and
   simulated before release.** Builders `golang:1.26-*` → `1.27-*` and the
   in-repo Go modules' directives → 1.27.1 (current stable); plaso base
