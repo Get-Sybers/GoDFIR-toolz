@@ -43,8 +43,10 @@ jobs:
           persist-credentials: false
 
       # the release version IS the Dockerfile's pinned GODFIR_RELEASE: bumped
-      # in the PR that changes the image (semver, §31 — breaking: major,
-      # feat: minor, fix/chore: patch), reviewed there, and only shipped here.
+      # in the PR that changes the image (semver, §31 — breaking change to
+      # OUR contract: major; new capability in OUR code: minor; everything
+      # else, dependency-only raises included, however large the dependency's
+      # own jump: patch), reviewed there, and only shipped here.
       # Never a workflow input.
       - name: Resolve release version
         id: ver
