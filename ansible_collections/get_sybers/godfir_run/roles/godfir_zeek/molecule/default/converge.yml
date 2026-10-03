@@ -1,0 +1,36 @@
+---
+# build_only: the lane builds the argv and stops. Assert it dispatches the zeek
+# image under the confinement flags with the right binds — no daemon, no image.
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    molecule_in: /tmp/godfir_zeek_molecule/in
+    molecule_out: /tmp/godfir_zeek_molecule/out
+  tasks:
+    - name: "converge | the mount trees exist"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ molecule_in }}", "{{ molecule_out }}"]
+
+    - name: "converge | build the zeek run spec"
+      ansible.builtin.include_role:
+        name: godfir_zeek
+      vars:
+        godfir_zeek_pcap_dir: "{{ molecule_in }}"
+        godfir_zeek_out_dir: "{{ molecule_out }}"
+
+    - name: "converge | the built argv dispatches the zeek image under confinement"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 1
+          - godfir_run_runs_built[0].image == 'get-sybers/zeek:latest'
+          - "'--cap-drop' in godfir_run_runs_built[0].argv"
+          - "'--read-only' in godfir_run_runs_built[0].argv"
+          - godfir_run_runs_built[0].argv | select('search', molecule_in ~ ':/input:ro') | list | length == 1
+          - godfir_run_runs_built[0].argv | select('search', molecule_out ~ ':/output:rw') | list | length == 1
+          - godfir_run_runs_built[0].argv | select('equalto', 'none') | list | length == 1
+        fail_msg: "built zeek argv: {{ godfir_run_runs_built | map(attribute='argv') | list }}"
+        quiet: true

@@ -1,0 +1,47 @@
+---
+argument_specs:
+  main:
+    short_description: "Run gowindowlicker's parsers over event-log hosts and disk images."
+    description:
+      - >-
+        Declare one goevtx run per loose event-log host and one lick sweep per
+        disk image, then delegate to godfir_run. Content decides; exits 1/3 are
+        tolerated (gate on output). Evidence discovery (finding the images and
+        hosts) is the caller's — this lane takes the discovered item lists.
+    options:
+      godfir_gowindowlicker_out_dir:
+        type: str
+        required: true
+        description: "Output root; the host-centric <subtool>/<host>/<item>/ tree lands here."
+      godfir_gowindowlicker_work_dir:
+        type: str
+        required: false
+        description: "Disk-backed /work scratch per image (required when images are given)."
+      godfir_gowindowlicker_images:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: >-
+          Disk images to sweep ON, one host each: [{tree, rel, name}] — tree is
+          the mounted tree (read-only /input), rel the image path within it
+          (GOWINDOWLICKER_IMAGE), name the folded host/item name.
+      godfir_gowindowlicker_winevt_hosts:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: "Loose Windows event-log host folders (goevtx only), one per host."
+      godfir_gowindowlicker_contract:
+        type: str
+        required: false
+        description: "The tool contract (default: the copy shipped with the lane)."
+      godfir_gowindowlicker_image:
+        type: str
+        required: false
+        description: "Image ref overriding the contract's image (e.g. a digest pin)."
+      godfir_gowindowlicker_force:
+        type: bool
+        required: false
+        default: false
+        description: "Reprocess items that already have valid output."

@@ -1,0 +1,9 @@
+---
+- name: "GoDFIR | build images"
+  hosts: "{{ godfir_hosts | default('localhost') }}"
+  connection: "{{ godfir_connection | default('local') }}"
+  gather_facts: false
+  tasks:
+    - name: "build-images | run the build role"
+      ansible.builtin.include_role:
+        name: get_sybers.godfir_build.godfir_build

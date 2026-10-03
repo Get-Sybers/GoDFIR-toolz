@@ -1,0 +1,14 @@
+go 1.26.0
+
+// The remaining GoDFIR-toolz Go modules. Each is its own module (own go.mod).
+// gowindowlicker, godaemonhunter, gomount and the shared pinfo module have been
+// retired from this repo: the container images now import those tools from their
+// published modules (github.com/Get-Sybers/<tool>) at build time via `go install`
+// (see each tool's Dockerfile), so no Go source for them lives here. signatures
+// and zeek remain until they get their own standalone repos; signatures/goyara
+// needs libyara (CGO) and builds where the library is present (CI).
+use (
+	./signatures
+	./signatures/goyara
+	./zeek
+)

@@ -1,0 +1,21 @@
+---
+- name: "build | assert runs are declared | {{ godfir_run_name }}"
+  ansible.builtin.assert:
+    that:
+      - godfir_run_runs | length > 0
+    fail_msg: >-
+      godfir_run ({{ godfir_run_name }}) needs at least one run in
+      godfir_run_runs.
+    quiet: true
+
+# facts persist for the whole play — a serial "process all" runs several lanes in one play
+- name: "build | start from an empty run list | {{ godfir_run_name }}"
+  ansible.builtin.set_fact:
+    godfir_run_runs_built: []
+
+- name: "build | one confined docker run per declared run | {{ godfir_run_name }}"
+  ansible.builtin.include_tasks: argv.yml
+  loop: "{{ godfir_run_runs }}"
+  loop_control:
+    loop_var: godfir_run_spec
+    label: "{{ godfir_run_spec.name }}"

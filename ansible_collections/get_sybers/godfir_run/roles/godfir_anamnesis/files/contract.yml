@@ -1,0 +1,54 @@
+# anamnesis/contract.yml — the single source of truth for how DX_DFIR drives this tool.
+tool: anamnesis
+image: get-sybers/anamnesis:latest
+entrypoint: self-orchestrating
+description: >
+  Pure-Go memory forensics on MemProcFS (the Anamnesis engine, cloned and
+  built at the pinned ref). Batches over a mounted memory-image tree: every
+  memory image is processed by the CAR collector set into its own output
+  folder (per-plugin JSONL + car.db + anamnesis.log), idempotent per
+  collector.
+
+env:
+  ANAMNESIS_INPUT_DIR:      {required: false, default: /input,   desc: "memory image tree, recursed read-only (symlinks ignored); images match by extension .raw .mem .dmp .lime .vmem .bin .dump .vmsn .crash or *dramimage — this is the input mount"}
+  ANAMNESIS_OUT_DIR:        {required: false, default: /out,     desc: 'output root, one folder per image (/ and spaces in the image name folded to _)'}
+  ANAMNESIS_PLUGINS:        {required: false, default: "",       desc: 'comma-separated collector names; empty = the default CAR set'}
+  ANAMNESIS_FORCE:          {required: false, default: "0", type: bool, desc: '1/true/yes/on reruns collectors that already have valid output'}
+  ANAMNESIS_STALL_TIMEOUT:  {required: false, default: "5m", desc: 'per-collector stall watchdog, a Go duration (0 disables); a collector blocked in the native engine past it is recorded in <OUT_DIR>/<clean image name>/plugins/<plugin>.stalled and the batch re-execs itself to resume — after two stalls the collector is skipped as failed'}
+  ANAMNESIS_SEED_DIR:       {required: false, default: /opt/anamnesis/seed-offsets, desc: 'read-only build-time offset-store seeds baked into the image; the engine reads it after the mounted cache and /tmp, and never writes it'}
+  ANAMNESIS_SIG_DIR:        {required: false, default: /opt/anamnesis/seed-signatures, desc: 'read-only build-time fingerprint signatures baked into the image; masked patterns that locate non-exported kernel globals, applied only after the runtime self-test passes'}
+  ANAMNESIS_POOLSCAN:       {required: false, default: "", desc: 'opt-in (1/true/yes/on) DKOM-resistant pool-tag scan for process objects, cross-checked against the enumerated set and typed via the recovered ObHeaderCookie; off by default because the underlying pool map can deadlock on some crash-dump images'}
+
+mounts:
+  - {name: input,   path: /input,   mode: ro, env: ANAMNESIS_INPUT_DIR,   required: true}
+  - {name: output,  path: /out,     mode: rw, env: ANAMNESIS_OUT_DIR,     required: true}
+  - {name: symbols, path: /opt/anamnesis/lib/Symbols, mode: rw, required: false, desc: 'persistent symbol cache: symsrv-layout PDBs (drop-in) plus the engine''s self-taught (GUID,age) offset store under anamnesis-offsets/; used exactly when writable — unmounted, both fall back to /tmp and evaporate with the container (command_line/create_time/sid/user still recover from the image itself)'}
+  - {name: tmp,     path: /tmp,     mode: rw, required: false, desc: 'HOME and the MemProcFS fallback symbol cache under a read-only rootfs (tmpfs)'}
+
+# Always offline: the engine never downloads PDBs (at build time or at
+# runtime) — there is no symbol variable and no legitimate network need.
+# The bind-mounted `symbols` cache holds drop-in symsrv PDBs and the offset
+# store the engine's offline symbol-recovery tiers teach themselves
+# (Anamnesis docs/design/symbol-recovery.md).
+network: none
+exit_codes: {0: success, 1: nothing_produced, 2: config_error, 3: partial}
+
+summary_schema:
+  required: [tool, input_dir, out_dir, force, images, plugins, processed, skipped, failed, results]
+  note: >
+    The engine's summary line; `error` is added on a config error. The
+    framework keys version, status and exit are not yet emitted and exit 3
+    (partial) is not yet distinguished from 1 — both are engine-side changes
+    in the Anamnesis repository.
+
+outputs:
+  layout: "<OUT_DIR>/<clean image name>/plugins/<plugin>.jsonl (raw per-collector JSON Lines) + car.db (the CAR store byakugan consumes) + anamnesis.log; a collector whose .jsonl exists and whose first line parses as JSON is skipped unless ANAMNESIS_FORCE; <OUT_DIR>/<clean image name>/plugins/<plugin>.stalled counts that collector's native-engine stalls (see ANAMNESIS_STALL_TIMEOUT)"
+
+hardening:
+  declared: {shell: false, python: false, static_binary: false}
+  justification: "glibc + libusb-1.0 are kept for the MemProcFS vmm.so / leechcore.so shared libraries the engine dlopen's; no shell, no python"
+
+argv_passthrough: >
+  Debug only, never used by DX_DFIR: any argument switches to the engine's
+  single-image mode, e.g. `-f /input/<image> -o /out`; `--version` prints the
+  engine version.

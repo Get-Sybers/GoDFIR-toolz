@@ -1,0 +1,78 @@
+---
+# The full namespace inventory audit: every manifest image is present and still
+# hardened on this host, and NO unexpected namespace image exists (the allow-list
+# is the manifest images plus the manifest's non_tool_repos). One aggregated
+# verdict so a failing audit names everything wrong at once.
+- name: "godfir-images-audit | the expected inventory and the allow-list"
+  ansible.builtin.set_fact:
+    godfir_images_audit_expected: >-
+      {{ godfir_images_known | map('regex_replace', '$', ':latest') | list }}
+    godfir_images_audit_allowed_repos: "{{ godfir_images_known + godfir_images_non_tool_repos }}"
+
+- name: "godfir-images-audit | the manifest declares images"
+  ansible.builtin.assert:
+    that:
+      - godfir_images_audit_expected | length > 0
+    fail_msg: >-
+      no images in the manifest ({{ godfir_images_manifest_path }}) — the audit
+      has nothing to check; is the manifest shipped/overridden correctly?
+    quiet: true
+
+- name: "godfir-images-audit | inspect every expected image"
+  community.docker.docker_image_info:
+    name: "{{ item }}"
+  loop: "{{ godfir_images_audit_expected }}"
+  register: godfir_images_audit_info
+
+- name: "godfir-images-audit | list the images on this host"
+  community.docker.docker_host_info:
+    images: true
+  register: godfir_images_audit_host
+
+# the sweep normalises registry-qualified tags before comparing; violations name the tag as tagged
+- name: "godfir-images-audit | resolve the violations"
+  ansible.builtin.set_fact:
+    godfir_images_audit_violations: >-
+      {%- set v = [] -%}
+      {%- set want_user = (godfir_images_uid | string) ~ ':' ~ (godfir_images_gid | string) -%}
+      {%- for r in godfir_images_audit_info.results -%}
+        {%- if r.images | length == 0 -%}
+          {%- set _ = v.append(r.item ~ ': image not present') -%}
+        {%- else -%}
+          {%- set cfg = r.images[0].Config | default({}, true) -%}
+          {%- if (cfg.User | default('', true)) != want_user -%}
+            {%- set _ = v.append(r.item ~ ': runs as ' ~ (cfg.User | default('root', true)) ~ ', not uid ' ~ want_user) -%}
+          {%- endif -%}
+          {%- if ((cfg.Labels | default({}, true))['com.get-sybers.hardened'] | default('')) != 'true' -%}
+            {%- set _ = v.append(r.item ~ ': missing com.get-sybers.hardened=true label') -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- set ns_tags = godfir_images_audit_host.images | default([])
+            | map(attribute='RepoTags') | select('sequence') | flatten
+            | select('string')
+            | select('match', '^((localhost|[^/]*[.:][^/]*)/)?'
+                              ~ (godfir_images_namespace | regex_escape) ~ '/')
+            | reject('search', '<none>') | list -%}
+      {%- for tag in ns_tags -%}
+        {%- set bare = tag | regex_replace('^(localhost|[^/]*[.:][^/]*)/', '') -%}
+        {%- set repo = bare | regex_replace('@.*$', '') | regex_replace(':[^/]+$', '') -%}
+        {%- if bare not in godfir_images_audit_expected and repo not in godfir_images_audit_allowed_repos -%}
+          {%- set _ = v.append(tag ~ ': unexpected ' ~ godfir_images_namespace
+                ~ '/* image — not a known manifest image (something was added'
+                ~ ' to the namespace that should not be)') -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ v }}
+
+- name: "godfir-images-audit | the namespace audit verdict"
+  ansible.builtin.assert:
+    that:
+      - godfir_images_audit_violations | length == 0
+    fail_msg: >-
+      the {{ godfir_images_namespace }}/* inventory audit failed:
+      {{ godfir_images_audit_violations | join('; ') }}
+    success_msg: >-
+      audited {{ godfir_images_audit_expected | length }} expected images —
+      all present, all hardened, no unexpected {{ godfir_images_namespace }}/* images.
+    quiet: true

@@ -1,0 +1,13 @@
+---
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "converge | build standin + rootctx through godfir_build"
+      ansible.builtin.include_role:
+        name: godfir_build
+      vars:
+        godfir_build_root: "{{ godfir_molecule_root }}"
+        godfir_build_set: [standin, rootctx]
+        godfir_build_src_sha: "{{ godfir_molecule_src }}"
+        godfir_build_release: molecule

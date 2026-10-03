@@ -1,0 +1,22 @@
+---
+profile: production
+
+# contract.yml files, their schema and the test fixtures are DATA with their own gate (conform.sh)
+exclude_paths:
+  - .git/
+  - "*/contract.yml"
+  - "*/test/"
+  - "*/materialise-sets.yml"
+  - hardening/contract.schema.yml
+
+# house task-name prefix "<role>-<stage> | lowercase description"
+skip_list:
+  - name[casing]
+
+# community.docker is declared per collection (ansible_collections/get_sybers/*/galaxy.yml);
+# mocked here so a repo-root lint run resolves it without an install
+mock_modules:
+  - community.docker.docker_host_info
+  - community.docker.docker_image
+  - community.docker.docker_image_build
+  - community.docker.docker_image_info

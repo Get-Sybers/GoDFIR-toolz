@@ -1,0 +1,24 @@
+namespace: get_sybers
+name: godfir_build
+version: 0.1.0
+readme: README.md
+authors:
+  - Get-Sybers
+description: >-
+  Producer collection for the get-sybers DFIR tool images: the godfir_build role
+  and build_images playbook that build and hardening-verify every image in the
+  canonical inventory (images.yml) from its build context and contract.yml. Runs
+  in-repo against the GoDFIR-toolz checkout; consumers do not install it (they
+  pin get_sybers.godfir_run and pull the published images).
+license:
+  - Apache-2.0
+dependencies:
+  community.docker: ">=3.10.3,<5.0.0"
+  # verify/audit delegate to godfir_images (resolved in-repo via collections_path)
+  get_sybers.godfir_run: ">=0.1.0,<1.0.0"
+tags: [dfir, forensics, docker, security, build]
+repository: https://github.com/Get-Sybers/GoDFIR-toolz
+issues: https://github.com/Get-Sybers/GoDFIR-toolz/-/issues
+build_ignore:
+  - .gitignore
+  - "roles/*/molecule"

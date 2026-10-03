@@ -1,0 +1,35 @@
+---
+godfir_build_root: ""
+
+godfir_build_manifest: "{{ lookup('file', godfir_build_tree ~ '/images.yml') | from_yaml }}"
+godfir_build_namespace: "{{ godfir_build_manifest.namespace | default('get-sybers') }}"
+
+godfir_build_set: []
+
+godfir_build_verify_images: []
+
+godfir_build_force: false
+
+godfir_build_uid: 2000
+# gid follows the uid unless explicitly set, so a lone uid override still yields a matched USER
+godfir_build_gid: "{{ godfir_build_uid }}"
+
+godfir_build_src_sha: ""
+godfir_build_release: ""
+
+godfir_build_alias_map: >-
+  {%- set m = {} -%}
+  {%- for e in godfir_build_manifest.images | default([]) -%}
+    {%- set _ = m.update({e.name | lower: e.name}) -%}
+    {%- for a in e.aliases | default([]) -%}
+      {%- set _ = m.update({a | lower: e.name}) -%}
+    {%- endfor -%}
+    {%- for a in e.subtool_aliases | default([]) -%}
+      {%- set _ = m.update({a | lower: e.name}) -%}
+    {%- endfor -%}
+  {%- endfor -%}
+  {{ m }}
+godfir_build_subtool_aliases: >-
+  {{ godfir_build_manifest.images | default([])
+     | map(attribute='subtool_aliases', default=[]) | flatten
+     | map('lower') | list }}

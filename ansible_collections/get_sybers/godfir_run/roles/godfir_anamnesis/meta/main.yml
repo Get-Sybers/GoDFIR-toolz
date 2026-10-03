@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  role_name: godfir_anamnesis
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    The memory lane: memory images -> per-plugin JSONL via the offline anamnesis
+    (MemProcFS) image under the godfir_run confinement skeleton, symbols from a
+    persistent host cache. Takes the memory tree, output root and symbol cache as
+    inputs; evidence discovery is the caller's.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, memory, anamnesis]
+dependencies: []

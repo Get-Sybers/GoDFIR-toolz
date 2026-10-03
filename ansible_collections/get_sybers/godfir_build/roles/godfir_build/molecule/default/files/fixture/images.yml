@@ -1,0 +1,22 @@
+# fixture inventory, shaped exactly like the real root manifest (role README: Testing)
+namespace: get-sybers
+images:
+  - name: standin
+    context: standin
+    dockerfile: Dockerfile
+    aliases: [stalias]
+    env_args: [TESTPIN]
+  - name: rootctx
+    subtool_aliases: [subx]
+  - name: badshell
+    context: badshell
+    dockerfile: Dockerfile
+  - name: nodecl
+    context: nodecl
+    dockerfile: Dockerfile
+unbuildable:
+  vscmount: >-
+    no container for this fixture tool — the real manifest carries the real
+    refusal.
+non_tool_repos:
+  - get-sybers/friendly

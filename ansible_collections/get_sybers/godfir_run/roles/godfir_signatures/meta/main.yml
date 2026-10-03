@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  role_name: godfir_signatures
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    The detection lane: YARA / Suricata / Hayabusa / disk-scan sub-tools of the
+    get-sybers/signatures image over the evidence trees, under the godfir_run
+    confinement skeleton. Declares a run per selected sub-tool and present tree.
+    Takes the evidence-tree paths and output/scratch roots as inputs; evidence
+    discovery is the caller's.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, detection, yara, suricata, hayabusa]
+dependencies: []

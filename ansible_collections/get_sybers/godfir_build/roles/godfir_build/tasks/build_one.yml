@@ -1,0 +1,148 @@
+---
+- name: "godfir-build | inspect the present {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  community.docker.docker_image_info:
+    name: "{{ godfir_build_namespace ~ '/' ~ godfir_build_name }}:latest"
+  register: godfir_build_present
+
+- name: "godfir-build | build the hardened image {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  vars:
+    _img: "{{ godfir_build_manifest.images | selectattr('name', 'equalto', godfir_build_name) | first }}"
+    _env_args: >-
+      {%- set m = {} -%}
+      {%- for a in _img.env_args | default([]) -%}
+        {%- set v = lookup('env', a) -%}
+        {%- if v -%}{%- set _ = m.update({a: v}) -%}{%- endif -%}
+      {%- endfor -%}
+      {{ m }}
+    _want_labels: "{{ {'com.get-sybers.src': godfir_build_src} }}"
+    _have_labels: "{{ (godfir_build_present.images | first | default({})).Config.Labels | default({}, true) }}"
+    _stale: >-
+      {{ godfir_build_present.images | length == 0
+         or (_have_labels | combine(_want_labels)) != _have_labels }}
+  community.docker.docker_image_build:
+    name: "{{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+    tag: latest
+    rebuild: "{{ 'always' if (godfir_build_force | bool or _stale) else 'never' }}"
+    labels: "{{ _want_labels }}"
+    path: "{{ (godfir_build_tree ~ '/' ~ _img.context) if _img.context is defined else godfir_build_tree }}"
+    dockerfile: "{{ _img.dockerfile | default(godfir_build_name ~ '/Dockerfile') }}"
+    args: >-
+      {{ (_img.args | default({}))
+         | combine(_env_args)
+         | combine({'DFIR_UID': godfir_build_uid | string,
+                    'DFIR_GID': godfir_build_gid | string,
+                    'GODFIR_REVISION': godfir_build_src | string,
+                    'GODFIR_RELEASE': godfir_build_rel | string}) }}
+
+- name: "godfir-build | inspect {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  community.docker.docker_image_info:
+    name: "{{ godfir_build_namespace ~ '/' ~ godfir_build_name }}:latest"
+  register: godfir_build_inspect
+
+- name: "godfir-build | remove the replaced image behind {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  community.docker.docker_image:
+    name: "{{ godfir_build_present.images[0].Id }}"
+    state: absent
+    force_absent: true
+  when:
+    - godfir_build_present.images | length > 0
+    - godfir_build_inspect.images | length > 0
+    - godfir_build_present.images[0].Id != godfir_build_inspect.images[0].Id
+
+- name: "godfir-build | assert the static contract on {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_inspect.images | length == 1
+      - godfir_build_inspect.images[0].Config.User == (godfir_build_uid | string) ~ ':' ~ (godfir_build_gid | string)
+      - (godfir_build_inspect.images[0].Config.Labels or {})['com.get-sybers.hardened'] | default('') == 'true'
+    fail_msg: >-
+      {{ godfir_build_namespace ~ '/' ~ godfir_build_name }} fails the static
+      contract (USER {{ godfir_build_uid }}:{{ godfir_build_gid }} +
+      com.get-sybers.hardened label).
+    quiet: true
+
+# __export_only__ is a never-executed command token: docker create works for images without an ENTRYPOINT
+- name: "godfir-build | export the filesystem listing of {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      cid=$(docker create {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}:latest __export_only__)
+      docker export "$cid" | tar -t
+      rc=$?
+      docker rm -f "$cid" >/dev/null
+      exit "$rc"
+  args:
+    executable: /bin/bash
+  register: godfir_build_fs
+  changed_when: false
+
+- name: "godfir-build | assert the filesystem listing is non-empty"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_fs.stdout_lines | length > 0
+    fail_msg: >-
+      the filesystem export of
+      {{ godfir_build_namespace ~ '/' ~ godfir_build_name }} produced no
+      listing — the scan did not run, so the hardening asserts below would
+      prove nothing.
+    quiet: true
+
+- name: "godfir-build | assert the removed surface is absent from {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  ansible.builtin.assert:
+    that:
+      - "'usr/bin/apt-get' not in godfir_build_fs.stdout"
+      - "'usr/bin/dpkg' not in godfir_build_fs.stdout"
+      - "'usr/bin/sudo' not in godfir_build_fs.stdout"
+      - godfir_build_fs.stdout is not search('bin/pip[0-9.]*$', multiline=True)
+      - godfir_build_fs.stdout is not search('/ansible[-/]', multiline=True)
+    fail_msg: >-
+      {{ godfir_build_namespace ~ '/' ~ godfir_build_name }} still ships a
+      removed binary (apt-get/dpkg/sudo/pip) or ansible.
+    quiet: true
+
+- name: "godfir-build | read the /etc/dfir-hardened declaration of {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      cid=$(docker create {{ godfir_build_namespace ~ '/' ~ godfir_build_name }}:latest __export_only__)
+      docker export "$cid" | tar -xO etc/dfir-hardened
+      rc=$?
+      docker rm -f "$cid" >/dev/null
+      exit "$rc"
+  args:
+    executable: /bin/bash
+  register: godfir_build_decl
+  changed_when: false
+  failed_when: false
+
+- name: "godfir-build | assert the image declares its posture"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_decl.rc == 0
+      - godfir_build_decl.stdout | length > 0
+    fail_msg: >-
+      {{ godfir_build_namespace ~ '/' ~ godfir_build_name }} ships no
+      /etc/dfir-hardened declaration — every hardened image must self-declare
+      its posture (the Dockerfiles COPY it; Shape B gets it from harden.yml),
+      or the surface asserts would have nothing to hold it to.
+    quiet: true
+
+- name: "godfir-build | assert no shell where the image declares shell=false"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_fs.stdout is not search('bin/(sh|bash|dash)$', multiline=True)
+    fail_msg: >-
+      {{ godfir_build_namespace ~ '/' ~ godfir_build_name }} declares
+      shell=false in /etc/dfir-hardened but a shell is present.
+    quiet: true
+  when: "'shell=false' in godfir_build_decl.stdout"
+
+- name: "godfir-build | assert no python where the image declares python=false"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_fs.stdout is not search('bin/python3(\.[0-9]+)?$', multiline=True)
+    fail_msg: >-
+      {{ godfir_build_namespace ~ '/' ~ godfir_build_name }} declares
+      python=false in /etc/dfir-hardened but python is present.
+    quiet: true
+  when: "'python=false' in godfir_build_decl.stdout"

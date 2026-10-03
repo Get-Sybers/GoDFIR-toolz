@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: godfir_zeek
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    The Zeek lane: turn a tree of PCAPs into Zeek JSON via the self-orchestrating
+    get-sybers/zeek image, under the godfir_run confinement skeleton. Takes the
+    pcap tree and output root as inputs; evidence discovery is the caller's.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, network, zeek]
+dependencies: []

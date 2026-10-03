@@ -1,0 +1,17 @@
+---
+# The runtime supply-chain gate is one home: get_sybers.godfir_run.godfir_images.
+# godfir_build delegates to it (passing this repo's manifest + run-as knobs) so
+# the producer and the consumer enforce the identical membership + posture gate.
+- name: "godfir-verify | assert the root inventory contract"
+  ansible.builtin.include_tasks: inventory.yml
+
+- name: "godfir-verify | gate the images through godfir_images"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_images
+    tasks_from: verify
+  vars:
+    godfir_images_verify_images: "{{ godfir_build_verify_images }}"
+    godfir_images_namespace: "{{ godfir_build_namespace }}"
+    godfir_images_uid: "{{ godfir_build_uid }}"
+    godfir_images_gid: "{{ godfir_build_gid }}"
+    godfir_images_manifest_path: "{{ godfir_build_tree }}/images.yml"

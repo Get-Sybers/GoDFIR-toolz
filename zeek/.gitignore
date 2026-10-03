@@ -1,0 +1,3 @@
+/zeek-run
+*.test
+.conform-build.log

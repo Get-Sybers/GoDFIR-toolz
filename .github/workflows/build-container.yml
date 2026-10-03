@@ -1,0 +1,71 @@
+name: Build & Push Container
+
+on:
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: "Tool to build (from images.yml)"
+        required: true
+        type: choice
+        options:
+          - signatures
+          - byakugan
+          - zeek
+          - anamnesis
+          - plaso
+          - gowindowlicker
+          - godaemonhunter
+          - gomount
+      tag:
+        description: "Image tag (e.g. v0.2.0, latest)"
+        required: true
+        type: string
+      latest:
+        description: "Also tag as latest"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate tool exists
+        run: |
+          if [ "${{ inputs.tool }}" = "gomount" ]; then
+            test -f gomount/Dockerfile
+          else
+            test -f "${{ inputs.tool }}/Dockerfile"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.tool == 'gomount' && 'gomount' || '.' }}
+          file: ${{ inputs.tool }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/get-sybers/godfir-toolz/${{ inputs.tool }}:${{ inputs.tag }}
+            ${{ inputs.latest && format('ghcr.io/get-sybers/godfir-toolz/{0}:latest', inputs.tool) || '' }}
+          build-args: |
+            GODFIR_REVISION=${{ github.sha }}
+            GODFIR_RELEASE=${{ inputs.tag }}
+          cache-from: type=gha,scope=${{ inputs.tool }}
+          cache-to: type=gha,scope=${{ inputs.tool }},mode=max

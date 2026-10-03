@@ -1,0 +1,93 @@
+---
+# godfir_gowindowlicker: the Windows artefact lane — gowindowlicker's parsers
+# (goevtx, gore, gomft, …) over every host, delegated to godfir_run. A loose
+# event-log folder gets goevtx (one run per host); a disk image is swept ON
+# directly (one lick run per image, GOWINDOWLICKER_IMAGE, the baked gomount
+# pulling artefact sets into /work — nothing exported). Content decides; exits
+# 1/3 tolerated. Evidence discovery (finding images/hosts) is the caller's;
+# this lane takes the discovered item lists.
+- name: "godfir-gowindowlicker | assert inputs"
+  ansible.builtin.assert:
+    that:
+      - godfir_gowindowlicker_out_dir | length > 0
+      - (godfir_gowindowlicker_images | length > 0) or (godfir_gowindowlicker_winevt_hosts | length > 0)
+    fail_msg: >-
+      godfir_gowindowlicker needs godfir_gowindowlicker_out_dir and at least one
+      of godfir_gowindowlicker_images (disk images) or
+      godfir_gowindowlicker_winevt_hosts (loose event-log hosts).
+    quiet: true
+  tags: [always]
+
+- name: "godfir-gowindowlicker | work dir is set when disk images are given"
+  ansible.builtin.assert:
+    that:
+      - godfir_gowindowlicker_work_dir | length > 0
+    fail_msg: "godfir_gowindowlicker needs godfir_gowindowlicker_work_dir when sweeping disk images."
+    quiet: true
+  when: godfir_gowindowlicker_images | length > 0
+  tags: [always]
+
+# freeze role_path-derived paths HERE (role_path inside godfir_run would name the engine)
+- name: "godfir-gowindowlicker | freeze lane-specific task/contract paths"
+  ansible.builtin.set_fact:
+    godfir_gowindowlicker_contract_resolved: "{{ godfir_gowindowlicker_contract }}"
+    godfir_gowindowlicker_gate_extra: "{{ role_path }}/tasks/gate_extra.yml"
+  tags: [always]
+
+# facts persist for the whole play, so the run list is reset before accumulating
+- name: "godfir-gowindowlicker | start from an empty run list"
+  ansible.builtin.set_fact:
+    godfir_gowindowlicker_runs: []
+  tags: [always]
+
+# one goevtx run per loose host: <out_dir>/goevtx/<host>/<log>/goevtx.jsonl
+- name: "godfir-gowindowlicker | goevtx over each loose event-log host"
+  ansible.builtin.set_fact:
+    godfir_gowindowlicker_runs: >-
+      {{ godfir_gowindowlicker_runs + [{
+           'name': 'goevtx:' ~ (item | basename),
+           'contract': godfir_gowindowlicker_contract_resolved,
+           'image': godfir_gowindowlicker_image,
+           'subtool': 'goevtx',
+           'env': {'GOEVTX_FORCE': godfir_gowindowlicker_force | bool | ternary('1', '0')},
+           'mounts': [{'host': item, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_gowindowlicker_out_dir ~ '/goevtx/' ~ (item | basename), 'path': '/output', 'mode': 'rw'}],
+         }] }}
+  loop: "{{ godfir_gowindowlicker_winevt_hosts | sort }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  tags: [always]
+
+# one sweep run per disk image, ON the image: the tree read-only at /input, the
+# lane's output root at /output (the sweep writes the host-centric tree itself),
+# and a disk-backed scratch at /work for the artefact sets it pulls
+- name: "godfir-gowindowlicker | every parser ON each disk image"
+  ansible.builtin.set_fact:
+    godfir_gowindowlicker_runs: >-
+      {{ godfir_gowindowlicker_runs + [{
+           'name': 'lick:' ~ item.name,
+           'contract': godfir_gowindowlicker_contract_resolved,
+           'image': godfir_gowindowlicker_image,
+           'subtool': 'lick',
+           'env': {'GOWINDOWLICKER_IMAGE': item.rel,
+                   'GOWINDOWLICKER_FORCE': godfir_gowindowlicker_force | bool | ternary('1', '0')},
+           'mounts': [{'host': item.tree, 'path': '/input', 'mode': 'ro'},
+                      {'host': godfir_gowindowlicker_out_dir, 'path': '/output', 'mode': 'rw'},
+                      {'host': godfir_gowindowlicker_work_dir ~ '/' ~ item.name, 'path': '/work', 'mode': 'rw'}],
+         }] }}
+  loop: "{{ godfir_gowindowlicker_images | sort(attribute='name') }}"
+  loop_control:
+    label: "lick:{{ item.name }}"
+  tags: [always]
+
+- name: "godfir-gowindowlicker | run the shared tool-lane skeleton"
+  ansible.builtin.include_role:
+    name: get_sybers.godfir_run.godfir_run
+  vars:
+    godfir_run_name: gowindowlicker
+    godfir_run_runs: "{{ godfir_gowindowlicker_runs }}"
+    godfir_run_verify_dir: "{{ godfir_gowindowlicker_out_dir }}"
+    godfir_run_verify_glob: "*.jsonl"
+    godfir_run_require_no_failures: false
+    godfir_run_gate_extra: "{{ godfir_gowindowlicker_gate_extra }}"
+  tags: [always]

@@ -1,0 +1,66 @@
+---
+# The negatives: verify refuses an un-hardened known image (posture) and a
+# namespace ref the manifest does not know (membership); audit detects the
+# un-hardened image on the host.
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  vars:
+    molecule_manifest: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/images.yml"
+  tasks:
+    - name: "molecule-verify | verify refuses the un-hardened image (posture)"
+      block:
+        - name: "molecule-verify | posture gate on the bad image"
+          ansible.builtin.include_role:
+            name: godfir_images
+            tasks_from: verify
+          vars:
+            godfir_images_manifest_path: "{{ molecule_manifest }}"
+            godfir_images_verify_images: [get-sybers/molecule-bad:latest]
+        - name: "molecule-verify | the bad image was accepted — that is the failure"
+          ansible.builtin.fail: {msg: "ACCEPTED an un-hardened image"}
+      rescue:
+        - name: "molecule-verify | the posture refusal names the offender"
+          vars:
+            _msgs: >-
+              {{ (ansible_failed_result.results | default([]) | map(attribute='msg') | list
+                  + [ansible_failed_result.msg | default('')]) | join(' ') }}
+          ansible.builtin.assert:
+            that: ["'get-sybers/molecule-bad:latest' in _msgs"]
+            fail_msg: "expected a posture refusal naming molecule-bad, got: {{ _msgs }}"
+            quiet: true
+
+    - name: "molecule-verify | verify refuses an unknown namespace ref (membership)"
+      block:
+        - name: "molecule-verify | membership gate on an unknown ref"
+          ansible.builtin.include_role:
+            name: godfir_images
+            tasks_from: verify
+          vars:
+            godfir_images_manifest_path: "{{ molecule_manifest }}"
+            godfir_images_verify_images: [get-sybers/molecule-unknown:latest]
+        - name: "molecule-verify | the unknown ref was accepted — that is the failure"
+          ansible.builtin.fail: {msg: "ACCEPTED an unknown namespace ref"}
+      rescue:
+        - name: "molecule-verify | the membership refusal names the offender"
+          ansible.builtin.assert:
+            that: ["'get-sybers/molecule-unknown' in (ansible_failed_result.msg | default(''))"]
+            fail_msg: "expected a membership refusal naming molecule-unknown, got: {{ ansible_failed_result.msg | default('') }}"
+            quiet: true
+
+    - name: "molecule-verify | audit detects the un-hardened image on the host"
+      block:
+        - name: "molecule-verify | run the namespace audit"
+          ansible.builtin.include_role:
+            name: godfir_images
+            tasks_from: audit
+          vars:
+            godfir_images_manifest_path: "{{ molecule_manifest }}"
+        - name: "molecule-verify | the audit passed — that is the failure"
+          ansible.builtin.fail: {msg: "AUDIT PASSED with an un-hardened image present"}
+      rescue:
+        - name: "molecule-verify | the audit names the violation"
+          ansible.builtin.assert:
+            that: ["'molecule-bad' in (ansible_failed_result.msg | default(''))"]
+            fail_msg: "expected the audit to flag molecule-bad, got: {{ ansible_failed_result.msg | default('') }}"
+            quiet: true

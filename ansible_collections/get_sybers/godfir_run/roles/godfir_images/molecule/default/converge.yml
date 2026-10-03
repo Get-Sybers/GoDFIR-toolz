@@ -1,0 +1,45 @@
+---
+# The positives: verify accepts the hardened, KNOWN image; a non-namespace ref is
+# ignored by the scope; ensure_present is a no-op when the image is present.
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    molecule_manifest: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/images.yml"
+  tasks:
+    - name: "converge | verify accepts the hardened, known image"
+      ansible.builtin.include_role:
+        name: godfir_images
+        tasks_from: verify
+      vars:
+        godfir_images_manifest_path: "{{ molecule_manifest }}"
+        godfir_images_verify_images: [get-sybers/molecule-good:latest]
+
+    - name: "converge | a non-namespace ref is out of scope"
+      ansible.builtin.include_role:
+        name: godfir_images
+        tasks_from: verify
+      vars:
+        godfir_images_manifest_path: "{{ molecule_manifest }}"
+        godfir_images_verify_images: [docker.io/library/alpine:latest]
+
+    - name: "converge | the non-namespace ref was ignored (empty scope)"
+      ansible.builtin.assert:
+        that:
+          - godfir_images_verify_scope | length == 0
+        fail_msg: "a non-namespace ref leaked into the posture scope: {{ godfir_images_verify_scope }}"
+        quiet: true
+
+    - name: "converge | ensure_present is a no-op when the image is present"
+      ansible.builtin.include_role:
+        name: godfir_images
+        tasks_from: ensure_present
+      vars:
+        godfir_images_required: [get-sybers/molecule-good:latest]
+
+    - name: "converge | nothing was pulled (already present)"
+      ansible.builtin.assert:
+        that:
+          - godfir_images_to_pull | length == 0
+        fail_msg: "ensure_present would pull an already-present image: {{ godfir_images_to_pull }}"
+        quiet: true

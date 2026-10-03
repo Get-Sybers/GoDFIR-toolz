@@ -1,0 +1,30 @@
+---
+# offline scenario: prerun + dependency off (community.docker is the runner's install)
+prerun: false
+dependency:
+  name: galaxy
+  enabled: false
+driver:
+  name: default
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../../../../..:${ANSIBLE_COLLECTIONS_PATH}"
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/..
+    TESTPIN: pin123
+  inventory:
+    host_vars:
+      localhost:
+        ansible_connection: local
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+        godfir_molecule_root: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/fixture"
+        godfir_molecule_src: molecule-src-a
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+    cleanup: cleanup.yml
+verifier:
+  name: ansible

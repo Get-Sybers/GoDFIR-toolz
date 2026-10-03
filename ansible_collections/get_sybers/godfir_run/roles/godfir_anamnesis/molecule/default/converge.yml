@@ -1,0 +1,35 @@
+---
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+  vars:
+    m_mem: /tmp/godfir_anamnesis_molecule/mem
+    m_out: /tmp/godfir_anamnesis_molecule/out
+    m_sym: /tmp/godfir_anamnesis_molecule/symbols
+  tasks:
+    - name: "converge | the mount trees exist"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ m_mem }}", "{{ m_out }}", "{{ m_sym }}"]
+
+    - name: "converge | build the anamnesis run spec"
+      ansible.builtin.include_role:
+        name: godfir_anamnesis
+      vars:
+        godfir_anamnesis_memory_dir: "{{ m_mem }}"
+        godfir_anamnesis_out_dir: "{{ m_out }}"
+        godfir_anamnesis_symbols_dir: "{{ m_sym }}"
+
+    - name: "converge | the built argv dispatches anamnesis with the symbol cache mount"
+      ansible.builtin.assert:
+        that:
+          - godfir_run_runs_built | length == 1
+          - godfir_run_runs_built[0].image == 'get-sybers/anamnesis:latest'
+          - "'--read-only' in godfir_run_runs_built[0].argv"
+          - godfir_run_runs_built[0].argv | select('search', m_mem ~ ':/input:ro') | list | length == 1
+          - godfir_run_runs_built[0].argv | select('search', m_sym ~ ':/opt/anamnesis/lib/Symbols:rw') | list | length == 1
+          - "'ANAMNESIS_INPUT_DIR=/input' in godfir_run_runs_built[0].argv"
+        fail_msg: "built anamnesis argv: {{ godfir_run_runs_built | map(attribute='argv') | list }}"
+        quiet: true

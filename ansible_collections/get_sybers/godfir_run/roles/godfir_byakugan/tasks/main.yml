@@ -1,0 +1,27 @@
+---
+# godfir_byakugan: materialise/verify/timeline the MITRE CAR. The caller picks
+# the action; each is one confined run of the multi-tool get-sybers/byakugan
+# image, driven from its contract by the godfir_run skeleton. The engine's own
+# idempotence (a source whose car_relationships.jsonl exists is skipped unless
+# BYAKUGAN_BUILD_FORCE) lives in the engine, not a task's when:.
+- name: "godfir-byakugan | assert inputs"
+  ansible.builtin.assert:
+    that:
+      - godfir_byakugan_action in ['build', 'verify', 'timeline']
+      - godfir_byakugan_dir | length > 0
+      - (godfir_byakugan_action != 'build') or (godfir_byakugan_processed_dir | length > 0)
+    fail_msg: >-
+      godfir_byakugan needs godfir_byakugan_action (build|verify|timeline) and a
+      non-empty godfir_byakugan_dir (build also needs godfir_byakugan_processed_dir).
+    quiet: true
+  tags: [always]
+
+# freeze role_path-derived paths HERE (role_path inside godfir_run would name the engine)
+- name: "godfir-byakugan | freeze the shipped contract path"
+  ansible.builtin.set_fact:
+    godfir_byakugan_contract_resolved: "{{ godfir_byakugan_contract }}"
+  tags: [always]
+
+- name: "godfir-byakugan | run the CAR action | {{ godfir_byakugan_action }}"
+  ansible.builtin.include_tasks: "{{ godfir_byakugan_action }}.yml"
+  tags: [always]

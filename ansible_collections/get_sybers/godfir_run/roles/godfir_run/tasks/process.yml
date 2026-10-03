@@ -1,0 +1,94 @@
+---
+# one guarded unit: the rescue surfaces each run's summary + stderr instead of a raw traceback
+- name: "process | run, verify and gate | {{ godfir_run_name }}"
+  block:
+    # the tools write as the image's non-root uid into their bind-mounted output
+    - name: "process | ensure each read-write mount is container-writable | {{ godfir_run_name }}"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0777"
+      loop: >-
+        {{ godfir_run_runs_built | map(attribute='mounts') | flatten
+           | selectattr('mode', 'equalto', 'rw') | map(attribute='host') | unique | list }}
+
+    # no self-judgement here: the verdict is taken over the registered LIST below,
+    # so no condition ever reads a single .rc/.stdout off a looped register
+    - name: "process | run the tool container | {{ godfir_run_name }}"
+      ansible.builtin.command:
+        argv: "{{ item.argv }}"
+      loop: "{{ godfir_run_runs_built }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: godfir_run_results
+      changed_when: false
+      failed_when: false
+
+    - name: "process | judge each run by the contract exit table | {{ godfir_run_name }}"
+      ansible.builtin.assert:
+        that:
+          - item.rc | int in godfir_run_exit_ok
+        fail_msg: >-
+          {{ godfir_run_name }}/{{ item.item.name }} exited {{ item.rc }} —
+          not in the contract's exit table {{ godfir_run_exit_ok }}
+          (2 = config error). stderr: {{ item.stderr | default('') | trim | truncate(800) }}
+        quiet: true
+      loop: "{{ godfir_run_results.results }}"
+      loop_control:
+        label: "{{ item.item.name }} rc={{ item.rc }}"
+      when: godfir_run_results is not skipped
+
+    - name: "process | collect the summary lines | {{ godfir_run_name }}"
+      ansible.builtin.set_fact:
+        godfir_run_summaries: "{{ godfir_run_results.results | map(attribute='stdout') | map('from_json') | list }}"
+      changed_when: godfir_run_summaries | map(attribute='processed') | map('int') | sum > 0
+      when: godfir_run_results is not skipped
+
+    - name: "process | verify output on disk | {{ godfir_run_name }}"
+      ansible.builtin.find:
+        paths: "{{ godfir_run_verify_dir }}"
+        patterns: "{{ godfir_run_verify_glob }}"
+        recurse: true
+      register: godfir_run_verify
+      when: godfir_run_verify_glob | length > 0
+
+    - name: "process | assert no tool failures | {{ godfir_run_name }}"
+      when:
+        - godfir_run_results is not skipped
+        - godfir_run_require_no_failures | bool
+      ansible.builtin.assert:
+        that:
+          - godfir_run_summaries | map(attribute='failed') | map('int') | sum == 0
+        fail_msg: >-
+          {{ godfir_run_name }} reported item failures — see the summaries above.
+        quiet: true
+
+    - name: "process | output gate | {{ godfir_run_name }}"
+      when:
+        - godfir_run_results is not skipped
+        - godfir_run_verify_glob | length > 0
+        - godfir_run_gate_extra | length == 0
+      ansible.builtin.assert:
+        that:
+          - >-
+            godfir_run_verify.matched | int > 0
+            or (godfir_run_summaries | map(attribute='inputs') | map('int') | sum) == 0
+        fail_msg: >-
+          {{ godfir_run_name }} produced no output though inputs were present.
+        quiet: true
+
+    - name: "process | lane output gate | {{ godfir_run_name }}"
+      ansible.builtin.include_tasks: "{{ godfir_run_gate_extra }}"
+      when:
+        - godfir_run_results is not skipped
+        - godfir_run_gate_extra | length > 0
+  rescue:
+    - name: "process | surface tool diagnostics | {{ godfir_run_name }}"
+      ansible.builtin.fail:
+        msg: >-
+          godfir-run/{{ godfir_run_name }} processing failed.
+          {% for r in godfir_run_results.results | default([]) %}
+          [{{ r.item.name }} rc={{ r.rc | default('?') }}]
+          summary: {{ r.stdout | default('(no summary emitted)') | trim | truncate(600) }}
+          stderr: {{ r.stderr | default('') | trim | truncate(800) }}
+          {% endfor %}

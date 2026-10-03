@@ -1,0 +1,6 @@
+# molecule fixture manifest — the two FROM-scratch stand-ins the scenario builds
+namespace: get-sybers
+images:
+  - name: molecule-good
+  - name: molecule-bad
+non_tool_repos: []

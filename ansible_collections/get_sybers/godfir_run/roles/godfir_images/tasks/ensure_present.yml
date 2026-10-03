@@ -1,0 +1,49 @@
+---
+# Idempotent, self-healing pull gate: read the local image facts, pull only the
+# required refs that are missing (or all, under force), and tag each pulled
+# registry image to the local get-sybers/<tool>:latest name the contracts use.
+- name: "godfir-images | read local facts for the required images"
+  community.docker.docker_image_info:
+    name: "{{ godfir_images_required }}"
+  register: godfir_images_present_info
+  when: godfir_images_required | length > 0
+
+- name: "godfir-images | resolve the images to pull"
+  ansible.builtin.set_fact:
+    godfir_images_to_pull: >-
+      {{ [] if godfir_images_required | length == 0
+         else (godfir_images_required if godfir_images_force | bool
+               else (godfir_images_required
+                     | difference(godfir_images_present_info.images | default([])
+                                  | map(attribute='RepoTags') | flatten
+                                  | select('string') | unique | list))) }}
+
+- name: "godfir-images | pull each missing image from the registry"
+  vars:
+    _tool: >-
+      {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
+              | regex_replace('[@:].*$', '') }}
+    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ godfir_images_tag }}"
+  community.docker.docker_image_pull:
+    name: "{{ _registry_ref }}"
+    pull: "{{ 'always' if godfir_images_force | bool else 'not_present' }}"
+  loop: "{{ godfir_images_to_pull | default([]) }}"
+  loop_control:
+    label: "{{ item }} <- {{ _registry_ref }}"
+  register: godfir_images_pull
+  retries: 3
+  delay: 5
+  until: godfir_images_pull is not failed
+
+- name: "godfir-images | tag each pulled registry image to its local ref"
+  vars:
+    _tool: >-
+      {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
+              | regex_replace('[@:].*$', '') }}
+    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ godfir_images_tag }}"
+  community.docker.docker_image_tag:
+    name: "{{ _registry_ref }}"
+    repository: ["{{ item }}"]
+  loop: "{{ godfir_images_to_pull | default([]) }}"
+  loop_control:
+    label: "{{ _registry_ref }} -> {{ item }}"

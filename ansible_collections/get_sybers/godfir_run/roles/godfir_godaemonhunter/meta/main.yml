@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  role_name: godfir_godaemonhunter
+  namespace: get_sybers
+  author: Get-Sybers
+  description: >-
+    The Linux daemon lane: godaemonhunter's layered matrix (Layer 1 knowledge
+    store, then Layer 2 daemon parsers enriched by it) over loose hosts, and the
+    hunt run directly ON disk images, under the godfir_run confinement skeleton.
+    Takes caller-discovered image and host item lists; evidence discovery is the
+    caller's.
+  company: Get-Sybers
+  license: Apache-2.0
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+  galaxy_tags: [dfir, forensics, linux, godaemonhunter]
+dependencies: []

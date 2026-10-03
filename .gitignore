@@ -1,0 +1,22 @@
+*.zip
+__pycache__/
+
+# build-all.sh's per-checkout controller venv (the pins live in the script)
+.venv/
+# ansible-lint / ansible-galaxy local caches; build-all.sh's in-tree
+# community.docker install
+.ansible/
+
+# Go build artifacts — binaries land in their module dir (named after it).
+# Compilation is `go build ./...` (checks) or `make build`; outputs are never committed.
+/pinfo/pinfo
+/godaemonhunter/godaemonhunter
+/gomount/gomount
+/gowindowlicker/gowindowlicker
+/signatures/signatures
+/signatures/goyara/goyara
+/zeek/zeek
+# ansible-galaxy install cache stubs (a collection install run from the repo root
+# lands deps in ansible_collections/ because collections_path leads with `.`)
+ansible_collections/*.info/
+ansible_collections/community/

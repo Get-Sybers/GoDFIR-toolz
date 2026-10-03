@@ -1,0 +1,3 @@
+/signatures-entry
+*.test
+.conform-build.log

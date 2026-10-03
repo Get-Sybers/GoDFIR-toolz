@@ -1,0 +1,54 @@
+---
+argument_specs:
+  main:
+    short_description: "Run the get-sybers/plaso image (log2timeline + psort) over source trees."
+    description:
+      - >-
+        Declare one log2timeline run per present source tree (the primary input
+        plus the optional VM and loose trees) and a final psort render, then
+        delegate to godfir_run. Per-image failures are tolerated (gate on output).
+        Evidence discovery is the caller's.
+    options:
+      godfir_plaso_input_dir:
+        type: str
+        required: true
+        description: "The primary source tree (e.g. disk images), mounted read-only at /input."
+      godfir_plaso_out_dir:
+        type: str
+        required: true
+        description: "The output root (holds <host>.plaso + timeline.jsonl), read-write."
+      godfir_plaso_vm_dir:
+        type: str
+        required: false
+        description: "Optional VM-export tree; processed when it exists."
+      godfir_plaso_loose_dir:
+        type: str
+        required: false
+        description: "Optional loose-artefact tree; processed when it exists."
+      godfir_plaso_contract:
+        type: str
+        required: false
+        description: "The tool contract (default: the copy shipped with the lane)."
+      godfir_plaso_image:
+        type: str
+        required: false
+        description: "Image ref overriding the contract's image (e.g. a digest pin)."
+      godfir_plaso_vss:
+        type: bool
+        required: false
+        default: true
+        description: "Process every VSS store of an image."
+      godfir_plaso_parsers:
+        type: str
+        required: false
+        description: "Parser preset/list; empty = plaso's default."
+      godfir_plaso_output_format:
+        type: str
+        required: false
+        default: json_line
+        description: "psort output format (json_line renders one event per line)."
+      godfir_plaso_force:
+        type: bool
+        required: false
+        default: false
+        description: "Reprocess sources that already have valid output."

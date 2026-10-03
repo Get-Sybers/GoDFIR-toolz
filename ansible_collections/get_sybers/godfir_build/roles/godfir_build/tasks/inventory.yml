@@ -1,0 +1,30 @@
+---
+- name: "godfir-build | normalise the tree (empty root = the repo checkout)"
+  ansible.builtin.set_fact:
+    # Native layout (ansible-standards §1): this role lives at
+    #   <repo>/ansible_collections/get_sybers/godfir_build/roles/godfir_build
+    # so the repo root — where images.yml, hardening/ and every build context
+    # live — is role_path's fifth parent. build-all.sh and molecule pass
+    # godfir_build_root explicitly; this default serves only a direct
+    # `ansible-playbook get_sybers.godfir_build.build_images` from the checkout.
+    godfir_build_tree: >-
+      {{ (godfir_build_root | default('', true))
+         or (role_path | dirname | dirname | dirname | dirname | dirname) }}
+
+- name: "godfir-build | stat the root inventory (images.yml)"
+  ansible.builtin.stat:
+    path: "{{ godfir_build_tree }}/images.yml"
+  register: godfir_build_manifest_stat
+
+# ordered conditions: the strict manifest lookup only parses once the file exists
+- name: "godfir-build | the inventory is at the root and declares images"
+  ansible.builtin.assert:
+    that:
+      - godfir_build_manifest_stat.stat.exists
+      - godfir_build_manifest.images | default([]) | length > 0
+    fail_msg: >-
+      {{ godfir_build_tree }}/images.yml
+      {{ 'declares no images' if godfir_build_manifest_stat.stat.exists
+         else 'does not exist' }} — the inventory lives at the repo root by
+      contract, so this root is wrong or the checkout is incomplete.
+    quiet: true
