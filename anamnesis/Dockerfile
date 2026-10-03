@@ -24,7 +24,10 @@ ARG TOOL_VERSION=2.0.0
 ARG GODFIR_REVISION=unknown
 ARG GODFIR_RELEASE=dev
 
-FROM golang:${GO_VERSION}-alpine AS build
+# glibc builder, NOT alpine: purego's cgo-free dlopen still links libc, so the
+# binary carries a dynamic loader reference — built on musl it cannot exec on
+# the trixie (glibc) runtime rootfs
+FROM golang:${GO_VERSION}-trixie AS build
 ARG ANAMNESIS_REF
 ENV GOTOOLCHAIN=auto CGO_ENABLED=0
 RUN go install -trimpath -ldflags='-s -w' -tags memprocfs \
