@@ -16,20 +16,6 @@ on:
           - gowindowlicker
           - godaemonhunter
           - gomount
-      bump:
-        description: >-
-          Version to release: 'release' ships the Dockerfile's pinned
-          GODFIR_RELEASE as-is; patch = rebuild/fix, no interface change;
-          minor = backwards-compatible capability; major = breaking change
-          to the image's runtime contract (semver, §31)
-        required: true
-        type: choice
-        default: release
-        options:
-          - release
-          - patch
-          - minor
-          - major
       latest:
         description: "Also tag as latest"
         required: false
@@ -50,39 +36,27 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # the build needs no writable token in the work tree
           persist-credentials: false
 
-      # the release version derives from the Dockerfile's pinned
-      # GODFIR_RELEASE — the get-sybers image release, never a typed version.
-      # 'bump' increments it per semver; 'release' ships the pin unchanged.
+      # the release version IS the Dockerfile's pinned GODFIR_RELEASE: bumped
+      # in the PR that changes the image (semver, §31 — breaking: major,
+      # feat: minor, fix/chore: patch), reviewed there, and only shipped here.
+      # Never a workflow input.
       - name: Resolve release version
         id: ver
         env:
           TOOL: ${{ inputs.tool }}
-          BUMP: ${{ inputs.bump }}
         run: |
           test -f "$TOOL/Dockerfile"
-          PINNED="$(sed -nE 's/^ARG GODFIR_RELEASE=//p' "$TOOL/Dockerfile" | head -n 1)"
-          echo "$PINNED" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-            || { echo "GODFIR_RELEASE in $TOOL/Dockerfile must be a pinned vX.Y.Z (got '$PINNED')" >&2; exit 1; }
-          IFS=. read -r MA MI PA <<EOF
-          ${PINNED#v}
-          EOF
-          case "$BUMP" in
-            release) VERSION="$PINNED" ;;
-            patch)   VERSION="v${MA}.${MI}.$((PA + 1))" ;;
-            minor)   VERSION="v${MA}.$((MI + 1)).0" ;;
-            major)   VERSION="v$((MA + 1)).0.0" ;;
-            *) echo "unknown bump '$BUMP'" >&2; exit 1 ;;
-          esac
+          VERSION="$(sed -nE 's/^ARG GODFIR_RELEASE=//p' "$TOOL/Dockerfile" | head -n 1)"
+          echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            || { echo "GODFIR_RELEASE in $TOOL/Dockerfile must be a pinned vX.Y.Z (got '$VERSION')" >&2; exit 1; }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $TOOL as :$VERSION ($BUMP from pinned $PINNED)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Releasing $TOOL as :$VERSION" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -94,14 +68,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # a released tag is immutable: refuse to overwrite one that exists
+      # a released tag is immutable. If the image changed on main without its
+      # pin being bumped, this is where the release fails — bump the pin in a
+      # PR first, never re-ship an existing version.
       - name: Refuse to overwrite an existing release
         env:
           IMAGE: ghcr.io/get-sybers/godfir-toolz/${{ inputs.tool }}
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           if docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
-            echo "$IMAGE:$VERSION already exists — pick a bump instead of re-releasing" >&2
+            echo "$IMAGE:$VERSION already exists — bump GODFIR_RELEASE in a PR before releasing" >&2
             exit 1
           fi
 
@@ -116,35 +92,5 @@ jobs:
             ${{ inputs.latest && format('ghcr.io/get-sybers/godfir-toolz/{0}:latest', inputs.tool) || '' }}
           build-args: |
             GODFIR_REVISION=${{ github.sha }}
-            GODFIR_RELEASE=${{ steps.ver.outputs.version }}
           cache-from: type=gha,scope=${{ inputs.tool }}
           cache-to: type=gha,scope=${{ inputs.tool }},mode=max
-
-  # a bumped release updates the Dockerfile pin through a normal PR, so the
-  # pin in main always names the latest released version — no drift
-  record-bump:
-    needs: build
-    if: inputs.bump != 'release'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Open pin-update PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TOOL: ${{ inputs.tool }}
-          VERSION: ${{ needs.build.outputs.version }}
-        run: |
-          BRANCH="release/${TOOL}-${VERSION}"
-          sed -i "s|^ARG GODFIR_RELEASE=.*|ARG GODFIR_RELEASE=${VERSION}|" "$TOOL/Dockerfile"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
-          git commit -am "chore: record ${TOOL} release ${VERSION} in its Dockerfile pin"
-          git push -u origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" \
-            --title "chore: record ${TOOL} release ${VERSION}" \
-            --body "ghcr.io/get-sybers/godfir-toolz/${TOOL}:${VERSION} was released by run ${{ github.run_id }} (bump: ${{ inputs.bump }}). This records the released version as the Dockerfile's GODFIR_RELEASE pin so the pin in main always names the latest release."
