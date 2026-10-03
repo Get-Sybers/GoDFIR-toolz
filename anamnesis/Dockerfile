@@ -22,7 +22,9 @@ ARG DFIR_GID=2000
 # stays v1.x because go.mod carries no /v2 major suffix
 ARG TOOL_VERSION=2.0.0
 ARG GODFIR_REVISION=unknown
-ARG GODFIR_RELEASE=dev
+# the get-sybers image release this Dockerfile ships as: the ONE version the
+# workflow tags the pushed container with (synchronised across images, §31)
+ARG GODFIR_RELEASE=v0.2.0
 
 FROM golang:${GO_VERSION}-alpine AS build
 ARG ANAMNESIS_REF

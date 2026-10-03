@@ -15,7 +15,9 @@ ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/Byakugan
 ARG BYAKUGAN_REF=9c73252a1c47e05d7b1baf01323626ae9be198ce
 ARG TOOL_VERSION=0.4.0
 ARG GODFIR_REVISION=unknown
-ARG GODFIR_RELEASE=dev
+# the get-sybers image release this Dockerfile ships as: the ONE version the
+# workflow tags the pushed container with (synchronised across images, §31)
+ARG GODFIR_RELEASE=v0.2.0
 
 # stdlib-only Go → static binary; GOTOOLCHAIN=local keeps the build offline.
 # The clone is RECURSIVE: the engine rebuilds its object model from the pinned
