@@ -1,22 +1,25 @@
 # syntax=docker/dockerfile:1
-# get-sybers/plaso — Plaso at a pinned PyPI release (libyal built from source)
+# get-sybers/plaso — Plaso at a pinned upstream git tag (libyal built from source)
 # behind the plaso-entry dispatcher. Shape B; declared deviations python=true,
 # shell=true (sh/dash for the console-script wrappers; bash removed).
 # Dispatch semantics, env blocks and run docs: README.md.
 ARG BASE=python:3.14-slim
-ARG PLASO_VERSION=20260720
+ARG PLASO_VERSION=20260928
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.1
+ARG GODFIR_RELEASE=v0.3.0
 
 FROM ${BASE} AS wheels
 ARG PLASO_VERSION
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends build-essential pkg-config \
-        zlib1g-dev libssl-dev libfuse3-dev; \
-    pip wheel --no-cache-dir --wheel-dir /wheels "plaso==${PLASO_VERSION}"
+        zlib1g-dev libssl-dev libfuse3-dev git; \
+    # the upstream git tag, not PyPI: upstream tags (20260928) run ahead of
+    # the PyPI release train; the tag is the pin, dependencies still resolve
+    # from PyPI as wheels
+    pip wheel --no-cache-dir --wheel-dir /wheels "plaso @ git+https://github.com/log2timeline/plaso@${PLASO_VERSION}"
 
 FROM ${BASE} AS hardened
 ARG DFIR_UID=2000
@@ -24,12 +27,12 @@ ARG DFIR_GID=2000
 ARG PLASO_VERSION
 COPY --from=wheels /wheels /wheels
 RUN set -eux; \
-    pip install --no-cache-dir --no-index --find-links /wheels "plaso==${PLASO_VERSION}"; \
+    pip install --no-cache-dir --no-index --find-links /wheels plaso; \
     rm -rf /wheels; \
     ln -s /usr/local/bin/log2timeline /usr/local/bin/log2timeline.py; \
     ln -s /usr/local/bin/psort /usr/local/bin/psort.py; \
     ln -s /usr/local/bin/image_export /usr/local/bin/image_export.py; \
-    printf 'plaso %s (pypi, libyal built from source)\n' "${PLASO_VERSION}" > /etc/dxdfir-plaso-version
+    printf 'plaso %s (upstream git tag, libyal built from source)\n' "${PLASO_VERSION}" > /etc/dxdfir-plaso-version
 # modes pinned below, not inherited: the build context's umask varies and uid 2000 must read these
 COPY plaso/psort_wrapper.py /opt/dxdfir/psort_wrapper.py
 COPY plaso/plaso-entry.py /opt/dxdfir/plaso-entry.py
@@ -64,7 +67,7 @@ ARG GODFIR_RELEASE
 USER ${DFIR_UID}:${DFIR_GID}
 ENTRYPOINT ["python3", "/opt/dxdfir/plaso-entry.py"]
 LABEL org.opencontainers.image.title="get-sybers/plaso" \
-      org.opencontainers.image.description="Plaso (pinned PyPI, libyal from source) behind a multi-tool dispatcher: plaso-entry log2timeline|psort|image_export self-orchestrates that sub-tool from its env block, one output folder per item, one JSON summary line. Hardened: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid, runs as uid 2000; python and sh kept (declared)." \
+      org.opencontainers.image.description="Plaso (pinned upstream git tag, libyal from source) behind a multi-tool dispatcher: plaso-entry log2timeline|psort|image_export self-orchestrates that sub-tool from its env block, one output folder per item, one JSON summary line. Hardened: uid0 renamed+locked, no ansible/apt/pip/sudo/setuid, runs as uid 2000; python and sh kept (declared)." \
       org.opencontainers.image.source="https://github.com/Get-Sybers/GoDFIR-toolz" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${PLASO_VERSION}" \

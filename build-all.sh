@@ -23,7 +23,7 @@
 #                                 installed only when it does not already
 #                                 resolve, put on ANSIBLE_COLLECTIONS_PATH for
 #                                 the run (never written to ansible.cfg).
-# It then preflights what it cannot install — python3 >= 3.11 with the venv
+# It then preflights what it cannot install — python3 >= 3.12 with the venv
 # module, the docker CLI, a daemon this user may talk to, BuildKit — and
 # names the fix on every failure. A host provisioned once builds offline.
 #
@@ -58,11 +58,11 @@ cd "$REPO_ROOT"
 # The controller layer, an exact lock (ansible-core itself, the docker SDK +
 # requests that community.docker's modules import on the controller, and
 # their resolution). Regenerate after a deliberate bump on the OLDEST python
-# supported (3.11 — ansible-core 2.19.x installs on 3.11 through 3.13):
+# supported (3.12 — ansible-core 2.21.x installs on 3.12 through 3.14):
 #   python3 -m venv /tmp/lock && /tmp/lock/bin/pip install ansible-core requests docker PyYAML \
 #     && /tmp/lock/bin/pip freeze
 PIP_LOCK='
-ansible-core==2.19.13
+ansible-core==2.21.4
 certifi==2026.7.22
 cffi==2.1.1
 charset-normalizer==3.5.2
@@ -124,8 +124,8 @@ fi
 # apt names are hints: the script never escalates and never touches the system.
 command -v python3 >/dev/null 2>&1 \
     || die "python3 is required (the controller runs ansible)." "Debian/Ubuntu: sudo apt-get install python3 python3-venv"
-python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' \
-    || die "python3 >= 3.11 is required by the pinned ansible-core ($(python3 --version 2>&1))."
+python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)' \
+    || die "python3 >= 3.12 is required by the pinned ansible-core ($(python3 --version 2>&1))."
 python3 -c 'import venv, ensurepip' 2>/dev/null \
     || die "python3's venv module is incomplete (no ensurepip)." "Debian/Ubuntu: sudo apt-get install python3-venv"
 command -v docker >/dev/null 2>&1 \
