@@ -116,8 +116,9 @@ the canonical `hardening/harden.yml` directly — no synced copy.
 
 **`images.yml`** at the repo root is the single source of truth for every
 image this repository builds — name, build context, dockerfile, build args,
-aliases and the engine-pin markers — plus the `get-sybers/*` namespace's
-known non-tool repos. `conform.sh` checks each tool directory against it, and
+aliases, the engine-pin markers, and the release each image is published as
+with the digest of that push — plus the `get-sybers/*` namespace's known
+non-tool repos. `conform.sh` checks each tool directory against it, and
 the **`godfir_build` role** — the collection's build engine (ansible tasks end
 to end) — builds and hardening-verifies every entry from it.
 `build-all.sh` exists solely so this repo works **standalone** (cloned on its
@@ -147,6 +148,8 @@ Per image:
 | field | meaning |
 | ----- | ------- |
 | `name` | the image identity — `get-sybers/<name>:latest` — and, for single-tool directories, the tool directory name |
+| `release` | the `vX.Y.Z` the image is published as — `ghcr.io/get-sybers/godfir-toolz/<name>:<release>` — kept in step with its Dockerfile's `GODFIR_RELEASE` (the one place the version is set; the Build & Push workflow ships that pin). Consumers (`godfir_images`) pull by it when no `digest` is recorded |
+| `digest` | the content digest (`sha256:…`) of that release's push — the image index the Build & Push workflow reported — recorded here once the image is built, so a consumer pulls `<registry>/<name>@<digest>`: the exact bytes that shipped, not whatever the tag points at. Absent until the release has been published |
 | `context` | build context relative to this repository's root; default `.` — the repo root, which keeps `hardening/harden.yml` and the shared entry scripts in reach of the Dockerfiles that COPY them |
 | `dockerfile` | Dockerfile path relative to the context; default `<name>/Dockerfile` |
 | `args` | `--build-arg` map baked into the build (a consumer's run-as `DFIR_UID`/`DFIR_GID` args combine on top and win) |

@@ -4,7 +4,8 @@ argument_specs:
     short_description: "Pull a set of get-sybers/* tool images from the registry."
     description:
       - >-
-        Pull the images named in godfir_images_set from the registry and tag
+        Pull the images named in godfir_images_set from the registry — each at
+        the digest the manifest records for it, or at its release tag — and tag
         each to its local get-sybers/<tool>:latest name (a thin wrapper over
         ensure_present). The lanes pull what they run via preflight, so this is
         a convenience for provisioning a host up front.
@@ -25,9 +26,10 @@ argument_specs:
         required: false
         default: ""
         description: >-
-          Global override of the pull tag. Empty (the default) pulls each
-          image's own `release:` from the manifest — never 'latest'.
-        description: "The release tag to pull for every image."
+          Global override of the pull tag. Empty (the default) pulls each image
+          at the `digest:` the manifest records for it, or at its own `release:`
+          when no digest is recorded — never 'latest'. Set, it pulls every image
+          at this one tag and bypasses the digests.
       godfir_images_force:
         type: bool
         required: false
@@ -38,9 +40,11 @@ argument_specs:
     description:
       - >-
         Reusable, idempotent gate (tasks/ensure_present.yml): read the local
-        image facts and pull any required ref that is not present, tagging each
-        pulled registry image to its local get-sybers/<tool>:latest name — a
-        missing image self-heals in place, an already-present one is a no-op.
+        image facts and pull any required ref that is not present — at the
+        digest the manifest records for the image (the exact content its
+        release build pushed), or at its release tag — tagging each pulled
+        registry image to its local get-sybers/<tool>:latest name; a missing
+        image self-heals in place, an already-present one is a no-op.
         Presence only; the posture gate (verify) enforces the hardened contract.
     options:
       godfir_images_required:
