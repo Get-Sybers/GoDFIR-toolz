@@ -4,20 +4,29 @@ godfir_images_namespace: get-sybers
 
 # where the published images live. The lanes and contracts reference the
 # local name get-sybers/<tool>:latest; ensure_present pulls
-# <registry>/<tool>:<release> and tags it to that local name, so nothing
-# downstream has to carry a registry-qualified ref.
+# <registry>/<tool>@<digest> (or :<release>, below) and tags it to that local
+# name, so nothing downstream has to carry a registry-qualified ref.
 godfir_images_registry: ghcr.io/get-sybers/godfir-toolz
-# which release tag to pull: each image's `release:` in the manifest is the
-# ONE source (kept in step with its Dockerfile's GODFIR_RELEASE — releases
-# move per image, never as one floating tag, standards §31). Setting
-# godfir_images_tag non-empty overrides every image (fixtures, pinning a
-# whole older wave); it is never 'latest'.
+# what to pull: each image's `release:` in the manifest is the ONE source of
+# its tag (kept in step with its Dockerfile's GODFIR_RELEASE — releases move
+# per image, never as one floating tag, standards §31), and its `digest:` —
+# the content digest the Build & Push workflow pushed for that release,
+# recorded in the manifest once the image is built — pins the pull to that
+# exact content (<registry>/<tool>@<digest>) when present; an image without a
+# recorded digest is pulled by its release tag. Setting godfir_images_tag
+# non-empty overrides every image to that one tag (fixtures, pinning a whole
+# older wave) and bypasses the digests; it is never 'latest'.
 godfir_images_tag: ""
 godfir_images_releases: >-
   {{ dict(godfir_images_manifest.images | default([])
           | selectattr('release', 'defined') | map(attribute='name')
           | zip(godfir_images_manifest.images | default([])
                 | selectattr('release', 'defined') | map(attribute='release'))) }}
+godfir_images_digests: >-
+  {{ dict(godfir_images_manifest.images | default([])
+          | selectattr('digest', 'defined') | map(attribute='name')
+          | zip(godfir_images_manifest.images | default([])
+                | selectattr('digest', 'defined') | map(attribute='digest'))) }}
 
 # the single run-as knob: the hardened images' non-root uid:gid (verify asserts it)
 godfir_images_uid: 2000

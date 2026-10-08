@@ -2,6 +2,10 @@
 # Idempotent, self-healing pull gate: read the local image facts, pull only the
 # required refs that are missing (or all, under force), and tag each pulled
 # registry image to the local get-sybers/<tool>:latest name the contracts use.
+# Each pull resolves from the manifest: <registry>/<tool>@<digest> when the
+# image's digest is recorded (the exact content its release build pushed),
+# <registry>/<tool>:<release> otherwise; godfir_images_tag overrides every
+# image to that one tag.
 - name: "godfir-images | read local facts for the required images"
   community.docker.docker_image_info:
     name: "{{ godfir_images_required }}"
@@ -18,18 +22,21 @@
                                   | map(attribute='RepoTags') | flatten
                                   | select('string') | unique | list))) }}
 
-- name: "godfir-images | every image to pull resolves a release"
+- name: "godfir-images | every image to pull resolves a release, and a recorded digest is well-formed"
   vars:
     _tool: >-
       {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
               | regex_replace('[@:].*$', '') }}
+    _digest: "{{ godfir_images_digests[_tool] | default('') }}"
   ansible.builtin.assert:
     that:
       - (godfir_images_tag | length > 0) or (godfir_images_releases[_tool] | default('') | length > 0)
+      - (_digest | length == 0) or (_digest is match('^sha256:[0-9a-f]{64}$'))
     fail_msg: >-
-      no release resolves for '{{ _tool }}': the manifest
-      ({{ godfir_images_manifest_path }}) has no `release:` for it and
-      godfir_images_tag is empty — add the image's release to the manifest.
+      '{{ _tool }}' does not resolve a pull: the manifest
+      ({{ godfir_images_manifest_path }}) must carry a `release:` for it (or
+      godfir_images_tag be set) and, when it records a `digest:`, that digest
+      must be sha256:<64 hex> (got '{{ _digest }}').
   loop: "{{ godfir_images_to_pull | default([]) }}"
   loop_control:
     label: "{{ item }}"
@@ -42,7 +49,11 @@
     _release: >-
       {{ godfir_images_tag if (godfir_images_tag | length > 0)
          else godfir_images_releases[_tool] | default('') }}
-    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ _release }}"
+    _digest: >-
+      {{ '' if (godfir_images_tag | length > 0)
+         else godfir_images_digests[_tool] | default('') }}
+    _registry_ref: >-
+      {{ godfir_images_registry }}/{{ _tool }}{{ ('@' ~ _digest) if (_digest | length > 0) else (':' ~ _release) }}
   community.docker.docker_image_pull:
     name: "{{ _registry_ref }}"
     pull: "{{ 'always' if godfir_images_force | bool else 'not_present' }}"
@@ -62,7 +73,11 @@
     _release: >-
       {{ godfir_images_tag if (godfir_images_tag | length > 0)
          else godfir_images_releases[_tool] | default('') }}
-    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ _release }}"
+    _digest: >-
+      {{ '' if (godfir_images_tag | length > 0)
+         else godfir_images_digests[_tool] | default('') }}
+    _registry_ref: >-
+      {{ godfir_images_registry }}/{{ _tool }}{{ ('@' ~ _digest) if (_digest | length > 0) else (':' ~ _release) }}
   community.docker.docker_image_tag:
     name: "{{ _registry_ref }}"
     repository: ["{{ item }}"]

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The manifest records the digest of each published image, and pulls pin
+  to it.** `images.yml` (both copies) gains `digest:` beside `release:` —
+  the content digest the Build & Push workflow pushed for that release,
+  recorded after the build (byakugan `v0.2.2` first, run 22 on `6a4ef48`:
+  `sha256:f1be72a6cdd1377f0197f91df4a222065ce39e659306d3c689ae499fa70b249e`) — and
+  `godfir_images` `ensure_present` pulls `<registry>/<tool>@<digest>` when
+  one is recorded, `:<release>` otherwise (`godfir_images_tag` still
+  overrides every image to one tag and bypasses the digests; a malformed
+  digest is refused before the pull). Collections released as 0.2.3.
 - **`byakugan` bakes the engine's layout cleanup** — the engine pin advances
   to the merge of Byakugan #130 (`2935e04`): one home per declaration
   (routing and the spindle registry are read from the Go-authored IR; the
