@@ -8,7 +8,7 @@ images:
     release: v0.2.1
     aliases: [yara, suricata, hayabusa]
   - name: byakugan
-    release: v0.2.1
+    release: v0.2.2
     engine_ref: BYAKUGAN_REF
     env_args: [BYAKUGAN_REF]
     aliases: [mitrecar, car]

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **`byakugan` bakes the engine's layout cleanup** — the engine pin advances
+  to the merge of Byakugan #130 (`2935e04`): one home per declaration
+  (routing and the spindle registry are read from the Go-authored IR; the
+  committed `sources/` manifests are retired, built from the IR on demand),
+  the CAR submodule at `model/sources/car` beside the engine's other upstream
+  inputs, the dead Python predicate modules and migration scripts gone, the
+  four tests red on the engine's main fixed, and STIX contract v7 — every
+  URL-valued property on the wire takes its GitHub path, schema set 7.0.0,
+  no id moves, so consumers see the same ids with later `modified` stamps.
+  Nothing in this image's own contract changes: the recursive clone
+  initialises the submodule at its new path, and the baked `/rules` gate,
+  the dispatcher and the summary line are as before. Image 0.4.1, release
+  v0.2.2 (both image manifests).
 - **Image pulls resolve each image's own release, never `:latest`.** The
   `godfir_images` role pulled `<registry>/<tool>:latest` — a tag nothing
   publishes any more (and §31 forbids): seven of eight pulls 404'd and the
