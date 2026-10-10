@@ -1,6 +1,6 @@
 namespace: get_sybers
 name: godfir_build
-version: 0.2.3
+version: 0.2.4
 readme: README.md
 authors:
   - Get-Sybers

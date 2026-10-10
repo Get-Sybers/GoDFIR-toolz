@@ -22,16 +22,18 @@ Variables are specified in `meta/argument_specs.yml`.
 
 The lanes and each tool's `contract.yml` reference the **local** name
 `get-sybers/<tool>:latest`. `ensure_present` pulls
-`{{ godfir_images_registry }}/<tool>@<digest>` when the manifest records the
-image's `digest:` — the content digest the Build & Push workflow pushed for
-its release, so the pull is pinned to that exact content — and
-`{{ godfir_images_registry }}/<tool>:<release>` (the image's `release:`)
-otherwise; the default registry is `ghcr.io/get-sybers/godfir-toolz`. The
-pulled image is tagged to that local name, so nothing downstream carries a
-registry-qualified ref and the contract machinery is unchanged. Point
-`godfir_images_registry` at a mirror to move the whole family at once; set
-`godfir_images_tag` to pull every image at one tag instead (an older wave, a
-fixture) — it bypasses the digests.
+`{{ godfir_images_registry }}/<tool>:<release>` (the image's `release:`) and
+tags it to that local name, so nothing downstream carries a registry-qualified
+ref and the contract machinery is unchanged; the default registry is
+`ghcr.io/get-sybers/godfir-toolz`. When the manifest records the image's
+`digest:` — the content digest the Build & Push workflow pushed for that
+release — the freshly pulled image is then **verified** against it: its
+`RepoDigests` must carry `{{ godfir_images_registry }}/<tool>@<digest>`, so a
+moved tag is caught and the content refused. Pulling by the readable tag and
+verifying the digest keeps the local `:<release>` tag while still pinning to the
+exact bytes the release build pushed. Point `godfir_images_registry` at a mirror
+to move the whole family at once; set `godfir_images_tag` to pull every image at
+one tag instead (an older wave, a fixture) — it bypasses the digest check.
 
 There is no build path and no tar load/save here: image delivery is registry
 pull. Building and the offline air-gap packaging live elsewhere

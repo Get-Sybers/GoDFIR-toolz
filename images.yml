@@ -6,23 +6,26 @@ images:
   # ---- pipeline images (repo-root context)
   - name: signatures
     release: v0.2.1
+    digest: sha256:af9b804b751d366c67baf33a0231d098908adb9a56ae3f1ac590334fdab66424
     aliases: [yara, suricata, hayabusa]
   - name: byakugan
     release: v0.2.3
-    # the v0.2.3 push: Build & Push run 23 on main 15ef8fd (the ghcr.io image index)
     digest: sha256:931ec619b23f9133dc142c53bfdd39b0636bae4898c0de52241d767988fef4fb
     engine_ref: BYAKUGAN_REF
     env_args: [BYAKUGAN_REF]
     aliases: [mitrecar, car]
   - name: zeek
     release: v0.2.2
+    digest: sha256:b22cd0a34781cf75f3a534da50db5418dc86b0c160d19c2a6d287d8af3488346
   - name: anamnesis
     release: v0.2.1
+    digest: sha256:66c766270caa738a9f4b7228509c4b290d13320f15141b4ee3db7e6370dbcc04
     engine_ref: ANAMNESIS_REF
     env_args: [ANAMNESIS_REF, MEMPROCFS_VERSION, MEMPROCFS_SHA256]
     aliases: [memory]
   - name: plaso
     release: v0.2.2
+    digest: sha256:356ee524290bb90abd8afe0f77a884b3a9c4f25fbf6bd5363efa3239e84abf24
     aliases: [log2timeline, psort]
 
   # ---- the Windows Go parsers: one image (FROM scratch; gowindowlicker and
@@ -30,6 +33,7 @@ images:
   #      modules at build time), every parser a sub-tool
   - name: gowindowlicker
     release: v0.2.1
+    digest: sha256:5d509f400cd140464ebc7c987cf6627f015b70fdced144d955dedf91ded4e6f0
     aliases: [windowlicker, lick]
     subtool_aliases: [goprefetch, prefetch, pecmd,
                       goese, esedump, srum, srumecmd, sumecmd,
@@ -42,11 +46,13 @@ images:
   #      gopinfo module arrives transitively)
   - name: godaemonhunter
     release: v0.2.1
+    digest: sha256:d3706d4feb768e817037f0d3b0ba4e3a56ba7c97885a7775db632a7dc446993b
     aliases: [daemonhunter, hunt]
     subtool_aliases: [gowtmp, gojournal, goauditd, gosyslog, goshell, gousers,
                       gocron, gounit, gotrash, gohost, gonetwork, goctl]
   - name: gomount
     release: v0.2.1
+    digest: sha256:bcd7e7bc7c53e2cfeafe47ccea214709046cf5e3ceb4e32983ffef14501e849f
     context: gomount
     dockerfile: Dockerfile
 

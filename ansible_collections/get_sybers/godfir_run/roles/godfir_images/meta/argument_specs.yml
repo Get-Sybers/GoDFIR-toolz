@@ -5,10 +5,10 @@ argument_specs:
     description:
       - >-
         Pull the images named in godfir_images_set from the registry — each at
-        the digest the manifest records for it, or at its release tag — and tag
-        each to its local get-sybers/<tool>:latest name (a thin wrapper over
-        ensure_present). The lanes pull what they run via preflight, so this is
-        a convenience for provisioning a host up front.
+        its release tag, verified against the digest the manifest records for it
+        — and tag each to its local get-sybers/<tool>:latest name (a thin
+        wrapper over ensure_present). The lanes pull what they run via preflight,
+        so this is a convenience for provisioning a host up front.
     options:
       godfir_images_set:
         type: list
@@ -27,9 +27,9 @@ argument_specs:
         default: ""
         description: >-
           Global override of the pull tag. Empty (the default) pulls each image
-          at the `digest:` the manifest records for it, or at its own `release:`
-          when no digest is recorded — never 'latest'. Set, it pulls every image
-          at this one tag and bypasses the digests.
+          at its own `release:` and verifies it against the `digest:` the
+          manifest records for it — never 'latest'. Set, it pulls every image at
+          this one tag and bypasses the digest verification.
       godfir_images_force:
         type: bool
         required: false
@@ -40,11 +40,11 @@ argument_specs:
     description:
       - >-
         Reusable, idempotent gate (tasks/ensure_present.yml): read the local
-        image facts and pull any required ref that is not present — at the
-        digest the manifest records for the image (the exact content its
-        release build pushed), or at its release tag — tagging each pulled
-        registry image to its local get-sybers/<tool>:latest name; a missing
-        image self-heals in place, an already-present one is a no-op.
+        image facts and pull any required ref that is not present — at its
+        release tag, then verify the pulled content against the digest the
+        manifest records (the exact bytes its release build pushed) — tagging
+        each pulled registry image to its local get-sybers/<tool>:latest name;
+        a missing image self-heals in place, an already-present one is a no-op.
         Presence only; the posture gate (verify) enforces the hardened contract.
     options:
       godfir_images_required:

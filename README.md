@@ -148,8 +148,8 @@ Per image:
 | field | meaning |
 | ----- | ------- |
 | `name` | the image identity — `get-sybers/<name>:latest` — and, for single-tool directories, the tool directory name |
-| `release` | the `vX.Y.Z` the image is published as — `ghcr.io/get-sybers/godfir-toolz/<name>:<release>` — kept in step with its Dockerfile's `GODFIR_RELEASE` (the one place the version is set; the Build & Push workflow ships that pin). Consumers (`godfir_images`) pull by it when no `digest` is recorded |
-| `digest` | the content digest (`sha256:…`) of that release's push — the image index the Build & Push workflow reported — recorded here once the image is built, so a consumer pulls `<registry>/<name>@<digest>`: the exact bytes that shipped, not whatever the tag points at. Absent until the release has been published |
+| `release` | the `vX.Y.Z` the image is published as — `ghcr.io/get-sybers/godfir-toolz/<name>:<release>` — kept in step with its Dockerfile's `GODFIR_RELEASE` (the one place the version is set; the Build & Push workflow ships that pin). Consumers (`godfir_images`) always pull by it; the `digest` below is then verified against what was pulled |
+| `digest` | the content digest (`sha256:…`) of that release's push — the image index the Build & Push workflow reported — recorded here once the image is built. Consumers (`godfir_images`) pull by the `release` tag and then **verify** the pulled image against this digest (its `RepoDigests` must carry `<registry>/<name>@<digest>`): the readable tag still pins to the exact bytes that shipped, and a moved tag is refused. Absent until the release has been published |
 | `context` | build context relative to this repository's root; default `.` — the repo root, which keeps `hardening/harden.yml` and the shared entry scripts in reach of the Dockerfiles that COPY them |
 | `dockerfile` | Dockerfile path relative to the context; default `<name>/Dockerfile` |
 | `args` | `--build-arg` map baked into the build (a consumer's run-as `DFIR_UID`/`DFIR_GID` args combine on top and win) |

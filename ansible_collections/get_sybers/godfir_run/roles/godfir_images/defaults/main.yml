@@ -9,13 +9,15 @@ godfir_images_namespace: get-sybers
 godfir_images_registry: ghcr.io/get-sybers/godfir-toolz
 # what to pull: each image's `release:` in the manifest is the ONE source of
 # its tag (kept in step with its Dockerfile's GODFIR_RELEASE — releases move
-# per image, never as one floating tag, standards §31), and its `digest:` —
-# the content digest the Build & Push workflow pushed for that release,
-# recorded in the manifest once the image is built — pins the pull to that
-# exact content (<registry>/<tool>@<digest>) when present; an image without a
-# recorded digest is pulled by its release tag. Setting godfir_images_tag
-# non-empty overrides every image to that one tag (fixtures, pinning a whole
-# older wave) and bypasses the digests; it is never 'latest'.
+# per image, never as one floating tag, standards §31). ensure_present always
+# pulls <registry>/<tool>:<release>, so the local image keeps its readable
+# version tag; the manifest's `digest:` — the content digest the Build & Push
+# workflow pushed for that release — is then VERIFIED against the pulled image
+# (its RepoDigests must carry <registry>/<tool>@<digest>), never used as the
+# pull ref. An image with no recorded digest is pulled by tag and not verified.
+# Setting godfir_images_tag non-empty overrides every image to that one tag
+# (fixtures, pinning a whole older wave) and bypasses the digest check; it is
+# never 'latest'.
 godfir_images_tag: ""
 godfir_images_releases: >-
   {{ dict(godfir_images_manifest.images | default([])
