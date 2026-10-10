@@ -16,8 +16,9 @@
   `logs-car.*` data view and the CAR timeline dashboard into it instead of
   the default space. `contract.yml` (both copies) and the README describe the
   space; the README gains the standalone push-mode run against any cluster.
-  **Pin to follow:** `BYAKUGAN_REF` must advance to the merge commit of that
-  engine change (Byakugan `chore/elastic-layout`) for the image to carry it.
+  The engine pin advances to the merge of Byakugan #131 (`3f4cc68`). Image
+  0.4.2, release v0.2.3 (both image manifests; the v0.2.2 digest is dropped
+  and the v0.2.3 one recorded once its Build & Push has run).
 - **The manifest records the digest of each published image, and pulls pin
   to it.** `images.yml` (both copies) gains `digest:` beside `release:` —
   the content digest the Build & Push workflow pushed for that release,
