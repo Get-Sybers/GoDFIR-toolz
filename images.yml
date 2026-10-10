@@ -9,7 +9,8 @@ images:
     aliases: [yara, suricata, hayabusa]
   - name: byakugan
     release: v0.2.3
-    # digest: recorded once the v0.2.3 Build & Push has run (pulls resolve :v0.2.3 until then)
+    # the v0.2.3 push: Build & Push run 23 on main 15ef8fd (the ghcr.io image index)
+    digest: sha256:931ec619b23f9133dc142c53bfdd39b0636bae4898c0de52241d767988fef4fb
     engine_ref: BYAKUGAN_REF
     env_args: [BYAKUGAN_REF]
     aliases: [mitrecar, car]
