@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **`byakugan` follows the engine's elastic layout.** The Byakugan repository
+  now keeps its CAR→ECS contract under `model/projection/` and renders one
+  Elastic config tree from it at `elastic/` — `templates/component`
+  (`logs-car@<model>`), `templates/index` (`logs-car-<stream>`) and
+  `dashboards/byakugan/`, the engine's own Kibana space — in the same shape as
+  DX_DFIR's `elastic/`; its standalone docker-compose stack is gone (this
+  image IS the standalone form, loading into any Elasticsearch). Nothing in
+  the Dockerfile changes — the tree rides the recursive clone into
+  `/opt/byakugan/elastic/` — but `load`'s `BYAKUGAN_LOAD_SETUP` now PUTs the
+  `logs-car@<name>` components and, with `BYAKUGAN_LOAD_KIBANA_URL`, creates
+  the **`byakugan` Kibana space** (steel blue, `/s/byakugan`) and imports the
+  `logs-car.*` data view and the CAR timeline dashboard into it instead of
+  the default space. `contract.yml` (both copies) and the README describe the
+  space; the README gains the standalone push-mode run against any cluster.
+  **Pin to follow:** `BYAKUGAN_REF` must advance to the merge commit of that
+  engine change (Byakugan `chore/elastic-layout`) for the image to carry it.
 - **The manifest records the digest of each published image, and pulls pin
   to it.** `images.yml` (both copies) gains `digest:` beside `release:` —
   the content digest the Build & Push workflow pushed for that release,

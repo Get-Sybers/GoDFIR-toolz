@@ -28,7 +28,7 @@ byakugan build        processed evidence tree -> the materialised CAR JSONL, one
 byakugan timeline     a car tree               -> timeline.jsonl
 byakugan verify       a materialised car tree  -> the CAR correctness gate (verify.txt)
 byakugan car-vocab    the car_action vocabulary, one JSON line on stdout
-byakugan load         a materialised car tree  -> the DX_DFIR Elastic stack (bundles, or pushed)
+byakugan load         a materialised car tree  -> an Elastic stack's logs-car.* streams (bundles, or pushed)
 byakugan stix-export     detection hits          -> a STIX 2.1 bundle (sightings + indicators, projections merged)
 byakugan stix-behaviour  detections x a car tree -> behaviour sightings over spindle-keyed observations
 byakugan cti-pull        OpenCTI indicators      -> the cti-* Elasticsearch _bulk copy (no input mount)
@@ -91,9 +91,9 @@ set with an operator one.
 | `BYAKUGAN_LOAD_ES_PASSWORD` | *(empty)* | Elasticsearch basic-auth password for push mode; ignored when `_ES_PASSWORD_FILE` is set |
 | `BYAKUGAN_LOAD_ES_PASSWORD_FILE` | *(empty)* | file holding the basic-auth password for push mode; wins over `_ES_PASSWORD` |
 | `BYAKUGAN_LOAD_ES_CA_FILE` | `/certs/ca/ca.crt` | CA bundle to verify the Elasticsearch TLS certificate in push mode; the default applies only when the `certs` mount is present, otherwise the system trust store is used |
-| `BYAKUGAN_LOAD_KIBANA_URL` | *(empty)* | empty = skip the Kibana saved-objects import; set = also import the engine's rendered saved objects, push mode only, requires `_SETUP` |
+| `BYAKUGAN_LOAD_KIBANA_URL` | *(empty)* | empty = skip Kibana; set = also create the engine's **Byakugan Kibana space** (`/s/byakugan`, from its `elastic/dashboards/byakugan/space.json`) and import its saved objects (the `logs-car.*` data view, the CAR timeline dashboard) into it, push mode only, requires `_SETUP` |
 | `BYAKUGAN_LOAD_NAMESPACE` | `default` | the Elastic data-stream namespace: `logs-car.<object>-<namespace>`, `logs-car.rel-<namespace>`, `logs-car.inferred-<namespace>`, `logs-car.content-<namespace>` |
-| `BYAKUGAN_LOAD_SETUP` | `0` | `1/true/yes/on`: apply the rendered index/component templates before loading (and, with `_KIBANA_URL` set, import the Kibana saved objects), push mode only |
+| `BYAKUGAN_LOAD_SETUP` | `0` | `1/true/yes/on`: apply the engine's `logs-car.*` component/index templates (its baked `elastic/templates/`) before loading (and, with `_KIBANA_URL` set, the Byakugan Kibana space), push mode only |
 | `BYAKUGAN_LOAD_FORCE` | `0` | `1/true/yes/on`: re-render bundles and, in push mode, re-push even when the manifest/load report already show the run complete |
 | `BYAKUGAN_LOAD_ARGS` | *(empty)* | extra `byakugan.elastic.load` argv |
 | `BYAKUGAN_LOAD_LOG_LEVEL` | `info` | `error|warn|info|debug`, stderr only |
@@ -224,9 +224,14 @@ once and exits — never a daemon.
   over HTTPS, treating document-already-exists (409) as `already_present`
   (the deterministic ids make a re-load an idempotent no-op), then verifies
   per-stream counts. With `BYAKUGAN_LOAD_SETUP=1` it first applies the
-  engine's rendered index/component templates, and, when
-  `BYAKUGAN_LOAD_KIBANA_URL` is also set, imports the engine's Kibana saved
-  objects too.
+  engine's `logs-car.*` component/index templates, and, when
+  `BYAKUGAN_LOAD_KIBANA_URL` is also set, creates the engine's Byakugan
+  Kibana space and imports its saved objects into it — all read from the
+  engine's own `elastic/` config tree, baked into the image at
+  `/opt/byakugan/elastic/` (rendered in the engine repo from its
+  `model/projection/` contract; [its `elastic/README.md`](https://github.com/Get-Sybers/Byakugan/blob/main/elastic/README.md)
+  documents the tree). A re-run with `_SETUP` is a no-op where the cluster
+  already matches.
 
 ```sh
 # offline bundle mode: no network, ships the bundles for someone else to POST
@@ -245,7 +250,26 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges \
   -e BYAKUGAN_LOAD_ES_API_KEY="$ES_API_KEY" \
   -e BYAKUGAN_LOAD_SETUP=1 \
   get-sybers/byakugan:latest load
+
+# standalone, no DX_DFIR: the same run against ANY Elasticsearch + Kibana —
+# first load as elastic with SETUP (+ KIBANA_URL for the Byakugan space),
+# every load after as the least-privilege loader identity with neither.
+# A lab cluster with HTTP TLS off: omit the certs mount and use http://.
+docker run --rm --cap-drop ALL --security-opt no-new-privileges \
+  --network <any network that reaches the cluster> \
+  --read-only --tmpfs /tmp:rw,uid=2000,gid=2000 \
+  -v "$PWD/car:/input:ro" -v "$PWD/elastic-out:/output" \
+  -e BYAKUGAN_LOAD_ES_URL=http://elasticsearch:9200 \
+  -e BYAKUGAN_LOAD_ES_USER=elastic -e BYAKUGAN_LOAD_ES_PASSWORD="$ELASTIC_PASSWORD" \
+  -e BYAKUGAN_LOAD_SETUP=1 -e BYAKUGAN_LOAD_KIBANA_URL=http://kibana:5601 \
+  -e BYAKUGAN_LOAD_NAMESPACE=<case> \
+  get-sybers/byakugan:latest load
 ```
+
+This image is the engine's **standalone form**: the Byakugan repository ships
+no Dockerfile, compose file or Elastic stack of its own — it is the engine
+(Go parse binary + Python package), its model and its rendered `elastic/`
+config tree, all of which ride the clone into this image.
 
 ## argv pass-through (debug only)
 
