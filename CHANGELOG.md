@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Consumers pull by the release tag and verify the digest — not pull by
+  digest — and every image records one.** `godfir_images` `ensure_present` now
+  always pulls `<registry>/<tool>:<release>` and then asserts the freshly
+  pulled image's `RepoDigests` carries the manifest `digest:`, so the local
+  image keeps its readable `:<release>` tag while staying pinned to the exact
+  bytes the release build pushed (a moved tag is refused). `images.yml` (both
+  copies) now records a `digest:` for **every** image, not just byakugan —
+  signatures/anamnesis/gowindowlicker/godaemonhunter/gomount `v0.2.1`,
+  zeek/plaso `v0.2.2`, byakugan `v0.2.3`. The `godfir_images_tag` override
+  still bypasses the check, and an image with no recorded digest is pulled by
+  tag and not verified. The role defaults/argument-specs/README and the
+  manifest-schema docs describe the pull-then-verify model. Collections 0.2.4.
 - **`byakugan` follows the engine's elastic layout.** The Byakugan repository
   now keeps its CAR→ECS contract under `model/projection/` and renders one
   Elastic config tree from it at `elastic/` — `templates/component`

@@ -1,11 +1,14 @@
 ---
 # Idempotent, self-healing pull gate: read the local image facts, pull only the
-# required refs that are missing (or all, under force), and tag each pulled
-# registry image to the local get-sybers/<tool>:latest name the contracts use.
-# Each pull resolves from the manifest: <registry>/<tool>@<digest> when the
-# image's digest is recorded (the exact content its release build pushed),
-# <registry>/<tool>:<release> otherwise; godfir_images_tag overrides every
-# image to that one tag.
+# required refs that are missing (or all, under force) at the image's release
+# tag, tag each pulled registry image to the local get-sybers/<tool>:latest name
+# the contracts use, then VERIFY the pulled content against the digest the
+# manifest records for it. The pull always resolves <registry>/<tool>:<release>
+# (or the godfir_images_tag override), so the local image keeps its readable
+# version tag; the recorded digest is a post-pull content check — the pulled
+# image's RepoDigests must carry <registry>/<tool>@<digest> — never the pull
+# ref. An image with no recorded digest is pulled by tag and not verified;
+# godfir_images_tag (a deliberate off-manifest wave) bypasses the check.
 - name: "godfir-images | read local facts for the required images"
   community.docker.docker_image_info:
     name: "{{ godfir_images_required }}"
@@ -41,19 +44,15 @@
   loop_control:
     label: "{{ item }}"
 
-- name: "godfir-images | pull each missing image from the registry"
+- name: "godfir-images | pull each missing image from the registry by its release tag"
   vars:
     _tool: >-
       {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
               | regex_replace('[@:].*$', '') }}
-    _release: >-
+    _tag: >-
       {{ godfir_images_tag if (godfir_images_tag | length > 0)
          else godfir_images_releases[_tool] | default('') }}
-    _digest: >-
-      {{ '' if (godfir_images_tag | length > 0)
-         else godfir_images_digests[_tool] | default('') }}
-    _registry_ref: >-
-      {{ godfir_images_registry }}/{{ _tool }}{{ ('@' ~ _digest) if (_digest | length > 0) else (':' ~ _release) }}
+    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ _tag }}"
   community.docker.docker_image_pull:
     name: "{{ _registry_ref }}"
     pull: "{{ 'always' if godfir_images_force | bool else 'not_present' }}"
@@ -70,17 +69,54 @@
     _tool: >-
       {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
               | regex_replace('[@:].*$', '') }}
-    _release: >-
+    _tag: >-
       {{ godfir_images_tag if (godfir_images_tag | length > 0)
          else godfir_images_releases[_tool] | default('') }}
-    _digest: >-
-      {{ '' if (godfir_images_tag | length > 0)
-         else godfir_images_digests[_tool] | default('') }}
-    _registry_ref: >-
-      {{ godfir_images_registry }}/{{ _tool }}{{ ('@' ~ _digest) if (_digest | length > 0) else (':' ~ _release) }}
+    _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ _tag }}"
   community.docker.docker_image_tag:
     name: "{{ _registry_ref }}"
     repository: ["{{ item }}"]
   loop: "{{ godfir_images_to_pull | default([]) }}"
   loop_control:
     label: "{{ _registry_ref }} -> {{ item }}"
+
+# Verify the content we just pulled is EXACTLY what the manifest recorded: the
+# freshly pulled image's registry digest (RepoDigests) must carry the manifest
+# digest. Pulling by tag fetches "whatever the tag points at"; this turns it
+# into "the exact bytes the release build pushed" (a moved tag is refused).
+# Scoped to the freshly pulled set, skipped under the godfir_images_tag
+# override and for any image the manifest records no digest for.
+- name: "godfir-images | read the freshly pulled images' content digests"
+  community.docker.docker_image_info:
+    name: "{{ item }}"
+  loop: "{{ godfir_images_to_pull | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  register: godfir_images_pulled_info
+  when: godfir_images_tag | length == 0
+
+- name: "godfir-images | assert each pulled image matches the manifest digest"
+  vars:
+    _tool: >-
+      {{ item.item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
+                   | regex_replace('[@:].*$', '') }}
+    _digest: "{{ godfir_images_digests[_tool] | default('') }}"
+    _repo_digests: "{{ (item.images | first | default({})).RepoDigests | default([]) }}"
+    _expected: "{{ godfir_images_registry }}/{{ _tool }}@{{ _digest }}"
+  ansible.builtin.assert:
+    that:
+      - (_digest | length == 0) or (_expected in _repo_digests)
+    fail_msg: >-
+      '{{ _tool }}' pulled from {{ godfir_images_registry }} does not match the
+      manifest digest: expected {{ _expected }} among the pulled image's
+      RepoDigests ({{ _repo_digests | join(', ') if (_repo_digests | length > 0) else 'none' }}).
+      The release tag may have been moved — refusing the content.
+    quiet: true
+  loop: "{{ godfir_images_pulled_info.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  # mirror the info task's guard: under the godfir_images_tag override the info
+  # task is skipped, which still registers one skipped result per item (no
+  # `images` key) — without this the assert would iterate them and fail,
+  # turning the documented bypass into a hard failure.
+  when: godfir_images_tag | length == 0
