@@ -20,7 +20,7 @@ ARG TOOL_VERSION=0.4.2
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.3
+ARG GODFIR_RELEASE=v0.2.4
 
 # stdlib-only Go → static binary; GOTOOLCHAIN=local keeps the build offline.
 # The clone is RECURSIVE: the engine rebuilds its object model from the pinned
@@ -47,10 +47,15 @@ ARG DFIR_UID=2000
 ARG DFIR_GID=2000
 ARG BYAKUGAN_REF
 ARG TOOL_VERSION
-# python3-yaml from apt (no pip); ca-certificates = TLS trust for the load sub-tool's push mode
+# Runtime Python deps from apt (no pip): byakugan's requirements.txt / pyproject
+# [project] dependencies are pyyaml>=6 + jsonschema>=4.18, supplied here as
+# python3-yaml and python3-jsonschema (trixie ships 4.19.2 and pulls in
+# referencing/rpds/attr — jsonschema is the load sub-tool's row/wire schema
+# authority, imported lazily in byakugan.elastic.load._row_validators).
+# ca-certificates = TLS trust for the load sub-tool's push mode.
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends python3 python3-yaml python3-pip ca-certificates; \
+    apt-get install -y --no-install-recommends python3 python3-yaml python3-jsonschema python3-pip ca-certificates; \
     rm -rf /var/lib/apt/lists/*
 # the engine resolves its model dir relative to the package: run from this tree via PYTHONPATH, never site-packages
 COPY --from=engine /src /opt/byakugan
@@ -79,7 +84,11 @@ RUN set -eux; \
       /tmp/hardening/harden.yml \
       -e harden_uid=${DFIR_UID} -e harden_gid=${DFIR_GID} \
       -e harden_tool=byakugan -e harden_static_binary=false -e harden_shell=false -e harden_python=true; \
-    PYTHONPATH=/opt/byakugan python3 -c 'import byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel, byakugan.elastic.load, byakugan.elastic.projection, byakugan.elastic.inverse_projection, byakugan.exchange.cli, byakugan.exchange.behaviour'; \
+    # import the runtime deps explicitly (jsonschema, yaml): byakugan.elastic.load
+    # imports jsonschema LAZILY (in _row_validators), so importing the package
+    # alone would not catch a missing runtime dep — it would only surface when
+    # the load sub-tool validates its first row, at runtime, in production.
+    PYTHONPATH=/opt/byakugan python3 -c 'import jsonschema, yaml, byakugan.cli, byakugan.pipeline, byakugan.timeline, byakugan.verify, byakugan.carmodel, byakugan.elastic.load, byakugan.elastic.projection, byakugan.elastic.inverse_projection, byakugan.exchange.cli, byakugan.exchange.behaviour'; \
     # every shell goes; python3 + python3-yaml + the baked engine tree stay (python IS the tool)
     rm -rf /tmp/ansible /usr/bin/pip3* /usr/lib/python3/dist-packages/pip* \
            /etc/ansible /root/.ansible /tmp/hardening \
