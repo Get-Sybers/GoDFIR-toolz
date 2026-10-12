@@ -11,16 +11,19 @@ ARG BASE=debian:trixie-slim
 ARG GO_BASE=golang:1.27-bookworm
 ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/Byakugan
 # the ONE place the engine version is set; consumers build without a REF arg and
-# inherit it. Full commit SHA (immutable): the merge of Byakugan #131 (the
-# elastic layout: the CAR->ECS contract under model/projection/, the rendered
-# elastic/ tree with the Byakugan Kibana space, the standalone stack gone),
+# inherit it. Full commit SHA (immutable): the merge of Byakugan #132 — the
+# car-relationships lookup index (model/projection/rel_lookup.yml), a
+# native-Elastic ES|QL LOOKUP JOIN layer over the CAR relationship graph that
+# `load` populates (car-relationships-<namespace>) alongside the logs-car.rel-*
+# edge stream — on top of #131's elastic layout (the CAR->ECS contract under
+# model/projection/, the rendered elastic/ tree with the Byakugan Kibana space),
 # after the commit tagged v0.2.0 on the engine repo.
-ARG BYAKUGAN_REF=3f4cc6880e23b1389887067b75a7b91c9b13efae
-ARG TOOL_VERSION=0.4.2
+ARG BYAKUGAN_REF=da48ad658c87ba8316a3121cc7330aaa3c4fbb22
+ARG TOOL_VERSION=0.4.3
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.4
+ARG GODFIR_RELEASE=v0.2.5
 
 # stdlib-only Go → static binary; GOTOOLCHAIN=local keeps the build offline.
 # The clone is RECURSIVE: the engine rebuilds its object model from the pinned
