@@ -15,7 +15,9 @@
   blocks and `/rules` gate are untouched; only the pinned engine ref moves.
   Image 0.4.3, release v0.2.5 (both image manifests, now re-synced — the root
   `images.yml` had drifted to v0.2.3; the v0.2.4 digest is dropped and the
-  v0.2.5 one recorded once its Build & Push has run). Collections 0.2.5.
+  v0.2.5 one recorded (Build & Push run 25:
+  `sha256:0988d9b68f6ecec98b0d925949acf642f9c5f13ce973e608a2a70a19aede5b0e`)).
+  Collections 0.2.5.
 - **Consumers pull by the release tag and verify the digest — not pull by
   digest — and every image records one.** `godfir_images` `ensure_present` now
   always pulls `<registry>/<tool>:<release>` and then asserts the freshly

@@ -10,6 +10,7 @@ images:
     aliases: [yara, suricata, hayabusa]
   - name: byakugan
     release: v0.2.5
+    digest: sha256:0988d9b68f6ecec98b0d925949acf642f9c5f13ce973e608a2a70a19aede5b0e
     engine_ref: BYAKUGAN_REF
     env_args: [BYAKUGAN_REF]
     aliases: [mitrecar, car]
