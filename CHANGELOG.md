@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **`byakugan` advances to the car-relationships lookup index (engine #132).**
+  The engine pin advances to the merge of Byakugan #132 (`da48ad6`): `load`
+  now also populates a `car-relationships-<namespace>` LOOKUP index
+  (`index.mode: lookup`) beside the `logs-car.rel-*` edge stream — a
+  native-Elastic ES|QL `LOOKUP JOIN` layer that resolves a CAR object to its
+  relationships inline (`FROM logs-car.*-<ns> | LOOKUP JOIN
+  car-relationships-<ns> ON event.id`), rendered from the engine's new
+  `model/projection/rel_lookup.yml` into its baked `elastic/templates/lookup/`
+  and PUT by `BYAKUGAN_LOAD_SETUP`. Additive — the `logs-car.rel-*` edge stream
+  and `byakugan timeline` are unchanged — so the image's own contract, env
+  blocks and `/rules` gate are untouched; only the pinned engine ref moves.
+  Image 0.4.3, release v0.2.5 (both image manifests, now re-synced — the root
+  `images.yml` had drifted to v0.2.3; the v0.2.4 digest is dropped and the
+  v0.2.5 one recorded once its Build & Push has run). Collections 0.2.5.
 - **Consumers pull by the release tag and verify the digest — not pull by
   digest — and every image records one.** `godfir_images` `ensure_present` now
   always pulls `<registry>/<tool>:<release>` and then asserts the freshly
