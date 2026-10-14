@@ -45,14 +45,13 @@ images:
   # ---- the Linux matrix (go-installed from its published module; the shared
   #      gopinfo module arrives transitively)
   - name: godaemonhunter
-    release: v0.2.1
-    digest: sha256:d3706d4feb768e817037f0d3b0ba4e3a56ba7c97885a7775db632a7dc446993b
+    release: v0.3.1
+    digest: sha256:99d82f3935c96d5cb2c249f29be92b72b731cce7bc15bb2e8430500df931e2cb
     aliases: [daemonhunter, hunt]
     subtool_aliases: [gowtmp, gojournal, goauditd, gosyslog, goshell, gousers,
                       gocron, gounit, gotrash, gohost, gonetwork, goctl]
   - name: gomount
-    release: v0.2.1
-    digest: sha256:bcd7e7bc7c53e2cfeafe47ccea214709046cf5e3ceb4e32983ffef14501e849f
+    release: v0.3.1
     context: gomount
     dockerfile: Dockerfile
 

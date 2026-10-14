@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **The standalone `gomount` image ships gomount 0.3.1, released `v0.3.1`.**
+  The `gomount` tool advanced to 0.3.1 (the `uac` package, `stream --all`,
+  and the hard-link-to-symlink fix), but its own image still pinned
+  `TOOL_VERSION=0.2.1`/`GODFIR_RELEASE=v0.2.1`, so a Build & Push of it hit
+  the no-overwrite guard (`gomount:v0.2.1` already published). The image
+  Dockerfile moves to `0.3.1`/`v0.3.1`; `images.yml` records `release:
+  v0.3.1` for it (digest added once this build pushes). The published
+  **godaemonhunter `v0.3.1`** image index digest is recorded in both
+  `images.yml` copies
+  (`sha256:99d82f3935c96d5cb2c249f29be92b72b731cce7bc15bb2e8430500df931e2cb`,
+  Build & Push run 38627404728).
 - **`godaemonhunter` hunts UAC collections.** The image moves to
   godaemonhunter 0.3.0 and gomount 0.3.1 (`TOOL_VERSION`, `GOMOUNT_VERSION`;
   gomount 0.3.1 over 0.3.0 reads a hard link to a symlink as that symlink —
