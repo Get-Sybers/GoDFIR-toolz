@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **gomount `v0.3.1` image digest recorded.** The Build & Push of the
+  gomount image (run 38630172013) published
+  `ghcr.io/get-sybers/godfir-toolz/gomount:v0.3.1`; its image-index digest
+  `sha256:1f3f8fee5d9f81605740d3caf71347d9f9676f34eb0328b644d17dd2dac2a041`
+  is recorded in both `images.yml` copies, so both v0.3.1 images are now
+  pulled by tag and verified by digest.
 - **The standalone `gomount` image ships gomount 0.3.1, released `v0.3.1`.**
   The `gomount` tool advanced to 0.3.1 (the `uac` package, `stream --all`,
   and the hard-link-to-symlink fix), but its own image still pinned
