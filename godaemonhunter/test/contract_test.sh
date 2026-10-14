@@ -70,7 +70,7 @@ import json; s=json.load(open('$work/stdout'))
 assert '$coll' in s.get('collections', []), s.get('collections')
 assert '$coll' in s.get('images', []), s.get('images')" || fail "the UAC collection is not among the hunted hosts"
 grep -q '"Hostname":"web02"' "$out/knowledge/$coll/"*/gohost.jsonl || fail "collection knowledge store missing (gohost web02)"
-grep -q '"UIDName":"bob"' "$out/gosyslog/$coll/"*/gosyslog.jsonl || fail "collection records not enriched by its own knowledge store"
+grep -q '"Timezone":"Europe/Tallinn"' "$out/gosyslog/$coll/"*/gosyslog.jsonl || fail "collection records not enriched by its own knowledge store (Host.Timezone)"
 grep -q '"Image":"'"$coll"'"' "$out/gosyslog/$coll/"*/gosyslog.jsonl || fail "collection records lack the archive origin"
 
 code=0; run || code=$?

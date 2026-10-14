@@ -61,24 +61,24 @@ shapes:
 
 | Layer 1 — the knowledge builders | |
 |---|---|
-| [`gohost`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/host/README.md) | host identity (os-release, hostname, machine-id, timezone, locale) + fstab/crypttab volume mapping |
-| [`gousers`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/users/README.md) | passwd/shadow/group, sudoers, SSH access surface |
-| [`gonetwork`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/network/README.md) | hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, firewall state |
-| [`gomachost`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/machost/README.md) | macOS: SystemVersion.plist, the SystemConfiguration host names and model, the system time zone and locale — the same `os_release`/`hostname`/`timezone`/`locale` rows |
-| [`gomacusers`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/macusers/README.md) | macOS: the OpenDirectory local node (dslocal users and groups) — the same `account`/`group` rows |
+| [`gohost`](https://github.com/Get-Sybers/godaemonhunter/blob/main/host/README.md) | host identity (os-release, hostname, machine-id, timezone, locale) + fstab/crypttab volume mapping |
+| [`gousers`](https://github.com/Get-Sybers/godaemonhunter/blob/main/users/README.md) | passwd/shadow/group, sudoers, SSH access surface |
+| [`gonetwork`](https://github.com/Get-Sybers/godaemonhunter/blob/main/network/README.md) | hosts, resolv, nsswitch, TCP wrappers, interface/connection profiles, firewall state |
+| [`gomachost`](https://github.com/Get-Sybers/godaemonhunter/blob/main/machost/README.md) | macOS: SystemVersion.plist, the SystemConfiguration host names and model, the system time zone and locale — the same `os_release`/`hostname`/`timezone`/`locale` rows |
+| [`gomacusers`](https://github.com/Get-Sybers/godaemonhunter/blob/main/macusers/README.md) | macOS: the OpenDirectory local node (dslocal users and groups) — the same `account`/`group` rows |
 
 | Layer 2 — the daemon parsers | |
 |---|---|
-| [`gojournal`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/journal/README.md) | systemd journal `*.journal` files, typed families |
-| [`goauditd`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/auditd/README.md) | audit.log records coalesced into events |
-| [`gowtmp`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/wtmp/README.md) | utmp/wtmp/btmp login records + lastlog |
-| [`gosyslog`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/syslog/README.md) | syslog-family text logs, typed families |
-| [`gounit`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/unit/README.md) | systemd units, timers, drop-ins |
-| [`gocron`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/cron/README.md) | crontabs, cron.d, anacron, at |
-| [`goshell`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/shell/README.md) | shell/REPL histories |
-| [`gotrash`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/trash/README.md) | XDG Trash |
-| [`goctl`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/ctl/README.md) | sysctl, module policy, ld.so preload/conf |
-| [`golaunchd`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/launchd/README.md) | macOS launchd jobs (LaunchDaemons/LaunchAgents in every domain) and the disabled-overrides tables |
+| [`gojournal`](https://github.com/Get-Sybers/godaemonhunter/blob/main/journal/README.md) | systemd journal `*.journal` files, typed families |
+| [`goauditd`](https://github.com/Get-Sybers/godaemonhunter/blob/main/auditd/README.md) | audit.log records coalesced into events |
+| [`gowtmp`](https://github.com/Get-Sybers/godaemonhunter/blob/main/wtmp/README.md) | utmp/wtmp/btmp login records + lastlog |
+| [`gosyslog`](https://github.com/Get-Sybers/godaemonhunter/blob/main/syslog/README.md) | syslog-family text logs, typed families |
+| [`gounit`](https://github.com/Get-Sybers/godaemonhunter/blob/main/unit/README.md) | systemd units, timers, drop-ins |
+| [`gocron`](https://github.com/Get-Sybers/godaemonhunter/blob/main/cron/README.md) | crontabs, cron.d, anacron, at |
+| [`goshell`](https://github.com/Get-Sybers/godaemonhunter/blob/main/shell/README.md) | shell/REPL histories |
+| [`gotrash`](https://github.com/Get-Sybers/godaemonhunter/blob/main/trash/README.md) | XDG Trash |
+| [`goctl`](https://github.com/Get-Sybers/godaemonhunter/blob/main/ctl/README.md) | sysctl, module policy, ld.so preload/conf |
+| [`golaunchd`](https://github.com/Get-Sybers/godaemonhunter/blob/main/launchd/README.md) | macOS launchd jobs (LaunchDaemons/LaunchAgents in every domain) and the disabled-overrides tables |
 
 **A Mac is the same run.** Point it at a macOS disk image (APFS or HFS+ —
 gomount resolves the Data volume) or a staged Mac tree and the layered
@@ -133,7 +133,7 @@ while gomount reads it, so bind a disk-backed `/work` for a large one. The
 | `GODAEMONHUNTER_IMAGE` | *(empty)* | run **on a disk image or a UAC collection**: its path relative to `INPUT_DIR` (E01/Ex01, raw, VMDK, VHDX, VHD, QCOW2, VDI, DMG (.dmg), sparseimage (.sparseimage); or the `.tar.gz`/`.tar`/`.zip` the Unix-like Artifacts Collector writes, whose `[root]/` tree is the root volume). The baked-in [gomount](../gomount) pulls the `linux-core` surface out of the root volume into `WORK_DIR`, the layered run goes over that as over a staged root tree, the knowledge store lands at `<KNOWLEDGE_DIR>/<image>/` and the records under `<OUT_DIR>/<subtool>/<image>/…`, the scratch goes — nothing is exported. Empty = the loose tree itself plus every image directly under it plus every archive there that `gomount identify` confirms as a collection. A sub-tool run reads `<SUBTOOL>_IMAGE` and writes `<OUT_DIR>/<image>/…` |
 | `GODAEMONHUNTER_LIVE` | `0` | run **on the live host** (see the module README's "Running on a live system"): `1/true/yes/on` stages the known artefact surface of the live root and runs the layered pipeline over it. Mutually exclusive with `GODAEMONHUNTER_IMAGE`; `INPUT_DIR` is unused |
 | `GODAEMONHUNTER_LIVE_ROOT` | `/` | the live root `LIVE` collects from — a read-only bind-mount of the host filesystem (a live-response container) or a staged root tree |
-| `GODAEMONHUNTER_LIVE_OS` | *(this host's OS)* | the live-collection profile: `linux` or `darwin` ([`livecollect/profiles.json`](https://github.com/Get-Sybers/godaemonhunter/-/blob/main/livecollect/profiles.json)) |
+| `GODAEMONHUNTER_LIVE_OS` | *(this host's OS)* | the live-collection profile: `linux` or `darwin` ([`livecollect/profiles.json`](https://github.com/Get-Sybers/godaemonhunter/blob/main/livecollect/profiles.json)) |
 | `GODAEMONHUNTER_LIVE_MAX_FILE` | `0` | per-file byte cap on the live collection; `0` = no cap — bind a disk-backed work dir for a large collection |
 | `GODAEMONHUNTER_FORCE` | `0` | `1/true/yes/on`: rerun items that already have valid output, in every sub-run |
 | `GODAEMONHUNTER_LOG_LEVEL` | `info` | `error\|warn\|info\|debug`, stderr only, applied to every sub-run |

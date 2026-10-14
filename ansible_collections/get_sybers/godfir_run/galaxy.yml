@@ -1,6 +1,6 @@
 namespace: get_sybers
 name: godfir_run
-version: 0.2.5
+version: 0.2.6
 readme: README.md
 authors:
   - Get-Sybers

@@ -14,6 +14,9 @@ import (
 
 func main() {
 	d := os.Args[1]
+	if err := os.MkdirAll(d, 0o755); err != nil {
+		panic(err)
+	}
 	mk := func(rel, content string) {
 		p := filepath.Join(d, rel)
 		os.MkdirAll(filepath.Dir(p), 0o755)
