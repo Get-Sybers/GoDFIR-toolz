@@ -3,7 +3,11 @@
 ## Unreleased
 
 - **`godaemonhunter` hunts UAC collections.** The image moves to
-  godaemonhunter 0.3.0 and gomount 0.3.0 (`TOOL_VERSION`, `GOMOUNT_VERSION`):
+  godaemonhunter 0.3.0 and gomount 0.3.1 (`TOOL_VERSION`, `GOMOUNT_VERSION`;
+  gomount 0.3.1 over 0.3.0 reads a hard link to a symlink as that symlink —
+  89 of the 400 hard links of a real collection, every one a merged-usr
+  systemd unit, came out of 0.3.0 as empty files, so the image never shipped
+  with 0.3.0):
   gomount reads the archive the Unix-like Artifacts Collector writes
   (`uac-<host>-<os>-<ts>.tar.gz`, `.tar` or `.zip`, the host's files under
   `[root]/`) as an image whose root volume is that tree, and godaemonhunter
@@ -18,8 +22,8 @@
   `godfir_godaemonhunter_images` as another `{tree, rel, name}` item
   (DX_DFIR's `dxdfir_evidence` discovers them under its new `UAC` lane). The
   contract smoke's fixtures gain a collection and assert it is hunted as its
-  own host. Image 0.3.0, release v0.3.0 (digest recorded when the release
-  build pushes). Collections 0.2.6.
+  own host. Image 0.3.0, release v0.3.1 (digest recorded when the release
+  build pushes; v0.3.0 was pinned but never built). Collections 0.2.6.
 - **`byakugan` advances to the car-relationships lookup index (engine #132).**
   The engine pin advances to the merge of Byakugan #132 (`da48ad6`): `load`
   now also populates a `car-relationships-<namespace>` LOOKUP index
