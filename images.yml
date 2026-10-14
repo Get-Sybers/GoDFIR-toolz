@@ -52,6 +52,7 @@ images:
                       gocron, gounit, gotrash, gohost, gonetwork, goctl]
   - name: gomount
     release: v0.3.1
+    digest: sha256:1f3f8fee5d9f81605740d3caf71347d9f9676f34eb0328b644d17dd2dac2a041
     context: gomount
     dockerfile: Dockerfile
 
