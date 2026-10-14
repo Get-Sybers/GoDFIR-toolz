@@ -5,12 +5,12 @@
 # gopinfo module is pulled transitively. No Go source lives in this repo.
 
 ARG GO_VERSION=1.27
-ARG TOOL_VERSION=0.2.1
-ARG GOMOUNT_VERSION=0.2.1
+ARG TOOL_VERSION=0.3.0
+ARG GOMOUNT_VERSION=0.3.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.1
+ARG GODFIR_RELEASE=v0.3.0
 
 # godaemonhunter is imported from its published module at build time
 # (github.com/Get-Sybers/godaemonhunter), which pulls the shared gopinfo module
@@ -24,7 +24,9 @@ RUN go install -trimpath -ldflags="-s -w -X main.version=${TOOL_VERSION}" \
 RUN /go/bin/godaemonhunter --version
 
 # gomount: the CGO-free static disk-image reader the lane runs, imported from its
-# published module (github.com/Get-Sybers/gomount)
+# published module (github.com/Get-Sybers/gomount) — 0.3.0 reads a UAC collection
+# (uac-<host>-<os>-<ts>.tar.gz|.tar|.zip) as an image, which godaemonhunter 0.3.0
+# hunts ON like a disk image
 FROM golang:${GO_VERSION}-alpine AS gomount-build
 ARG GOMOUNT_VERSION
 ENV GOTOOLCHAIN=auto CGO_ENABLED=0

@@ -5,7 +5,9 @@
 # config-error exit, the argv pass-through and a stream-scoped run.
 #
 # Default: builds and runs the hardened image (docker, repo root).
-# CONTRACT_LOCAL=1 builds the binary with the host Go toolchain instead.
+# CONTRACT_LOCAL=1 builds the binary with the host Go toolchain instead, and
+# installs the gomount the Dockerfile pins beside it (the collection in the
+# fixtures is hunted through gomount, in either mode).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -24,7 +26,7 @@ run() {
     local code=0
     if [[ "${CONTRACT_LOCAL:-0}" == "1" ]]; then
         env GODAEMONHUNTER_INPUT_DIR="$in" GODAEMONHUNTER_OUT_DIR="$out" \
-            GODAEMONHUNTER_WORK_DIR="$scratch" "$@" \
+            GODAEMONHUNTER_WORK_DIR="$scratch" GOMOUNT_BIN="$work/gomount" "$@" \
             "$work/godaemonhunter" >"$work/stdout" 2>"$work/stderr" || code=$?
     else
         docker run --rm --network none --read-only --cap-drop ALL \
@@ -38,6 +40,11 @@ run() {
 
 if [[ "${CONTRACT_LOCAL:-0}" == "1" ]]; then
     (cd "$tool_dir" && CGO_ENABLED=0 go build -o "$work/godaemonhunter" .)
+    # the gomount the image bakes (GOMOUNT_VERSION), so the local run hunts
+    # the fixture collection exactly as the container does
+    gomount_version="$(sed -nE 's/^ARG GOMOUNT_VERSION=//p' "$tool_dir/Dockerfile" | head -n 1)"
+    [[ -n "$gomount_version" ]] || { echo "GOMOUNT_VERSION not found in $tool_dir/Dockerfile" >&2; exit 1; }
+    GOBIN="$work" CGO_ENABLED=0 go install "github.com/Get-Sybers/gomount@v${gomount_version}"
 else
     (cd "$repo" && docker build -q -t get-sybers/godaemonhunter:latest -f godaemonhunter/Dockerfile .)
     chmod 777 "$out"
@@ -61,6 +68,17 @@ ls "$out"/knowledge/*/gomacusers.jsonl >/dev/null 2>&1 || fail "gomacusers knowl
 grep -q '"PrettyName":"macOS 12.7.3 (21H1015)"' "$out"/knowledge/*/gomachost.jsonl || fail "gomachost os_release missing"
 grep -q '"Label":"org.keepassxc.KeePassXC"' "$out"/golaunchd/*/golaunchd.jsonl || fail "golaunchd job missing"
 grep -q '"Ident":"opendirectoryd"' "$out"/gosyslog/*/gosyslog.jsonl || fail "install.log not parsed"
+# the UAC collection beside the loose tree is hunted ON as its own host:
+# gomount reads the archive's [root]/ tree, the knowledge store and the
+# records land under the archive's name, the summary lists it
+coll="uac-web02-linux-20260101000000.tar.gz"
+python3 -c "
+import json; s=json.load(open('$work/stdout'))
+assert '$coll' in s.get('collections', []), s.get('collections')
+assert '$coll' in s.get('images', []), s.get('images')" || fail "the UAC collection is not among the hunted hosts"
+grep -q '"Hostname":"web02"' "$out/knowledge/$coll/"*/gohost.jsonl || fail "collection knowledge store missing (gohost web02)"
+grep -q '"Timezone":"Europe/Tallinn"' "$out/gosyslog/$coll/"*/gosyslog.jsonl || fail "collection records not enriched by its own knowledge store (Host.Timezone)"
+grep -q '"Image":"'"$coll"'"' "$out/gosyslog/$coll/"*/gosyslog.jsonl || fail "collection records lack the archive origin"
 
 code=0; run || code=$?
 [[ $code -eq 0 ]] || fail "rerun exit $code"
@@ -71,7 +89,7 @@ assert s['processed']==0 and s['skipped']>0, s" || fail "rerun not idempotent"
 code=0
 if [[ "${CONTRACT_LOCAL:-0}" == "1" ]]; then
     env GODAEMONHUNTER_INPUT_DIR="$in/missing" GODAEMONHUNTER_OUT_DIR="$out" \
-        GODAEMONHUNTER_WORK_DIR="$scratch" \
+        GODAEMONHUNTER_WORK_DIR="$scratch" GOMOUNT_BIN="$work/gomount" \
         "$work/godaemonhunter" hunt >"$work/stdout" 2>"$work/stderr" || code=$?
     [[ $code -eq 2 ]] || fail "config-error exit $code, want 2"
 
@@ -85,7 +103,7 @@ if [[ "${CONTRACT_LOCAL:-0}" == "1" ]]; then
     # word): `process` runs Layer 1 + that stream's parsers, nothing else.
     out2="$work/out2"; mkdir -p "$out2"
     env GODAEMONHUNTER_INPUT_DIR="$in" GODAEMONHUNTER_OUT_DIR="$out2" \
-        GODAEMONHUNTER_WORK_DIR="$scratch" \
+        GODAEMONHUNTER_WORK_DIR="$scratch" GOMOUNT_BIN="$work/gomount" \
         "$work/godaemonhunter" process >"$work/stdout" 2>"$work/stderr" || fail "stream run exit $?"
     [[ "$(field status)" == "ok" ]] || fail "stream run status $(field status)"
     [[ -d "$out2/goauditd" ]] || fail "process stream did not run goauditd"

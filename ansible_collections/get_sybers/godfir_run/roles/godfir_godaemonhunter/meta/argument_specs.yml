@@ -22,7 +22,7 @@ argument_specs:
         elements: dict
         required: false
         default: []
-        description: "Disk images to hunt ON, one host each: [{tree, rel, name}]."
+        description: "Disk images to hunt ON, one host each: [{tree, rel, name}] — disk images, or UAC collections (uac-<host>-<os>-<ts>.tar.gz|.tar|.zip) gomount reads as images."
       godfir_godaemonhunter_hosts:
         type: list
         elements: dict

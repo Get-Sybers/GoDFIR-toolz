@@ -89,9 +89,10 @@
     label: "{{ item.1 }}:{{ item.0.name }}"
   tags: [always]
 
-# one hunt run per disk image, ON the image: the tree read-only at /input, the
-# lane's output root at /output, a disk-backed scratch at /work
-- name: "godfir-godaemonhunter | the layered hunt ON each disk image"
+# one hunt run per disk image or UAC collection, ON the item: the tree read-only
+# at /input, the lane's output root at /output, a disk-backed scratch at /work
+# (a gzip'd collection is spooled there while gomount reads it)
+- name: "godfir-godaemonhunter | the layered hunt ON each disk image or UAC collection"
   ansible.builtin.set_fact:
     godfir_godaemonhunter_runs: >-
       {{ godfir_godaemonhunter_runs + [{
