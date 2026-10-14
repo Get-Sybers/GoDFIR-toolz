@@ -8,7 +8,8 @@ godfir_godaemonhunter_out_dir: ""    # <subtool>/<host>/<item>/<subtool>.jsonl +
 godfir_godaemonhunter_work_dir: ""   # disk-backed /work scratch per image (required when images given)
 
 # caller-discovered work items (evidence discovery lives in the consumer):
-# disk images to hunt ON, one host each: [{tree, rel, name}]
+# disk images — and UAC collections, the uac-<host>-<os>-<ts>.tar.gz|.tar|.zip
+# archives gomount reads as images — to hunt ON, one host each: [{tree, rel, name}]
 godfir_godaemonhunter_images: []
 # loose Linux hosts (a staged root tree or a pile of its logs): [{name, export}]
 #   name = the host name; export = the host's tree (read-only /input)

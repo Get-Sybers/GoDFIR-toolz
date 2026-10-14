@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **`godaemonhunter` hunts UAC collections.** The image moves to
+  godaemonhunter 0.3.0 and gomount 0.3.0 (`TOOL_VERSION`, `GOMOUNT_VERSION`):
+  gomount reads the archive the Unix-like Artifacts Collector writes
+  (`uac-<host>-<os>-<ts>.tar.gz`, `.tar` or `.zip`, the host's files under
+  `[root]/`) as an image whose root volume is that tree, and godaemonhunter
+  hunts it ON like a disk image — `GODAEMONHUNTER_IMAGE` may name one, and
+  without `IMAGE` every archive under `/input` that `gomount identify`
+  confirms as a collection is hunted beside the disk images, the records
+  under `<subtool>/<archive>/`, the summary listing them under `collections`.
+  The contract (`godaemonhunter/contract.yml`, mirrored into the lane role)
+  describes it under `GODAEMONHUNTER_INPUT_DIR`, `_IMAGE` and `_WORK_DIR`
+  (a gzip'd collection is spooled on `/work` while gomount reads it). The
+  `godfir_godaemonhunter` lane needs no change: a collection arrives in
+  `godfir_godaemonhunter_images` as another `{tree, rel, name}` item
+  (DX_DFIR's `dxdfir_evidence` discovers them under its new `UAC` lane). The
+  contract smoke's fixtures gain a collection and assert it is hunted as its
+  own host. Image 0.3.0, release v0.3.0 (digest recorded when the release
+  build pushes). Collections 0.2.6.
 - **`byakugan` advances to the car-relationships lookup index (engine #132).**
   The engine pin advances to the merge of Byakugan #132 (`da48ad6`): `load`
   now also populates a `car-relationships-<namespace>` LOOKUP index

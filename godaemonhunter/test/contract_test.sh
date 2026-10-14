@@ -61,6 +61,17 @@ ls "$out"/knowledge/*/gomacusers.jsonl >/dev/null 2>&1 || fail "gomacusers knowl
 grep -q '"PrettyName":"macOS 12.7.3 (21H1015)"' "$out"/knowledge/*/gomachost.jsonl || fail "gomachost os_release missing"
 grep -q '"Label":"org.keepassxc.KeePassXC"' "$out"/golaunchd/*/golaunchd.jsonl || fail "golaunchd job missing"
 grep -q '"Ident":"opendirectoryd"' "$out"/gosyslog/*/gosyslog.jsonl || fail "install.log not parsed"
+# the UAC collection beside the loose tree is hunted ON as its own host:
+# gomount reads the archive's [root]/ tree, the knowledge store and the
+# records land under the archive's name, the summary lists it
+coll="uac-web02-linux-20260101000000.tar.gz"
+python3 -c "
+import json; s=json.load(open('$work/stdout'))
+assert '$coll' in s.get('collections', []), s.get('collections')
+assert '$coll' in s.get('images', []), s.get('images')" || fail "the UAC collection is not among the hunted hosts"
+grep -q '"Hostname":"web02"' "$out/knowledge/$coll/"*/gohost.jsonl || fail "collection knowledge store missing (gohost web02)"
+grep -q '"UIDName":"bob"' "$out/gosyslog/$coll/"*/gosyslog.jsonl || fail "collection records not enriched by its own knowledge store"
+grep -q '"Image":"'"$coll"'"' "$out/gosyslog/$coll/"*/gosyslog.jsonl || fail "collection records lack the archive origin"
 
 code=0; run || code=$?
 [[ $code -eq 0 ]] || fail "rerun exit $code"
