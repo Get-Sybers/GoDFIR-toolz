@@ -10,7 +10,7 @@ ARG GOMOUNT_VERSION=0.3.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.1
+ARG GODFIR_RELEASE=v0.3.0
 
 # godaemonhunter is imported from its published module at build time
 # (github.com/Get-Sybers/godaemonhunter), which pulls the shared gopinfo module
