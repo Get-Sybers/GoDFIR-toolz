@@ -1,29 +1,20 @@
 ---
-# Idempotent, self-healing pull gate: read the local image facts, pull only the
-# required refs that are missing (or all, under force) at the image's release
-# tag, tag each pulled registry image to the local get-sybers/<tool>:latest name
-# the contracts use, then VERIFY the pulled content against the digest the
-# manifest records for it. The pull always resolves <registry>/<tool>:<release>
-# (or the godfir_images_tag override), so the local image keeps its readable
-# version tag; the recorded digest is a post-pull content check — the pulled
-# image's RepoDigests must carry <registry>/<tool>@<digest> — never the pull
-# ref. An image with no recorded digest is pulled by tag and not verified;
-# godfir_images_tag (a deliberate off-manifest wave) bypasses the check.
-- name: "godfir-images | read local facts for the required images"
-  community.docker.docker_image_info:
-    name: "{{ godfir_images_required }}"
-  register: godfir_images_present_info
-  when: godfir_images_required | length > 0
-
-- name: "godfir-images | resolve the images to pull"
-  ansible.builtin.set_fact:
-    godfir_images_to_pull: >-
-      {{ [] if godfir_images_required | length == 0
-         else (godfir_images_required if godfir_images_force | bool
-               else (godfir_images_required
-                     | difference(godfir_images_present_info.images | default([])
-                                  | map(attribute='RepoTags') | flatten
-                                  | select('string') | unique | list))) }}
+# Idempotent, self-healing pull gate: read the local image facts, pull the
+# required refs that are missing — OR present but digest-stale — (or all, under
+# force) at the image's release tag, tag each pulled registry image to the local
+# get-sybers/<tool>:latest name the contracts use, then VERIFY the pulled content
+# against the digest the manifest records for it. The pull always resolves
+# <registry>/<tool>:<release> (or the godfir_images_tag override), so the local
+# image keeps its readable version tag; the recorded digest is a post-pull
+# content check — the pulled image's RepoDigests must carry
+# <registry>/<tool>@<digest> — never the pull ref. A present image is held to the
+# same digest: when its RepoDigests does not carry the recorded digest it is
+# re-pulled by tag and re-verified, so a stale local :latest no longer slips the
+# gate (#120). An image with no recorded digest is pulled by tag and not
+# verified; godfir_images_tag (a deliberate off-manifest wave) bypasses the check.
+# the pull decision (missing + digest-stale), side-effect free — tasks/resolve.yml
+- name: "godfir-images | resolve the pull set"
+  ansible.builtin.include_tasks: resolve.yml
 
 - name: "godfir-images | every image to pull resolves a release, and a recorded digest is well-formed"
   vars:
@@ -44,7 +35,7 @@
   loop_control:
     label: "{{ item }}"
 
-- name: "godfir-images | pull each missing image from the registry by its release tag"
+- name: "godfir-images | pull each missing-or-stale image from the registry by its release tag"
   vars:
     _tool: >-
       {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
@@ -55,7 +46,8 @@
     _registry_ref: "{{ godfir_images_registry }}/{{ _tool }}:{{ _tag }}"
   community.docker.docker_image_pull:
     name: "{{ _registry_ref }}"
-    pull: "{{ 'always' if godfir_images_force | bool else 'not_present' }}"
+    # a digest-stale present image must fetch fresh bytes, not keep what is local
+    pull: "{{ 'always' if (godfir_images_force | bool or item in godfir_images_stale) else 'not_present' }}"
   loop: "{{ godfir_images_to_pull | default([]) }}"
   loop_control:
     label: "{{ item }} <- {{ _registry_ref }}"

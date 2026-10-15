@@ -40,12 +40,14 @@ argument_specs:
     description:
       - >-
         Reusable, idempotent gate (tasks/ensure_present.yml): read the local
-        image facts and pull any required ref that is not present — at its
-        release tag, then verify the pulled content against the digest the
-        manifest records (the exact bytes its release build pushed) — tagging
+        image facts and pull any required ref that is not present — or present
+        but whose RepoDigests do not carry the manifest digest (digest-stale) —
+        at its release tag, then verify the pulled content against the digest the
+        manifest records (the exact bytes its release build pushed), tagging
         each pulled registry image to its local get-sybers/<tool>:latest name;
-        a missing image self-heals in place, an already-present one is a no-op.
-        Presence only; the posture gate (verify) enforces the hardened contract.
+        a missing or digest-stale image self-heals in place, a present image that
+        already matches is a no-op. Presence only; the posture gate (verify)
+        enforces the hardened contract.
     options:
       godfir_images_required:
         type: list

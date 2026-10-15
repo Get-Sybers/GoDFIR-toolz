@@ -14,7 +14,9 @@ godfir_images_registry: ghcr.io/get-sybers/godfir-toolz
 # version tag; the manifest's `digest:` — the content digest the Build & Push
 # workflow pushed for that release — is then VERIFIED against the pulled image
 # (its RepoDigests must carry <registry>/<tool>@<digest>), never used as the
-# pull ref. An image with no recorded digest is pulled by tag and not verified.
+# pull ref. A present image is held to the same digest — re-pulled and re-verified
+# if its RepoDigests no longer carry it. An image with no recorded digest is
+# pulled by tag and not verified.
 # Setting godfir_images_tag non-empty overrides every image to that one tag
 # (fixtures, pinning a whole older wave) and bypasses the digest check; it is
 # never 'latest'.

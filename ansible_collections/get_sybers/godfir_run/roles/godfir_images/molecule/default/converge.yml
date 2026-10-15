@@ -6,6 +6,7 @@
   gather_facts: false
   vars:
     molecule_manifest: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/images.yml"
+    molecule_stale_manifest: "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/images-stale.yml"
   tasks:
     - name: "converge | verify accepts the hardened, known image"
       ansible.builtin.include_role:
@@ -30,16 +31,42 @@
         fail_msg: "a non-namespace ref leaked into the posture scope: {{ godfir_images_verify_scope }}"
         quiet: true
 
-    - name: "converge | ensure_present is a no-op when the image is present"
+    - name: "converge | ensure_present is a no-op when the image is present (no recorded digest)"
       ansible.builtin.include_role:
         name: godfir_images
         tasks_from: ensure_present
       vars:
+        godfir_images_manifest_path: "{{ molecule_manifest }}"
         godfir_images_required: [get-sybers/molecule-good:latest]
 
-    - name: "converge | nothing was pulled (already present)"
+    - name: "converge | nothing was pulled or flagged stale (present, no recorded digest)"
       ansible.builtin.assert:
         that:
           - godfir_images_to_pull | length == 0
-        fail_msg: "ensure_present would pull an already-present image: {{ godfir_images_to_pull }}"
+          - godfir_images_stale | length == 0
+        fail_msg: >-
+          ensure_present acted on an already-present image with no recorded digest:
+          to_pull={{ godfir_images_to_pull }}, stale={{ godfir_images_stale }}
+        quiet: true
+
+    # #120: a present image whose RepoDigests do not carry the recorded digest
+    # must not be trusted. resolve is the side-effect-free decision, so the
+    # scenario asserts the re-pull is scheduled WITHOUT attempting a pull (the
+    # pull/verify itself is exercised in integration, not offline molecule).
+    - name: "converge | a present image failing the recorded digest is scheduled for re-pull"
+      ansible.builtin.include_role:
+        name: godfir_images
+        tasks_from: resolve
+      vars:
+        godfir_images_manifest_path: "{{ molecule_stale_manifest }}"
+        godfir_images_required: [get-sybers/molecule-good:latest]
+
+    - name: "converge | the digest-stale present image was flagged and queued (no pull attempted)"
+      ansible.builtin.assert:
+        that:
+          - "'get-sybers/molecule-good:latest' in godfir_images_stale"
+          - "'get-sybers/molecule-good:latest' in godfir_images_to_pull"
+        fail_msg: >-
+          expected the digest-stale present image to be re-pulled, got
+          stale={{ godfir_images_stale }}, to_pull={{ godfir_images_to_pull }}
         quiet: true
