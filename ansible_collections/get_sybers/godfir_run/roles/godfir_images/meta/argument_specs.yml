@@ -60,6 +60,33 @@ argument_specs:
         required: false
         default: false
         description: "Re-pull even when the image is already present."
+  resolve:
+    short_description: "Resolve the pull set (missing + digest-stale), no side effects."
+    description:
+      - >-
+        The side-effect-free decision ensure_present runs first
+        (tasks/resolve.yml): read the local image facts and set
+        godfir_images_to_pull — the required refs that are not present, plus any
+        present ref whose RepoDigests do not carry the manifest digest
+        (godfir_images_stale) — pulling nothing, so the decision can be asserted
+        on its own (the offline Molecule scenario does). Under force every required
+        ref is to-pull; under godfir_images_tag the digest-stale check is bypassed.
+    options:
+      godfir_images_required:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: "Local image refs to resolve, e.g. get-sybers/gowindowlicker:latest."
+      godfir_images_force:
+        type: bool
+        required: false
+        default: false
+        description: "Resolve every required ref as to-pull, skipping the present/digest check."
+      godfir_images_manifest_path:
+        type: str
+        required: false
+        description: "The manifest (images.yml) whose per-image digest drives the digest-stale check (default: the copy shipped with the role)."
   verify:
     short_description: "The runtime supply-chain gate (membership + posture)."
     description:
