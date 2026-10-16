@@ -1,0 +1,58 @@
+---
+# The pull decision, side-effect free (offline): read the local image facts and
+# resolve which required refs must be pulled — the MISSING ones, plus any PRESENT
+# image whose RepoDigests do not carry the digest the manifest records for it
+# (digest-stale, #120). Under force every required ref is pulled; under the
+# godfir_images_tag override the digest check is bypassed (a deliberate
+# off-manifest wave). ensure_present runs this, then pulls/verifies
+# godfir_images_to_pull — so the decision can be asserted on its own, no registry.
+- name: "godfir-images | read local facts for the required images"
+  community.docker.docker_image_info:
+    name: "{{ godfir_images_required }}"
+  register: godfir_images_present_info
+  when: godfir_images_required | length > 0
+
+- name: "godfir-images | index present repo tags to their RepoDigests"
+  vars:
+    # subelements flattens each present image into (image, repo_tag) pairs so a
+    # required ref can be looked up to the exact bytes it resolves to on the host
+    _pairs: >-
+      {{ godfir_images_present_info.images | default([])
+         | subelements('RepoTags', skip_missing=true) }}
+  ansible.builtin.set_fact:
+    godfir_images_present_by_tag: >-
+      {{ dict(_pairs | map('last')
+              | zip(_pairs | map('first') | map(attribute='RepoDigests', default=[]))) }}
+    godfir_images_missing: "{{ godfir_images_required | difference(_pairs | map('last') | list) }}"
+    godfir_images_present_refs: "{{ godfir_images_required | intersect(_pairs | map('last') | list) }}"
+    # reset: resolve may be included more than once in a play (the lanes, the tests)
+    godfir_images_stale: []
+
+- name: "godfir-images | flag each present image whose content no longer matches the recorded digest"
+  vars:
+    _tool: >-
+      {{ item | regex_replace('^([^/]+/)?' ~ (godfir_images_namespace | regex_escape) ~ '/', '')
+              | regex_replace('[@:].*$', '') }}
+    _digest: "{{ godfir_images_digests[_tool] | default('') }}"
+    _expected: "{{ godfir_images_registry }}/{{ _tool }}@{{ _digest }}"
+    _current: "{{ godfir_images_present_by_tag[item] | default([], true) }}"
+  ansible.builtin.set_fact:
+    godfir_images_stale: "{{ godfir_images_stale + [item] }}"
+  # skipped under force (everything is re-pulled anyway) and the godfir_images_tag
+  # override (off-manifest wave — the digest check is bypassed there), mirroring
+  # the post-pull verify's own guards; an image with no recorded digest is never
+  # stale (pull-by-tag-unverified, as on first pull).
+  when:
+    - not (godfir_images_force | bool)
+    - godfir_images_tag | length == 0
+    - _digest | length > 0
+    - _expected not in _current
+  loop: "{{ godfir_images_present_refs }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: "godfir-images | resolve the images to pull (missing + digest-stale)"
+  ansible.builtin.set_fact:
+    godfir_images_to_pull: >-
+      {{ godfir_images_required if (godfir_images_force | bool)
+         else (godfir_images_missing | union(godfir_images_stale)) }}

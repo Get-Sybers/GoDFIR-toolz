@@ -1,0 +1,11 @@
+# molecule fixture manifest — records a release+digest for molecule-good so a
+# present local build (RepoDigests empty, never pushed) reads as digest-stale and
+# ensure_present schedules it for re-pull (#120). The digest is a well-formed
+# placeholder; the scenario stays offline and attempts no pull.
+namespace: get-sybers
+images:
+  - name: molecule-good
+    release: v9.9.9
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: molecule-bad
+non_tool_repos: []
