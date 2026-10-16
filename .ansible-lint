@@ -6,7 +6,6 @@ exclude_paths:
   - .git/
   - "*/contract.yml"
   - "*/test/"
-  - "*/materialise-sets.yml"
   - hardening/contract.schema.yml
 
 # house task-name prefix "<role>-<stage> | lowercase description"
