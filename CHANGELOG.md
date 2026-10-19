@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Evidence-asset identity across the parser images (`gomount v0.4.0`,
+  `godaemonhunter v0.4.0`, `gowindowlicker v0.3.0`; shared `gopinfo v0.3.0`).**
+  The engine release that stamps every JSONL record with its host id,
+  disk/device serial, volume GUID and image SHA-256 lands in the images. Each
+  Dockerfile moves to its released engine tag: `godaemonhunter/Dockerfile` →
+  `TOOL_VERSION=0.4.0`, `GOMOUNT_VERSION=0.4.0`, `GODFIR_RELEASE=v0.4.0`;
+  `gowindowlicker/Dockerfile` → `TOOL_VERSION=0.3.0`, `GOMOUNT_VERSION=0.4.0`,
+  `GODFIR_RELEASE=v0.3.0`; `gomount/Dockerfile` → `TOOL_VERSION=0.4.0`,
+  `GODFIR_RELEASE=v0.4.0`. gopinfo 0.3.0, the shared-core carrier, is baked in
+  transitively (no image of its own). gomount 0.4.0 surfaces the ids into its
+  `materialise.jsonl` manifest and `identify` output (`disk_serial`, `disk_id`,
+  `image_sha256`, `volume_guid`, `part_guid`, `part_offset`), resolves a UAC
+  collection as two volumes, and adds `--all`/`--hash`; godaemonhunter 0.4.0
+  adds the `gofsevents` macOS parser; gowindowlicker 0.3.0 adds
+  live-Windows-host collection (`GOWINDOWLICKER_LIVE`, the `live` sub-tool). The
+  vendored contracts are resynced from the released tags —
+  `godaemonhunter/contract.yml`, `gowindowlicker/contract.yml` and
+  `gomount/contract.yml`, the first two mirrored into their `godfir_run` lane
+  roles — and `gowindowlicker`'s README gains the `GOWINDOWLICKER_LIVE` row
+  (conform 06.5). `images.yml` (both copies) records `release:`
+  `v0.4.0`/`v0.3.0`/`v0.4.0` for the three and drops each stale `digest:`,
+  re-recorded once the Build & Push publishes the new tags. Collections 0.2.8.
 - **gomount `v0.3.1` image digest recorded.** The Build & Push of the
   gomount image (run 38630172013) published
   `ghcr.io/get-sybers/godfir-toolz/gomount:v0.3.1`; its image-index digest

@@ -7,12 +7,12 @@
 # (GOWINDOWLICKER_IMAGE) — no mount, no FUSE, no privilege.
 
 ARG GO_VERSION=1.27
-ARG TOOL_VERSION=0.2.1
-ARG GOMOUNT_VERSION=0.2.1
+ARG TOOL_VERSION=0.3.0
+ARG GOMOUNT_VERSION=0.4.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.1
+ARG GODFIR_RELEASE=v0.3.0
 
 # gowindowlicker is imported from its published module at build time
 # (github.com/Get-Sybers/gowindowlicker) — no Go source lives in this repo.
