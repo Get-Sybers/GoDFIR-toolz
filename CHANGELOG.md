@@ -24,6 +24,14 @@
   (conform 06.5). `images.yml` (both copies) records `release:`
   `v0.4.0`/`v0.3.0`/`v0.4.0` for the three and drops each stale `digest:`,
   re-recorded once the Build & Push publishes the new tags. Collections 0.2.8.
+- **`signatures` image raises its baked gomount to 0.4.0 (release `v0.2.2`).**
+  The detection lane bakes gomount for its `scan` sub-tool
+  (`gomount stream | goyara`); its pin had lagged at `GOMOUNT_VERSION=0.2.1`.
+  The image Dockerfile moves to `GOMOUNT_VERSION=0.4.0` and `GODFIR_RELEASE`
+  `v0.2.1 → v0.2.2` — a dependency-only raise (signatures-entry `TOOL_VERSION`
+  stays 0.3.0 and the contract is unchanged). `images.yml` (both copies) records
+  `release: v0.2.2` and drops the old `digest:`, re-recorded once the Build &
+  Push publishes the new tag.
 - **gomount `v0.3.1` image digest recorded.** The Build & Push of the
   gomount image (run 38630172013) published
   `ghcr.io/get-sybers/godfir-toolz/gomount:v0.3.1`; its image-index digest

@@ -5,8 +5,7 @@ namespace: get-sybers
 images:
   # ---- pipeline images (repo-root context)
   - name: signatures
-    release: v0.2.1
-    digest: sha256:af9b804b751d366c67baf33a0231d098908adb9a56ae3f1ac590334fdab66424
+    release: v0.2.2
     aliases: [yara, suricata, hayabusa]
   - name: byakugan
     release: v0.2.5
