@@ -6,6 +6,7 @@ images:
   # ---- pipeline images (repo-root context)
   - name: signatures
     release: v0.2.2
+    digest: sha256:04e7209204a0aa936425c24261fc841ba2b631bd66a7a8152abcfb71c5e2bdd0
     aliases: [yara, suricata, hayabusa]
   - name: byakugan
     release: v0.2.5
@@ -32,6 +33,7 @@ images:
   #      modules at build time), every parser a sub-tool
   - name: gowindowlicker
     release: v0.3.0
+    digest: sha256:9db30b29be20f77772310e2d6b143dc446e6873b9c49620fda27a07f282733eb
     aliases: [windowlicker, lick]
     subtool_aliases: [goprefetch, prefetch, pecmd,
                       goese, esedump, srum, srumecmd, sumecmd,
@@ -44,11 +46,13 @@ images:
   #      gopinfo module arrives transitively)
   - name: godaemonhunter
     release: v0.4.0
+    digest: sha256:07948b27fc4399360eb87590402ed39ba536797199c82f4de50d5f0eb647d891
     aliases: [daemonhunter, hunt]
     subtool_aliases: [gowtmp, gojournal, goauditd, gosyslog, goshell, gousers,
                       gocron, gounit, gotrash, gohost, gonetwork, goctl]
   - name: gomount
     release: v0.4.0
+    digest: sha256:0619ddef7ec63d558d249044d88fcf0c1699e2b3c3906490513082ff4d1b1871
     context: gomount
     dockerfile: Dockerfile
 

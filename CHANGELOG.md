@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Identity-release image digests recorded (`gomount v0.4.0`,
+  `godaemonhunter v0.4.0`, `gowindowlicker v0.3.0`, `signatures v0.2.2`).** The
+  four Build & Push runs published the images to
+  `ghcr.io/get-sybers/godfir-toolz/`; each image-index digest is now recorded in
+  both `images.yml` copies under its `release:`, so every image is again pulled
+  by tag and verified by digest:
+  - `gomount:v0.4.0` → `sha256:0619ddef7ec63d558d249044d88fcf0c1699e2b3c3906490513082ff4d1b1871`
+  - `godaemonhunter:v0.4.0` → `sha256:07948b27fc4399360eb87590402ed39ba536797199c82f4de50d5f0eb647d891`
+  - `gowindowlicker:v0.3.0` → `sha256:9db30b29be20f77772310e2d6b143dc446e6873b9c49620fda27a07f282733eb`
+  - `signatures:v0.2.2` → `sha256:04e7209204a0aa936425c24261fc841ba2b631bd66a7a8152abcfb71c5e2bdd0`
 - **Evidence-asset identity across the parser images (`gomount v0.4.0`,
   `godaemonhunter v0.4.0`, `gowindowlicker v0.3.0`; shared `gopinfo v0.3.0`).**
   The engine release that stamps every JSONL record with its host id,
