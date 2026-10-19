@@ -8,11 +8,11 @@ ARG BASE=debian:trixie-slim
 ARG HAYABUSA_VERSION=4.1.0
 ARG GO_IMAGE=golang:1.27-trixie
 ARG TOOL_VERSION=0.3.0
-ARG GOMOUNT_VERSION=0.2.1
+ARG GOMOUNT_VERSION=0.4.0
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.1
+ARG GODFIR_RELEASE=v0.2.2
 
 # gomount: imported from its published module at build time
 # (github.com/Get-Sybers/gomount); CGO-free (the stream verb links nothing;
