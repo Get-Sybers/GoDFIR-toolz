@@ -12,7 +12,7 @@ argument_specs:
       godfir_godaemonhunter_out_dir:
         type: str
         required: true
-        description: "Output root; the <subtool>/<host>/ tree and knowledge/<host>/ land here."
+        description: "Output root; Layer-2 <subtool>/<asset-id>.jsonl (loose host: <host>) and the per-item knowledge/<host>/ store land here."
       godfir_godaemonhunter_work_dir:
         type: str
         required: false

@@ -4,7 +4,7 @@
 godfir_gowindowlicker_contract: "{{ role_path }}/files/contract.yml"
 
 # REQUIRED output roots, passed by the caller:
-godfir_gowindowlicker_out_dir: ""    # processed/<subtool>/<host>/<item>/<subtool>.jsonl
+godfir_gowindowlicker_out_dir: ""    # processed/<subtool>/<asset-id>.jsonl
 godfir_gowindowlicker_work_dir: ""   # disk-backed /work scratch per image (required when images given)
 
 # caller-discovered work items (evidence discovery lives in the consumer, e.g.

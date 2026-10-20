@@ -4,7 +4,7 @@
 godfir_godaemonhunter_contract: "{{ role_path }}/files/contract.yml"
 
 # REQUIRED output roots, passed by the caller:
-godfir_godaemonhunter_out_dir: ""    # <subtool>/<host>/<item>/<subtool>.jsonl + knowledge/<host>/
+godfir_godaemonhunter_out_dir: ""    # <subtool>/<asset-id>.jsonl + knowledge/<host>/ (per-item)
 godfir_godaemonhunter_work_dir: ""   # disk-backed /work scratch per image (required when images given)
 
 # caller-discovered work items (evidence discovery lives in the consumer):

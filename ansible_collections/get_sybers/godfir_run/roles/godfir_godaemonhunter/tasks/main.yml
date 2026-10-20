@@ -70,7 +70,10 @@
     label: "{{ item.1 }}:{{ item.0.name }}"
   tags: [always]
 
-# then Layer 2, enriched by the host's store: <out_dir>/<subtool>/<host>/<item>/<subtool>.jsonl
+# then Layer 2, enriched by the host's store: <out_dir>/<subtool>/<host>.jsonl.
+# The host export is mounted at /input/<host> and <SUB>_INPUT_DIR points there,
+# so the flattened Layer-2 parser names its one file after the host; /output is
+# the <subtool> dir (the knowledge store stays mounted read-only at /knowledge).
 - name: "godfir-godaemonhunter | Layer 2 — the daemon parsers over each host"
   ansible.builtin.set_fact:
     godfir_godaemonhunter_runs: >-
@@ -79,10 +82,11 @@
            'contract': godfir_godaemonhunter_contract_resolved,
            'image': godfir_godaemonhunter_image,
            'subtool': item.1,
-           'env': {(item.1 | upper) ~ '_FORCE': godfir_godaemonhunter_force | bool | ternary('1', '0')},
-           'mounts': [{'host': item.0.export, 'path': '/input', 'mode': 'ro'},
+           'env': {(item.1 | upper) ~ '_FORCE': godfir_godaemonhunter_force | bool | ternary('1', '0'),
+                   (item.1 | upper) ~ '_INPUT_DIR': '/input/' ~ item.0.name},
+           'mounts': [{'host': item.0.export, 'path': '/input/' ~ item.0.name, 'mode': 'ro'},
                       {'host': godfir_godaemonhunter_out_dir ~ '/knowledge/' ~ item.0.name, 'path': '/knowledge', 'mode': 'ro'},
-                      {'host': godfir_godaemonhunter_out_dir ~ '/' ~ item.1 ~ '/' ~ item.0.name, 'path': '/output', 'mode': 'rw'}],
+                      {'host': godfir_godaemonhunter_out_dir ~ '/' ~ item.1, 'path': '/output', 'mode': 'rw'}],
          }] }}
   loop: "{{ godfir_godaemonhunter_hosts | product(godfir_godaemonhunter_layer2) | list }}"
   loop_control:
