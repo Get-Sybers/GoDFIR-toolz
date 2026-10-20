@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`byakugan v0.2.6` content digest recorded.** Build & Push published
+  `ghcr.io/get-sybers/godfir-toolz/byakugan:v0.2.6` from #130's Dockerfile; both
+  `images.yml` copies now record its index digest
+  (`sha256:870377124f9e995971a5924dcfaca638f9dd665e7f0955458618bb4edfabac03`), so
+  the image is pulled by tag and verified by digest.
 - **`byakugan` image bumped to the flat-layout CAR fix (`v0.2.5` → `v0.2.6`).**
   `byakugan/Dockerfile` pins `BYAKUGAN_REF` at the engine's #134 merge
   (`14a2812`), which teaches the CAR build to read the flat lane layout
