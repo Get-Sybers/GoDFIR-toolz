@@ -17,13 +17,14 @@ ARG BYAKUGAN_REPO=https://github.com/Get-Sybers/Byakugan
 # `load` populates (car-relationships-<namespace>) alongside the logs-car.rel-*
 # edge stream — on top of #131's elastic layout (the CAR->ECS contract under
 # model/projection/, the rendered elastic/ tree with the Byakugan Kibana space),
-# after the commit tagged v0.2.0 on the engine repo.
-ARG BYAKUGAN_REF=da48ad658c87ba8316a3121cc7330aaa3c4fbb22
+# after the commit tagged v0.2.0 on the engine repo; the pinned ref now includes
+# the flat lane-layout CAR source discovery (byakugan #134).
+ARG BYAKUGAN_REF=14a2812ed925a86199d24f890cd56e3cc6d2dea0
 ARG TOOL_VERSION=0.4.3
 ARG GODFIR_REVISION=unknown
 # the get-sybers image release this Dockerfile ships as: the ONE version the
 # workflow tags the pushed container with (synchronised across images, §31)
-ARG GODFIR_RELEASE=v0.2.5
+ARG GODFIR_RELEASE=v0.2.6
 
 # stdlib-only Go → static binary; GOTOOLCHAIN=local keeps the build offline.
 # The clone is RECURSIVE: the engine rebuilds its object model from the pinned
