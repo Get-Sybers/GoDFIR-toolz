@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`byakugan` image bumped to the flat-layout CAR fix (`v0.2.5` → `v0.2.6`).**
+  `byakugan/Dockerfile` pins `BYAKUGAN_REF` at the engine's #134 merge
+  (`14a2812`), which teaches the CAR build to read the flat lane layout
+  (`<subtool>/<asset-id>.jsonl`) the output flatten produces — without it
+  `byakugan build` discovers no sources and writes no `car_*.jsonl`
+  (`Get-Sybers/DX_DFIR#363` smoke failed at this step). `GODFIR_RELEASE` →
+  `v0.2.6`; the content digest lands in `images.yml` once Build & Push publishes
+  the image.
 - **`gowindowlicker` `input` mount re-vendored as optional.** The flattened
   loose event-log lane binds a host at `/input/<host>` (so its one flat file is
   named for the host), not `/input`, so `godfir_run`'s argv gate rejected the run
