@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`gowindowlicker` `input` mount re-vendored as optional.** The flattened
+  loose event-log lane binds a host at `/input/<host>` (so its one flat file is
+  named for the host), not `/input`, so `godfir_run`'s argv gate rejected the run
+  while the vendored contract still declared `input` `required: true`
+  (`unbound required mounts ['/input']`). Re-copied `gowindowlicker`'s contract
+  into both shipped copies (`gowindowlicker/contract.yml` and the
+  `godfir_gowindowlicker` role's `files/`) with `input` now `required: false`,
+  matching `godaemonhunter` and the tool's own fix
+  (`Get-Sybers/gowindowlicker#13`). Fixes the DX_DFIR smoke failure
+  (`Get-Sybers/DX_DFIR#363`). No image rebuild — the flag is metadata the argv
+  gate reads, never baked behaviour, and the tool does not self-enforce it.
 - **Flat-output image digests recorded (`gowindowlicker v0.3.1`,
   `godaemonhunter v0.4.1`).** The two Build & Push runs published the flattened
   parser images to `ghcr.io/get-sybers/godfir-toolz/`; each image-index digest is
