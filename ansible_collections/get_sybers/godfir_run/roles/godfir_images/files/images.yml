@@ -32,8 +32,8 @@ images:
   #      the gomount disk-image reader are go-installed from their published
   #      modules at build time), every parser a sub-tool
   - name: gowindowlicker
-    release: v0.3.0
-    digest: sha256:9db30b29be20f77772310e2d6b143dc446e6873b9c49620fda27a07f282733eb
+    release: v0.3.1
+    digest: sha256:c128a94401c43a86e00e311a8f32f9b9fe992913035398d0633e51e262776768
     aliases: [windowlicker, lick]
     subtool_aliases: [goprefetch, prefetch, pecmd,
                       goese, esedump, srum, srumecmd, sumecmd,
@@ -45,8 +45,8 @@ images:
   # ---- the Linux matrix (go-installed from its published module; the shared
   #      gopinfo module arrives transitively)
   - name: godaemonhunter
-    release: v0.4.0
-    digest: sha256:07948b27fc4399360eb87590402ed39ba536797199c82f4de50d5f0eb647d891
+    release: v0.4.1
+    digest: sha256:7a1afdd751050ad105223db557fd49fe03dd912005801c62c8187da0e51f788f
     aliases: [daemonhunter, hunt]
     subtool_aliases: [gowtmp, gojournal, goauditd, gosyslog, goshell, gousers,
                       gocron, gounit, gotrash, gohost, gonetwork, goctl]

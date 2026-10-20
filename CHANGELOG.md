@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Flat-output image digests recorded (`gowindowlicker v0.3.1`,
+  `godaemonhunter v0.4.1`).** The two Build & Push runs published the flattened
+  parser images to `ghcr.io/get-sybers/godfir-toolz/`; each image-index digest is
+  recorded in both `images.yml` copies under its `release:`, so the image is
+  pulled by tag and verified by digest:
+  - `gowindowlicker:v0.3.1` → `sha256:c128a94401c43a86e00e311a8f32f9b9fe992913035398d0633e51e262776768`
+  - `godaemonhunter:v0.4.1` → `sha256:7a1afdd751050ad105223db557fd49fe03dd912005801c62c8187da0e51f788f`
 - **Flat lane output wired into the two parser images + loose-host lanes.**
   Bumped the images to the flattened tools (`gowindowlicker` `TOOL_VERSION`/`GODFIR_RELEASE`
   `0.3.0`→`0.3.1`; `godaemonhunter` `0.4.0`→`0.4.1`; `gomount` and all other
