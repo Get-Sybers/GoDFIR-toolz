@@ -12,7 +12,7 @@ argument_specs:
       godfir_gowindowlicker_out_dir:
         type: str
         required: true
-        description: "Output root; the host-centric <subtool>/<host>/<item>/ tree lands here."
+        description: "Output root; each parser writes <subtool>/<asset-id>.jsonl here (disk image: the manifest asset id; loose event-log host: <host>)."
       godfir_gowindowlicker_work_dir:
         type: str
         required: false

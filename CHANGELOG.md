@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Flat lane output wired into the two parser images + loose-host lanes.**
+  Bumped the images to the flattened tools (`gowindowlicker` `TOOL_VERSION`/`GODFIR_RELEASE`
+  `0.3.0`→`0.3.1`; `godaemonhunter` `0.4.0`→`0.4.1`; `gomount` and all other
+  images untouched) and re-synced the vendored `contract.yml` copies. Realigned
+  the loose-host `/output` mounts in `godfir_gowindowlicker` (goevtx) and
+  `godfir_godaemonhunter` (Layer 2): the host dir mounts at `/input/<host>` with
+  `<SUB>_INPUT_DIR` pointing there and `/output` at the `<subtool>` dir, so the
+  flattened tool writes `<subtool>/<host>.jsonl` (one file per host, no collision).
+  Disk-image sweeps (`/output = <out_dir>`) and the Layer-1 `knowledge/<host>/`
+  store are unchanged. Needs the `gowindowlicker v0.3.1` / `godaemonhunter v0.4.1`
+  tags published before the images build.
 - **Identity-release image digests recorded (`gomount v0.4.0`,
   `godaemonhunter v0.4.0`, `gowindowlicker v0.3.0`, `signatures v0.2.2`).** The
   four Build & Push runs published the images to

@@ -40,7 +40,9 @@
     godfir_gowindowlicker_runs: []
   tags: [always]
 
-# one goevtx run per loose host: <out_dir>/goevtx/<host>/<log>/goevtx.jsonl
+# one goevtx run per loose host: <out_dir>/goevtx/<host>.jsonl. The host dir is
+# mounted at /input/<host> and GOEVTX_INPUT_DIR points there, so the flattened
+# tool names its one file after the host; /output is the <subtool> dir.
 - name: "godfir-gowindowlicker | goevtx over each loose event-log host"
   ansible.builtin.set_fact:
     godfir_gowindowlicker_runs: >-
@@ -49,9 +51,10 @@
            'contract': godfir_gowindowlicker_contract_resolved,
            'image': godfir_gowindowlicker_image,
            'subtool': 'goevtx',
-           'env': {'GOEVTX_FORCE': godfir_gowindowlicker_force | bool | ternary('1', '0')},
-           'mounts': [{'host': item, 'path': '/input', 'mode': 'ro'},
-                      {'host': godfir_gowindowlicker_out_dir ~ '/goevtx/' ~ (item | basename), 'path': '/output', 'mode': 'rw'}],
+           'env': {'GOEVTX_FORCE': godfir_gowindowlicker_force | bool | ternary('1', '0'),
+                   'GOEVTX_INPUT_DIR': '/input/' ~ (item | basename)},
+           'mounts': [{'host': item, 'path': '/input/' ~ (item | basename), 'mode': 'ro'},
+                      {'host': godfir_gowindowlicker_out_dir ~ '/goevtx', 'path': '/output', 'mode': 'rw'}],
          }] }}
   loop: "{{ godfir_gowindowlicker_winevt_hosts | sort }}"
   loop_control:
@@ -59,8 +62,9 @@
   tags: [always]
 
 # one sweep run per disk image, ON the image: the tree read-only at /input, the
-# lane's output root at /output (the sweep writes the host-centric tree itself),
-# and a disk-backed scratch at /work for the artefact sets it pulls
+# lane's output root at /output (the sweep writes the <subtool>/<asset-id>.jsonl
+# tree itself, keyed by the manifest asset id), and a disk-backed scratch at
+# /work for the artefact sets it pulls
 - name: "godfir-gowindowlicker | every parser ON each disk image"
   ansible.builtin.set_fact:
     godfir_gowindowlicker_runs: >-
